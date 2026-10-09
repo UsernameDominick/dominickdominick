@@ -1,12 +1,7 @@
-import { HIDDEN_NOTE_PREFIX, HIDDEN_META_KEY, isHiddenNotesKey } from "./hidden-notes.js";
+import { isHiddenNotesKey } from "./hidden-notes.js";
 import { toHex } from "./auth.js";
 import { visibleText, nowIso, pageCssKey } from "./text.js";
-import { suggestNearest } from "./notfound.js";
-import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
-import { bodyEmbeds } from "./embeds.js";
-import { builtinHidden, cleanBrand, parseNavBuiltin, builtinNavItems } from "./nav-settings.js";
-import { parseSearchTerms, searchSql, likePattern } from "./searchterms.js";
-import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
+import { bodyPictures, pictureUrl } from "./pictures.js";
 
 export const RESERVED_SLUGS = new Set([
   "admin",
@@ -33,13 +28,6 @@ export const RESERVED_SLUGS = new Set([
   "favicon.ico",
 ]);
 
-// SQLite's LIKE treats % and _ as wildcards with no default escape, so a
-// search for a literal "%" or "_" (e.g. "50% off", "file_name") would
-// otherwise match everything/anything instead of that literal substring.
-// Callers pair this with "LIKE ? ESCAPE '\'".
-function escapeLike(s) {
-  return String(s ?? "").replace(/[\\%_]/g, "\\$&");
-}
 
 export async function getPageBySlug(env, slug) {
   return env.DB.prepare("SELECT * FROM pages WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
@@ -101,7 +89,6 @@ export function parseNoindexItems(raw) {
   }
   return out;
 }
-export const isNoindexed = (items, type, id) => !!(items && Array.isArray(items[type]) && items[type].includes(Number(id)));
 export async function getNoindexItems(env) {
   return parseNoindexItems(await getSetting(env, NOINDEX_KEY));
 }
@@ -115,50 +102,6 @@ export async function setNoindexItem(env, type, id, on) {
   await setSetting(env, NOINDEX_KEY, empty ? "" : JSON.stringify(items));
 }
 
-// `env.__isAdmin` is set per request by the worker; an admin-only link is left out for everyone else, along with anything nested
-// under it (a child must not pop up at the top level just because its parent is hidden). The site name and the overrides for the
-// built-in links ride in the same query (one row always comes back, so they are read even when no page has a nav label) and the
-// returned list carries the site name as `.brand` for the page shell.
-export async function listNavPages(env) {
-  const { results: navRows } = await env.DB
-    .prepare(
-      `SELECT p.id, p.slug, p.nav_label, p.nav_parent_id, s.admin_only_ids, s.brand, s.builtin
-       FROM (SELECT (SELECT value FROM settings WHERE key = '${NAV_ADMIN_ONLY_KEY}') AS admin_only_ids,
-                    (SELECT value FROM settings WHERE key = 'site_brand') AS brand,
-                    (SELECT value FROM settings WHERE key = 'nav_builtin') AS builtin) s
-       LEFT JOIN pages p ON p.nav_label IS NOT NULL AND p.deleted_at IS NULL
-         AND NOT EXISTS (SELECT 1 FROM blocks b LEFT JOIN shared_blocks sb ON sb.id = b.shared_block_id
-                         WHERE b.page_id = p.id AND COALESCE(sb.type, b.type) = 'study')
-       ORDER BY p.nav_order ASC, p.id ASC`
-    )
-    .all();
-  const first = navRows[0] || {};
-  const adminOnly = new Set(parseNavAdminOnly(first.admin_only_ids));
-  // A label of only spaces or invisible characters is an unnamed link: treated as no label.
-  const labelled = navRows
-    .filter((p) => p.id != null && visibleText(p.nav_label))
-    .map(({ id, slug, nav_label, nav_parent_id }) => ({ id, slug, nav_label, nav_parent_id, ...(adminOnly.has(id) ? { admin_only: true } : {}) }));
-  const results = env.__isAdmin ? labelled : labelled.filter((p) => !adminOnly.has(p.id) && !adminOnly.has(p.nav_parent_id));
-  // A child whose parent was dropped above (blank label) is shown at top level rather than lost.
-  const shownIds = new Set(results.map((p) => p.id));
-  const topLevel = results.filter((p) => !p.nav_parent_id || !shownIds.has(p.nav_parent_id));
-  for (const p of topLevel) {
-    p.children = results.filter((c) => c.nav_parent_id === p.id);
-  }
-  // The built-in links (Articles, Projects, Topics) follow the owner's own nav pages, and one is left out when a nav page already
-  // links to the same place (the admin's label wins, and a hidden page does not bring it back). They can be renamed or hidden
-  // under Site settings > Header & footer.
-  const taken = new Set(labelled.map((p) => p.slug));
-  const overrides = parseNavBuiltin(first.builtin);
-  // A page of the owner's own on a built-in link's address (/random, /projects, /topics) stands in for that link, so it follows the
-  // link's switch (Articles, Projects and Topics are off by default).
-  const own = topLevel.filter((p) => !builtinHidden(overrides, p.slug));
-  const nav = [...own, ...builtinNavItems(overrides, taken)];
-  // Hidden Notes is not a tab: the signed-in owner reaches it from the finder (`owner` tells the page shell to offer it there).
-  nav.owner = Boolean(env.__isAdmin);
-  nav.brand = cleanBrand(first.brand);
-  return nav;
-}
 
 // The pages that hold a Study block. They are kept out of the nav, the sitemap and search engines (Study is reached through the
 // site's own search and then its password).
@@ -217,14 +160,6 @@ export async function updatePage(env, id, fields) {
   }
 }
 
-// Kept separate from updatePage()'s generic field list on purpose: unlike
-// every other field there, the client never gets the current value back
-// (there's nothing to send — only the hash is stored), so "set" and
-// "remove" have to be distinct actions rather than one field where blank
-// would be ambiguous between "no change" and "remove protection".
-export async function setPagePassword(env, id, passwordHash) {
-  await env.DB.prepare("UPDATE pages SET password_hash = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?").bind(passwordHash, id).run();
-}
 
 // "Delete" moves a page to the trash rather than actually removing it —
 // recoverable by default. hardDeletePage is the real, permanent removal,
@@ -257,151 +192,10 @@ export async function hardDeletePage(env, id) {
   ]);
 }
 
-// History rows that belong to a page, article, project or media file that no longer exists (left behind by
-// permanent deletes made before history was purged with them, or by a backup restore). Ids and media keys are
-// never reused, so a row whose owner is gone can never be reached again.
-const ORPHAN_REVISIONS_WHERE =
-  "(kind = 'page' AND entity_id NOT IN (SELECT id FROM pages)) OR (kind = 'article' AND entity_id NOT IN (SELECT id FROM articles)) OR (kind = 'project' AND entity_id NOT IN (SELECT id FROM projects))";
-const ORPHAN_MEDIA_REVISIONS_WHERE = "NOT EXISTS (SELECT 1 FROM media m WHERE m.key = media_revisions.media_key)";
-export async function countOrphanedHistory(env) {
-  const [revisions, mediaRevisions] = await Promise.all([
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM revisions WHERE ${ORPHAN_REVISIONS_WHERE}`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM media_revisions WHERE ${ORPHAN_MEDIA_REVISIONS_WHERE}`).first(),
-  ]);
-  return { revisions: revisions.n, mediaRevisions: mediaRevisions.n };
-}
-export async function purgeOrphanedHistory(env) {
-  const before = await countOrphanedHistory(env);
-  await env.DB.batch([
-    env.DB.prepare(`DELETE FROM revisions WHERE ${ORPHAN_REVISIONS_WHERE}`),
-    env.DB.prepare(`DELETE FROM media_revisions WHERE ${ORPHAN_MEDIA_REVISIONS_WHERE}`),
-  ]);
-  return before;
-}
 
-// Copies a page's settings and every block onto a fresh page with a
-// "-copy" (or "-copy-2", etc.) slug — a starting point to branch from
-// without touching the original. Nav label is deliberately dropped so
-// the copy doesn't silently double up an entry in the site nav.
-export async function duplicatePage(env, id) {
-  const source = await env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(id).first();
-  if (!source) return null;
-  let slug = `${source.slug}-copy`;
-  let n = 2;
-  while (await slugExists(env, "pages", slug)) {
-    slug = `${source.slug}-copy-${n}`;
-    n++;
-  }
-  const newId = await createPage(env, {
-    slug,
-    title: `${source.title} (copy)`,
-    meta_description: source.meta_description,
-    nav_label: null,
-    nav_order: null,
-    og_image: source.og_image,
-  });
-  const sourceCss = await getSetting(env, pageCssKey(id));
-  if (sourceCss) await setSetting(env, pageCssKey(newId), sourceCss);
-  // A password-protected or sitemap-excluded source must not silently
-  // become public through its copy — carry both over explicitly, since
-  // createPage's field list doesn't accept them at insert time.
-  if (source.password_hash || source.sitemap_exclude) {
-    await env.DB
-      .prepare("UPDATE pages SET password_hash = ?, sitemap_exclude = ? WHERE id = ?")
-      .bind(source.password_hash || null, source.sitemap_exclude ? 1 : 0, newId)
-      .run();
-  }
-  const blocks = await listBlocks(env, id);
-  for (const b of blocks) {
-    await createBlock(env, newId, b);
-  }
-  return newId;
-}
 
-// Mirrors duplicatePage — always lands as an unpublished draft, whatever
-// the source's own publish state was, since a copy is something to edit
-// before it's ready, not to immediately have live twice over.
-export async function duplicateArticle(env, id) {
-  const source = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(id).first();
-  if (!source) return null;
-  let slug = `${source.slug}-copy`;
-  let n = 2;
-  while (await slugExists(env, "articles", slug)) {
-    slug = `${source.slug}-copy-${n}`;
-    n++;
-  }
-  return createArticle(env, {
-    slug,
-    title: `${source.title} (copy)`,
-    body: source.body,
-    published: false,
-    tags: JSON.parse(source.tags || "[]"),
-    og_image: source.og_image,
-    canonical_url: null,
-    co_authors: JSON.parse(source.co_authors || "[]"),
-    featured: false,
-    pinned: false,
-    expires_at: null,
-  });
-}
 
-// Creates a project draft from an article's content — the article itself
-// is left untouched (same "never delete the source" philosophy as
-// duplicateArticle/duplicateProject below), so this is a one-way copy an
-// admin can follow up on manually (e.g. trashing the original article)
-// rather than an automatic move. Journal/BOM/relationships aren't carried
-// over, matching how duplication already works for both types.
-export async function convertArticleToProject(env, id) {
-  const source = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(id).first();
-  if (!source) return null;
-  // Reusing the article's own slug is safe and reads naturally — pages,
-  // articles, and projects each enforce slug uniqueness within their own
-  // table only, not across types.
-  let slug = source.slug;
-  let n = 2;
-  while (await slugExists(env, "projects", slug)) {
-    slug = `${source.slug}-${n}`;
-    n++;
-  }
-  return createProject(env, {
-    slug,
-    title: source.title,
-    body: source.body,
-    published: false,
-    tags: JSON.parse(source.tags || "[]"),
-    og_image: source.og_image,
-  });
-}
 
-export async function duplicateProject(env, id) {
-  const source = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(id).first();
-  if (!source) return null;
-  let slug = `${source.slug}-copy`;
-  let n = 2;
-  while (await slugExists(env, "projects", slug)) {
-    slug = `${source.slug}-copy-${n}`;
-    n++;
-  }
-  return createProject(env, {
-    slug,
-    title: `${source.title} (copy)`,
-    summary: source.summary,
-    body: source.body,
-    published: false,
-    tags: JSON.parse(source.tags || "[]"),
-    tech_stack: JSON.parse(source.tech_stack || "[]"),
-    status: source.status,
-    links: JSON.parse(source.links || "{}"),
-    og_image: source.og_image,
-    canonical_url: null,
-    featured: false,
-    related_articles: [],
-    related_simulations: [],
-    related_scans: [],
-    related_songs: [],
-    expires_at: null,
-  });
-}
 
 // A block whose shared_block_id is set defers its type/content/style to
 // that shared_blocks row — this is resolved right here so every caller
@@ -508,28 +302,8 @@ export async function getBlockSharedId(env, id) {
   return row ? row.shared_block_id : null;
 }
 
-// ---------- Reusable (shared) blocks ----------
-// A named block "definition" a page block can point at instead of holding
-// its own content — see the schema comment on shared_blocks and
-// listBlocks() above for how the reference is resolved at read time.
-export async function listSharedBlocks(env) {
-  const { results } = await env.DB.prepare("SELECT * FROM shared_blocks ORDER BY name").all();
-  return results.map((s) => ({ ...s, content: JSON.parse(s.content || "{}"), style: JSON.parse(s.style || "{}") }));
-}
 
-export async function getSharedBlock(env, id) {
-  const row = await env.DB.prepare("SELECT * FROM shared_blocks WHERE id = ?").bind(id).first();
-  if (!row) return null;
-  return { ...row, content: JSON.parse(row.content || "{}"), style: JSON.parse(row.style || "{}") };
-}
 
-export async function createSharedBlock(env, { name, type, content, style }) {
-  const res = await env.DB
-    .prepare("INSERT INTO shared_blocks (name, type, content, style) VALUES (?, ?, ?, ?)")
-    .bind(name, type, JSON.stringify(content || {}), JSON.stringify(style || {}))
-    .run();
-  return res.meta.last_row_id;
-}
 
 export async function updateSharedBlock(env, id, fields) {
   const cols = [];
@@ -552,38 +326,8 @@ export async function updateSharedBlock(env, id, fields) {
   await env.DB.prepare(`UPDATE shared_blocks SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
 
-// blocks.shared_block_id is ON DELETE SET NULL, so every placement simply
-// falls back to being an ordinary (empty) block rather than erroring —
-// findSharedBlockUsage() is how the admin finds out before that happens.
-export async function deleteSharedBlock(env, id) {
-  await env.DB.prepare("DELETE FROM shared_blocks WHERE id = ?").bind(id).run();
-}
 
-export async function findSharedBlockUsage(env, sharedBlockId) {
-  const { results } = await env.DB
-    .prepare(
-      `SELECT b.id as block_id, p.title as page_title FROM blocks b
-       JOIN pages p ON p.id = b.page_id
-       WHERE b.shared_block_id = ?`
-    )
-    .bind(sharedBlockId)
-    .all();
-  return results.map((r) => ({ type: "Reusable block", title: r.page_title }));
-}
 
-// Copies the shared definition's current content/style into this one
-// placement's own row and clears the reference — it becomes an ordinary,
-// independent block that no longer updates when the shared block changes.
-export async function detachSharedBlock(env, blockId) {
-  const sharedId = await getBlockSharedId(env, blockId);
-  if (!sharedId) throw new Error("This block isn't a reusable block");
-  const shared = await getSharedBlock(env, sharedId);
-  if (!shared) throw new Error("Shared block not found");
-  await env.DB
-    .prepare("UPDATE blocks SET type = ?, content = ?, style = ?, shared_block_id = NULL, updated_at = datetime('now') WHERE id = ?")
-    .bind(shared.type, JSON.stringify(shared.content), JSON.stringify(shared.style), blockId)
-    .run();
-}
 
 function parseArticleRow(row) {
   if (!row) return row;
@@ -608,41 +352,7 @@ function parseArticleRow(row) {
   return { ...row, tags, co_authors, related_override };
 }
 
-// Other published entries in the same series, in series_order (falling back
-// to publish date for entries that don't have one set) — used for the
-// "Part N of M" nav on an article page.
-export async function getSeriesArticles(env, series) {
-  if (!series) return [];
-  const { results } = await env.DB
-    .prepare(
-      `SELECT * FROM articles WHERE deleted_at IS NULL AND series = ?
-       AND published_at IS NOT NULL AND published_at <= ?
-       ORDER BY series_order IS NULL, series_order ASC, published_at ASC`
-    )
-    .bind(series, nowIso(env))
-    .all();
-  return results.map(parseArticleRow);
-}
 
-// The published item just before and just after this one in publication order, for "Older / Newer" links. Only items a
-// visitor can see count (published, not scheduled, expired, archived or deleted), judged at the site's current time (a
-// date preview moves it). A draft or scheduled item being previewed has no neighbours.
-export async function getAdjacentPublished(env, table, item) {
-  if (!["articles", "projects"].includes(table) || !item || !item.published_at) return { older: null, newer: null };
-  const now = nowIso(env);
-  if (item.published_at > now) return { older: null, newer: null };
-  const visible = "deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0";
-  const pick = async (cmp, order) =>
-    env.DB
-      .prepare(
-        `SELECT title, slug FROM ${table} WHERE ${visible} AND id != ? AND (published_at ${cmp} ? OR (published_at = ? AND id ${cmp} ?))
-         ORDER BY published_at ${order}, id ${order} LIMIT 1`
-      )
-      .bind(now, now, item.id, item.published_at, item.published_at, item.id)
-      .first();
-  const [older, newer] = await Promise.all([pick("<", "DESC"), pick(">", "ASC")]);
-  return { older: older || null, newer: newer || null };
-}
 
 export async function listArticles(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
   let sql = "SELECT * FROM articles WHERE deleted_at IS NULL";
@@ -675,65 +385,10 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   return articles;
 }
 
-export const INDEX_PAGE_SIZE = 20;
 
-// Paginated published-articles listing, backing the /random index page —
-// listArticles() above only supports a flat LIMIT with no offset/total
-// count, which a real "page 2 of N" listing needs.
-export async function listArticlesPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
-  const now = nowIso(env);
-  const offset = (Math.max(1, page) - 1) * perPage;
-  const [{ results }, countRow] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT * FROM articles WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-         ORDER BY pinned DESC, COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?`
-      )
-      .bind(now, now, perPage, offset)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COUNT(*) AS n FROM articles WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`
-      )
-      .bind(now, now)
-      .first(),
-  ]);
-  return { articles: results.map(parseArticleRow), totalCount: countRow?.n ?? 0 };
-}
 
-// Same as listArticlesPaged, for the /projects index page.
-export async function listProjectsPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
-  const now = nowIso(env);
-  const offset = (Math.max(1, page) - 1) * perPage;
-  const [{ results }, countRow] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT * FROM projects WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-         ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?`
-      )
-      .bind(now, now, perPage, offset)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COUNT(*) AS n FROM projects WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`
-      )
-      .bind(now, now)
-      .first(),
-  ]);
-  return { projects: results.map(parseProjectRow), totalCount: countRow?.n ?? 0 };
-}
 
-export async function listTrashedArticles(env) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM articles WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
-    .all();
-  return results.map(parseArticleRow);
-}
 
-export async function getArticleBySlug(env, slug) {
-  const row = await env.DB.prepare("SELECT * FROM articles WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
-  return parseArticleRow(row);
-}
 
 export async function slugExists(env, table, slug, excludeId = null) {
   const sql = excludeId
@@ -743,156 +398,10 @@ export async function slugExists(env, table, slug, excludeId = null) {
   return Boolean(await stmt.first());
 }
 
-// published_at, when given explicitly, lets an article be scheduled for a
-// future time; otherwise it falls back to the old on/off "published" flag.
-function resolvePublishedAt({ published, published_at }) {
-  if (published_at !== undefined) return published_at;
-  return published ? new Date().toISOString() : null;
-}
 
-export async function createArticle(
-  env,
-  {
-    slug,
-    title,
-    body,
-    published,
-    published_at,
-    tags,
-    og_image,
-    canonical_url,
-    series,
-    series_order,
-    co_authors,
-    featured,
-    pinned,
-    expires_at,
-    sitemap_exclude,
-    archived,
-    related_override,
-    private_notes,
-    custom_json_ld,
-  }
-) {
-  const res = await env.DB
-    .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at, sitemap_exclude, archived, related_override, private_notes, custom_json_ld) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-    .bind(
-      slug,
-      title,
-      body || "",
-      resolvePublishedAt({ published, published_at }),
-      JSON.stringify(Array.isArray(tags) ? tags : []),
-      og_image || null,
-      canonical_url || null,
-      series || null,
-      Number.isFinite(Number(series_order)) ? Number(series_order) : null,
-      JSON.stringify(Array.isArray(co_authors) ? co_authors : []),
-      featured ? 1 : 0,
-      pinned ? 1 : 0,
-      expires_at || null,
-      sitemap_exclude ? 1 : 0,
-      archived ? 1 : 0,
-      JSON.stringify(Array.isArray(related_override) ? related_override : []),
-      private_notes || null,
-      custom_json_ld || null
-    )
-    .run();
-  return res.meta.last_row_id;
-}
 
-// tts_audio_key/hero_video store a "/media/..." URL (not a Media Library
-// entry — a one-off upload the admin UI treats as a plain field, not
-// something to keep around after it's replaced or removed), so deleting
-// the old file on change needs the URL's own R2 key extracted back out.
-async function deleteOldMediaUrl(env, url) {
-  if (!url || !url.startsWith("/media/")) return;
-  await env.MEDIA.delete(url.slice("/media/".length)).catch(() => {});
-}
 
-export async function updateArticle(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series", "correction_note", "tts_audio_key", "private_notes", "custom_json_ld"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  let oldTtsAudioKey;
-  if ("tts_audio_key" in fields) {
-    oldTtsAudioKey = (await env.DB.prepare("SELECT tts_audio_key FROM articles WHERE id = ?").bind(id).first())?.tts_audio_key;
-  }
-  if ("expires_at" in fields) {
-    cols.push("expires_at = ?");
-    vals.push(fields.expires_at || null);
-  }
-  if ("series_order" in fields) {
-    cols.push("series_order = ?");
-    vals.push(Number.isFinite(Number(fields.series_order)) ? Number(fields.series_order) : null);
-  }
-  if ("tags" in fields) {
-    cols.push("tags = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
-  }
-  if ("co_authors" in fields) {
-    cols.push("co_authors = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.co_authors) ? fields.co_authors : []));
-  }
-  if ("published_at" in fields || "published" in fields) {
-    cols.push("published_at = ?");
-    vals.push(resolvePublishedAt(fields));
-  }
-  if ("locked" in fields) {
-    cols.push("locked = ?");
-    vals.push(fields.locked ? 1 : 0);
-  }
-  if ("featured" in fields) {
-    cols.push("featured = ?");
-    vals.push(fields.featured ? 1 : 0);
-  }
-  if ("pinned" in fields) {
-    cols.push("pinned = ?");
-    vals.push(fields.pinned ? 1 : 0);
-  }
-  if ("sitemap_exclude" in fields) {
-    cols.push("sitemap_exclude = ?");
-    vals.push(fields.sitemap_exclude ? 1 : 0);
-  }
-  if ("archived" in fields) {
-    cols.push("archived = ?");
-    vals.push(fields.archived ? 1 : 0);
-  }
-  if ("related_override" in fields) {
-    cols.push("related_override = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.related_override) ? fields.related_override : []));
-  }
-  if (!cols.length) return;
-  cols.push("updated_at = datetime('now')", "version = version + 1");
-  vals.push(id);
-  await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-  if (oldTtsAudioKey && oldTtsAudioKey !== fields.tts_audio_key) {
-    await deleteOldMediaUrl(env, oldTtsAudioKey);
-  }
-}
 
-// Locked articles are deliberately excluded from every bulk action — the
-// whole point of locking a "finished" piece is protection against exactly
-// this kind of sweep (select-all, one click) rather than a single
-// deliberate edit, which still goes through updateArticle() normally.
-// Returns how many were actually affected vs skipped for being locked, so
-// the admin isn't left wondering why a locked item didn't move.
-// Shared by bulkArticleAction/bulkProjectAction — adding a tag reads each
-// affected row's own tags array (can't do a set-union in raw SQL against a
-// JSON text column) and writes back only the ones that didn't already have it.
-// A near-empty body shouldn't be publishable through any path — single-item
-// create/update in admin-api.js and the bulk "Publish" action below both
-// enforce this same floor.
-export const MIN_PUBLISH_BODY_LENGTH = 50;
-export function publishBodyTooShort(effectiveBody) {
-  return !effectiveBody || effectiveBody.trim().length <= MIN_PUBLISH_BODY_LENGTH;
-}
 
 // D1 allows 100 bound values in one statement, so a long list of ids goes in chunks (90 leaves room for a value or two beside
 // the list). Reads gather the rows from every chunk; writes go in one db.batch, which is a single transaction.
@@ -910,87 +419,13 @@ async function selectIn(env, sqlFor, ids) {
   }
   return rows;
 }
-async function updateIn(env, sqlFor, ids) {
-  const statements = chunkList(ids).map((part) => env.DB.prepare(sqlFor(part.map(() => "?").join(","))).bind(...part));
-  if (statements.length) await env.DB.batch(statements);
-}
 
-async function bulkAddTag(env, table, affectedIds, tag) {
-  const rows = await selectIn(env, (marks) => `SELECT id, tags FROM ${table} WHERE id IN (${marks})`, affectedIds);
-  const updates = rows
-    .map((r) => {
-      const tags = JSON.parse(r.tags || "[]");
-      if (tags.includes(tag)) return null;
-      return { id: r.id, tags: JSON.stringify([...tags, tag]) };
-    })
-    .filter(Boolean);
-  const statements = updates.map((u) =>
-    env.DB.prepare(`UPDATE ${table} SET tags = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`).bind(u.tags, u.id)
-  );
-  for (let i = 0; i < statements.length; i += IN_CHUNK) await env.DB.batch(statements.slice(i, i + IN_CHUNK));
-}
 
-// Shared by bulkArticleAction and bulkProjectAction (the two tables have the same columns for all of this).
-async function bulkContentAction(env, table, ids, action, opts) {
-  const validIds = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
-  if (!validIds.length) return { affected: 0, skippedLocked: 0 };
-  const lockedRows = await selectIn(env, (marks) => `SELECT id FROM ${table} WHERE id IN (${marks}) AND locked = 1`, validIds);
-  const skippedLocked = lockedRows.length;
-  const lockedIds = new Set(lockedRows.map((r) => r.id));
-  const affectedIds = validIds.filter((id) => !lockedIds.has(id));
-  if (!affectedIds.length) return { affected: 0, skippedLocked };
-  let skippedTooShort = 0;
-  if (action === "publish") {
-    // The single-item PUT/PATCH routes in admin-api.js reject publishing a
-    // near-empty body — bulk "Publish" is just another way to set
-    // published_at, so it needs the same floor, or it's a one-click way
-    // around a check that exists specifically to stop that.
-    const rows = await selectIn(env, (marks) => `SELECT id, published_at, body FROM ${table} WHERE id IN (${marks})`, affectedIds);
-    const toPublish = rows.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
-    skippedTooShort = affectedIds.length - toPublish.length;
-    await updateIn(
-      env,
-      (marks) => `UPDATE ${table} SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`,
-      toPublish
-    );
-  } else if (action === "unpublish") {
-    await updateIn(env, (marks) => `UPDATE ${table} SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`, affectedIds);
-  } else if (action === "trash") {
-    await updateIn(env, (marks) => `UPDATE ${table} SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`, affectedIds);
-  } else if (action === "add-tag") {
-    if (!opts.tag) throw new Error("Tag required");
-    await bulkAddTag(env, table, affectedIds, opts.tag);
-  } else {
-    throw new Error("Invalid bulk action");
-  }
-  return { affected: affectedIds.length - skippedTooShort, skippedLocked, skippedTooShort };
-}
 
-export function bulkArticleAction(env, ids, action, opts = {}) {
-  return bulkContentAction(env, "articles", ids, action, opts);
-}
 
-export function bulkProjectAction(env, ids, action, opts = {}) {
-  return bulkContentAction(env, "projects", ids, action, opts);
-}
 
-// "Delete" moves an article to the trash rather than actually removing it
-// — recoverable by default. hardDeleteArticle is the real, permanent
-// removal, used only from the trash view itself.
-export async function deleteArticle(env, id) {
-  await env.DB.prepare("UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
-}
 
-export async function restoreArticle(env, id) {
-  await env.DB.prepare("UPDATE articles SET deleted_at = NULL, version = version + 1 WHERE id = ?").bind(id).run();
-}
 
-export async function hardDeleteArticle(env, id) {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id),
-    env.DB.prepare("DELETE FROM revisions WHERE kind = 'article' AND entity_id = ?").bind(id),
-  ]);
-}
 
 // ---------- Projects (a real content type — its own list/detail pages,
 // not just project-card blocks manually placed on a page) ----------
@@ -1130,192 +565,12 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
   return projects;
 }
 
-export async function listTrashedProjects(env) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM projects WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
-    .all();
-  return results.map(parseProjectRow);
-}
 
-export async function getProjectBySlug(env, slug) {
-  const row = await env.DB.prepare("SELECT * FROM projects WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
-  return parseProjectRow(row);
-}
 
-export async function createProject(
-  env,
-  {
-    slug,
-    title,
-    summary,
-    body,
-    published,
-    published_at,
-    tags,
-    tech_stack,
-    status,
-    links,
-    og_image,
-    canonical_url,
-    featured,
-    related_articles,
-    related_simulations,
-    related_scans,
-    related_songs,
-    expires_at,
-    sitemap_exclude,
-    archived,
-    related_override,
-    featured_order,
-    private_notes,
-    sort_order,
-    hero_video,
-    custom_json_ld,
-  }
-) {
-  const res = await env.DB
-    .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order, hero_video, custom_json_ld)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      slug,
-      title,
-      summary || "",
-      body || "",
-      resolvePublishedAt({ published, published_at }),
-      JSON.stringify(Array.isArray(tags) ? tags : []),
-      JSON.stringify(Array.isArray(tech_stack) ? tech_stack : []),
-      status || null,
-      JSON.stringify(links && typeof links === "object" ? links : {}),
-      og_image || null,
-      canonical_url || null,
-      featured ? 1 : 0,
-      JSON.stringify(Array.isArray(related_articles) ? related_articles : []),
-      JSON.stringify(Array.isArray(related_simulations) ? related_simulations : []),
-      JSON.stringify(Array.isArray(related_scans) ? related_scans : []),
-      expires_at || null,
-      sitemap_exclude ? 1 : 0,
-      archived ? 1 : 0,
-      JSON.stringify(Array.isArray(related_override) ? related_override : []),
-      Number.isFinite(Number(featured_order)) ? Number(featured_order) : null,
-      private_notes || null,
-      Number.isFinite(Number(sort_order)) ? Number(sort_order) : null,
-      hero_video || null,
-      custom_json_ld || null
-    )
-    .run();
-  const songs = cleanIdList(related_songs);
-  if (songs.length && (await projectsHaveRelatedSongs(env))) {
-    await env.DB.prepare("UPDATE projects SET related_songs = ? WHERE id = ?").bind(JSON.stringify(songs), res.meta.last_row_id).run();
-  }
-  return res.meta.last_row_id;
-}
 
-export async function updateProject(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note", "tts_audio_key", "private_notes", "hero_video", "custom_json_ld"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  let oldMedia;
-  if ("tts_audio_key" in fields || "hero_video" in fields) {
-    oldMedia = await env.DB.prepare("SELECT tts_audio_key, hero_video FROM projects WHERE id = ?").bind(id).first();
-  }
-  if ("tags" in fields) {
-    cols.push("tags = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
-  }
-  if ("tech_stack" in fields) {
-    cols.push("tech_stack = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.tech_stack) ? fields.tech_stack : []));
-  }
-  if ("links" in fields) {
-    cols.push("links = ?");
-    vals.push(JSON.stringify(fields.links && typeof fields.links === "object" ? fields.links : {}));
-  }
-  if ("published_at" in fields || "published" in fields) {
-    cols.push("published_at = ?");
-    vals.push(resolvePublishedAt(fields));
-  }
-  if ("expires_at" in fields) {
-    cols.push("expires_at = ?");
-    vals.push(fields.expires_at || null);
-  }
-  if ("locked" in fields) {
-    cols.push("locked = ?");
-    vals.push(fields.locked ? 1 : 0);
-  }
-  if ("featured" in fields) {
-    cols.push("featured = ?");
-    vals.push(fields.featured ? 1 : 0);
-  }
-  if ("related_articles" in fields) {
-    cols.push("related_articles = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.related_articles) ? fields.related_articles : []));
-  }
-  if ("related_simulations" in fields) {
-    cols.push("related_simulations = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.related_simulations) ? fields.related_simulations : []));
-  }
-  if ("related_scans" in fields) {
-    cols.push("related_scans = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.related_scans) ? fields.related_scans : []));
-  }
-  // Skipped (not an error) while migration 0002 hasn't been applied.
-  if ("related_songs" in fields && (await projectsHaveRelatedSongs(env))) {
-    cols.push("related_songs = ?");
-    vals.push(JSON.stringify(cleanIdList(fields.related_songs)));
-  }
-  if ("sitemap_exclude" in fields) {
-    cols.push("sitemap_exclude = ?");
-    vals.push(fields.sitemap_exclude ? 1 : 0);
-  }
-  if ("archived" in fields) {
-    cols.push("archived = ?");
-    vals.push(fields.archived ? 1 : 0);
-  }
-  if ("featured_order" in fields) {
-    cols.push("featured_order = ?");
-    vals.push(fields.featured_order === null || fields.featured_order === "" ? null : Number(fields.featured_order));
-  }
-  if ("sort_order" in fields) {
-    cols.push("sort_order = ?");
-    vals.push(fields.sort_order === null || fields.sort_order === "" ? null : Number(fields.sort_order));
-  }
-  if ("related_override" in fields) {
-    cols.push("related_override = ?");
-    vals.push(JSON.stringify(Array.isArray(fields.related_override) ? fields.related_override : []));
-  }
-  if (!cols.length) return;
-  cols.push("updated_at = datetime('now')", "version = version + 1");
-  vals.push(id);
-  await env.DB.prepare(`UPDATE projects SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-  if ("tts_audio_key" in fields && oldMedia?.tts_audio_key && oldMedia.tts_audio_key !== fields.tts_audio_key) {
-    await deleteOldMediaUrl(env, oldMedia.tts_audio_key);
-  }
-  if ("hero_video" in fields && oldMedia?.hero_video && oldMedia.hero_video !== fields.hero_video) {
-    await deleteOldMediaUrl(env, oldMedia.hero_video);
-  }
-}
 
-export async function deleteProject(env, id) {
-  await env.DB.prepare("UPDATE projects SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
-}
 
-export async function restoreProject(env, id) {
-  await env.DB.prepare("UPDATE projects SET deleted_at = NULL, version = version + 1 WHERE id = ?").bind(id).run();
-}
 
-export async function hardDeleteProject(env, id) {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id),
-    env.DB.prepare("DELETE FROM revisions WHERE kind = 'project' AND entity_id = ?").bind(id),
-  ]);
-}
 
 export async function snapshotProject(env, projectId) {
   const row = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(projectId).first();
@@ -1356,132 +611,16 @@ export async function restoreProjectRevision(env, projectId, revisionId) {
   }
 }
 
-// ---------- Build journal entries ----------
-// Dated entries attached to a project — also covers decision logs and
-// failed-attempt records (just a different entry_type) and test records
-// (expected/actual results go straight in the markdown-lite body).
-const JOURNAL_ENTRY_TYPES = new Set(["log", "test", "decision", "failed"]);
 
-export async function listJournalEntries(env, projectId, { order = "DESC" } = {}) {
-  const dir = order === "ASC" ? "ASC" : "DESC";
-  const { results } = await env.DB
-    .prepare(`SELECT * FROM journal_entries WHERE project_id = ? ORDER BY entry_date ${dir}, id ${dir}`)
-    .bind(projectId)
-    .all();
-  return results;
-}
 
-// Newest dated journal entry across published projects, for the "currently
-// building" strip. Future-dated entries stay hidden until their day.
-export async function getLatestJournalEntry(env) {
-  const now = nowIso(env);
-  const row = await env.DB
-    .prepare(
-      `SELECT j.id, j.entry_date, j.title, j.body, p.slug AS project_slug, p.title AS project_title
-       FROM journal_entries j JOIN projects p ON p.id = j.project_id
-       WHERE p.deleted_at IS NULL AND p.published_at IS NOT NULL AND p.published_at <= ?
-         AND (p.expires_at IS NULL OR p.expires_at > ?) AND p.archived = 0
-         AND j.entry_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND j.entry_date <= ?
-       ORDER BY j.entry_date DESC, j.id DESC LIMIT 1`
-    )
-    .bind(now, now, now.slice(0, 10))
-    .first();
-  return row || null;
-}
 
-export async function createJournalEntry(env, projectId, { entry_date, title, body, entry_type }) {
-  const res = await env.DB
-    .prepare("INSERT INTO journal_entries (project_id, entry_date, title, body, entry_type) VALUES (?, ?, ?, ?, ?)")
-    .bind(
-      projectId,
-      entry_date || new Date().toISOString().slice(0, 10),
-      title || "",
-      body || "",
-      JOURNAL_ENTRY_TYPES.has(entry_type) ? entry_type : "log"
-    )
-    .run();
-  return res.meta.last_row_id;
-}
 
-export async function updateJournalEntry(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["entry_date", "title", "body"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  if ("entry_type" in fields) {
-    cols.push("entry_type = ?");
-    vals.push(JOURNAL_ENTRY_TYPES.has(fields.entry_type) ? fields.entry_type : "log");
-  }
-  if (!cols.length) return;
-  cols.push("updated_at = datetime('now')");
-  vals.push(id);
-  await env.DB.prepare(`UPDATE journal_entries SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-}
 
-export async function deleteJournalEntry(env, id) {
-  await env.DB.prepare("DELETE FROM journal_entries WHERE id = ?").bind(id).run();
-}
 
-// ---------- Bill of materials ----------
-// quantity/price are real numbers (not free text) specifically so the
-// public page can compute a total build cost.
-export async function listBomItems(env, projectId) {
-  const { results } = await env.DB.prepare("SELECT * FROM bom_items WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
-  return results;
-}
 
-export async function createBomItem(env, projectId, { item, quantity, price, link, substitution }) {
-  const res = await env.DB
-    .prepare("INSERT INTO bom_items (project_id, item, quantity, price, link, substitution) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(
-      projectId,
-      item || "",
-      quantity === null || quantity === undefined || quantity === "" ? 1 : Number.isFinite(Number(quantity)) ? Number(quantity) : 1,
-      price === null || price === undefined || price === "" ? null : Number.isFinite(Number(price)) ? Number(price) : null,
-      link || null,
-      substitution || null
-    )
-    .run();
-  return res.meta.last_row_id;
-}
 
-export async function updateBomItem(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["item", "link", "substitution"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  if ("quantity" in fields) {
-    cols.push("quantity = ?");
-    vals.push(
-      fields.quantity === null || fields.quantity === "" ? 1 : Number.isFinite(Number(fields.quantity)) ? Number(fields.quantity) : 1
-    );
-  }
-  if ("price" in fields) {
-    cols.push("price = ?");
-    vals.push(fields.price === null || fields.price === "" ? null : Number.isFinite(Number(fields.price)) ? Number(fields.price) : null);
-  }
-  if (!cols.length) return;
-  cols.push("updated_at = datetime('now')");
-  vals.push(id);
-  await env.DB.prepare(`UPDATE bom_items SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-}
 
-export async function deleteBomItem(env, id) {
-  await env.DB.prepare("DELETE FROM bom_items WHERE id = ?").bind(id).run();
-}
 
-export async function listRedirects(env) {
-  const { results } = await env.DB.prepare("SELECT * FROM redirects ORDER BY from_path").all();
-  return results;
-}
 
 export async function getRedirect(env, fromPath) {
   return env.DB.prepare("SELECT * FROM redirects WHERE from_path = ?").bind(fromPath).first();
@@ -1495,134 +634,10 @@ export async function createRedirect(env, { from_path, to_path, status_code }) {
   return res.meta.last_row_id;
 }
 
-export async function updateRedirect(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["from_path", "to_path", "status_code"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  if (!cols.length) return;
-  vals.push(id);
-  await env.DB.prepare(`UPDATE redirects SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-}
 
-export async function deleteRedirect(env, id) {
-  await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
-}
 
-// ---------- Find & replace ----------
-// Walks page block text fields and article title/body for a literal find
-// string. In preview mode (apply=false) it only reports what WOULD change;
-// in apply mode it rewrites those fields. Raw HTML/customCss fields are
-// deliberately excluded — a blind substring replace there is far more
-// likely to corrupt markup than help.
-const FIND_REPLACE_SIMPLE_KEYS = {
-  heading: ["text"],
-  text: ["text"],
-  quote: ["text", "cite"],
-  button: ["label"],
-  "project-card": ["title", "description", "label"],
-};
 
-function replaceInBlockContent(type, content, find, replace) {
-  let changed = false;
-  const next = { ...content };
-  const simpleKeys = FIND_REPLACE_SIMPLE_KEYS[type];
-  if (simpleKeys) {
-    for (const k of simpleKeys) {
-      if (typeof next[k] === "string" && next[k].includes(find)) {
-        next[k] = next[k].split(find).join(replace);
-        changed = true;
-      }
-    }
-  } else if (type === "changelog" && Array.isArray(next.entries)) {
-    next.entries = next.entries.map((entry) => {
-      const ne = { ...entry };
-      for (const k of ["title", "description"]) {
-        if (typeof ne[k] === "string" && ne[k].includes(find)) {
-          ne[k] = ne[k].split(find).join(replace);
-          changed = true;
-        }
-      }
-      return ne;
-    });
-  } else if (type === "links" && Array.isArray(next.items)) {
-    next.items = next.items.map((item) => {
-      if (typeof item.label === "string" && item.label.includes(find)) {
-        changed = true;
-        return { ...item, label: item.label.split(find).join(replace) };
-      }
-      return item;
-    });
-  }
-  return { changed, next };
-}
 
-export async function runFindReplace(env, { find, replace, apply }) {
-  if (!find) throw new Error("Find text is required");
-  const results = [];
-
-  const pages = await listPages(env);
-  for (const p of pages) {
-    if (p.locked) continue; // a "finished" page is protected from this exact kind of sweep
-    const blocks = await listBlocks(env, p.id);
-    let pageSnapshotted = false;
-    for (const b of blocks) {
-      if (b.locked) continue; // a locked block is protected from this exact kind of sweep too
-      const { changed, next } = replaceInBlockContent(b.type, b.content || {}, find, replace);
-      if (!changed) continue;
-      results.push({ kind: "block", pageId: p.id, pageTitle: p.title, blockType: b.type, blockId: b.id });
-      if (apply) {
-        if (!pageSnapshotted) {
-          await maybeSnapshotPage(env, p.id);
-          pageSnapshotted = true;
-        }
-        // A reusable block's content lives on shared_blocks, not this
-        // placement's own (ignored) row — see listBlocks() above. Writing
-        // to updateBlock() here would silently have no visible effect.
-        if (b.shared_block_id) await updateSharedBlock(env, b.shared_block_id, { content: next });
-        else await updateBlock(env, b.id, { content: next });
-      }
-    }
-  }
-
-  const articles = await listArticles(env);
-  for (const a of articles) {
-    if (a.locked) continue;
-    const fields = {};
-    if (typeof a.title === "string" && a.title.includes(find)) fields.title = a.title.split(find).join(replace);
-    if (typeof a.body === "string" && a.body.includes(find)) fields.body = a.body.split(find).join(replace);
-    if (!Object.keys(fields).length) continue;
-    results.push({ kind: "article", articleId: a.id, articleTitle: a.title, fields: Object.keys(fields) });
-    if (apply) {
-      await snapshotArticle(env, a.id);
-      await updateArticle(env, a.id, fields);
-    }
-  }
-
-  // A project's title/summary/body are exactly as user-facing as an
-  // article's title/body, but this sweep only ever covered articles —
-  // an admin doing a sitewide rename would silently miss every project.
-  const projects = await listProjects(env);
-  for (const p of projects) {
-    if (p.locked) continue;
-    const fields = {};
-    if (typeof p.title === "string" && p.title.includes(find)) fields.title = p.title.split(find).join(replace);
-    if (typeof p.summary === "string" && p.summary.includes(find)) fields.summary = p.summary.split(find).join(replace);
-    if (typeof p.body === "string" && p.body.includes(find)) fields.body = p.body.split(find).join(replace);
-    if (!Object.keys(fields).length) continue;
-    results.push({ kind: "project", projectId: p.id, projectTitle: p.title, fields: Object.keys(fields) });
-    if (apply) {
-      await snapshotProject(env, p.id);
-      await updateProject(env, p.id, fields);
-    }
-  }
-
-  return results;
-}
 
 // ---------- Error log ----------
 const ERROR_LOG_KEEP = 300;
@@ -1647,35 +662,7 @@ export async function listErrors(env, limit = 50) {
   return results;
 }
 
-// ---------- Custom events ----------
-// Lightweight named-event tracking alongside pageviews (link clicks, theme
-// toggles, etc.) — not tied to a visitor/session id, so it can only answer
-// "how often did X happen", not "how many people did X".
-// Analytics events older than this are removed by the daily run (the owner chose 180 days). Done in bounded slices so one run
-// can never hold the database for long; whatever is left over goes in the next day's run.
-export const EVENTS_KEEP_DAYS = 180;
-export async function pruneOldEvents(env, { days = EVENTS_KEEP_DAYS, batch = 5000, maxBatches = 20 } = {}) {
-  const keep = Math.max(30, Math.floor(Number(days)) || EVENTS_KEEP_DAYS); // never less than a month, whatever is passed in
-  let deleted = 0;
-  for (let i = 0; i < maxBatches; i++) {
-    const res = await env.DB
-      .prepare("DELETE FROM events WHERE id IN (SELECT id FROM events WHERE created_at < datetime('now', ?) LIMIT ?)")
-      .bind(`-${keep} days`, batch)
-      .run();
-    const changed = (res && res.meta && res.meta.changes) || 0;
-    deleted += changed;
-    if (changed < batch) break;
-  }
-  await setSetting(env, "last_events_prune", JSON.stringify({ at: new Date().toISOString(), deleted, keepDays: keep }));
-  return deleted;
-}
 
-export async function logEvent(env, { name, path, detail }) {
-  await env.DB
-    .prepare("INSERT INTO events (name, path, detail) VALUES (?, ?, ?)")
-    .bind(String(name || "").slice(0, 100), path || null, detail ? String(detail).slice(0, 500) : null)
-    .run();
-}
 
 // ---------- Webhook delivery history ----------
 export async function logWebhookDelivery(env, { url, payload, status, status_code, error }) {
@@ -1691,126 +678,12 @@ export async function logWebhookDelivery(env, { url, payload, status, status_cod
   return res.meta.last_row_id;
 }
 
-export async function listWebhookDeliveries(env, limit = 30) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM webhook_deliveries ORDER BY id DESC LIMIT ?")
-    .bind(Math.max(1, Math.floor(limit)))
-    .all();
-  return results.map((r) => ({ ...r, payload: JSON.parse(r.payload) }));
-}
 
-export async function getWebhookDelivery(env, id) {
-  const row = await env.DB.prepare("SELECT * FROM webhook_deliveries WHERE id = ?").bind(id).first();
-  if (!row) return null;
-  return { ...row, payload: JSON.parse(row.payload) };
-}
 
-export async function getEventCounts(env, days = 7) {
-  const { results } = await env.DB
-    .prepare(
-      `SELECT name, COUNT(*) AS n FROM events WHERE created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')
-       GROUP BY name ORDER BY n DESC LIMIT 20`
-    )
-    .all();
-  return results;
-}
 
-// Top search terms and zero-result searches, both derived from the same
-// "search" events logged by renderSearch (detail is {q, count} JSON) —
-// getEventCounts groups by event name only, which would just collapse
-// every search into one "search: N" row, not useful on its own.
-export async function getSearchInsights(env, days = 30) {
-  const { results } = await env.DB
-    .prepare(
-      `SELECT detail FROM events WHERE name = 'search' AND created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')`
-    )
-    .all();
-  const termCounts = new Map();
-  const noResultCounts = new Map();
-  for (const row of results) {
-    let parsed;
-    try {
-      parsed = JSON.parse(row.detail || "{}");
-    } catch {
-      continue;
-    }
-    if (!parsed.q) continue;
-    const key = parsed.q.toLowerCase();
-    termCounts.set(key, (termCounts.get(key) || 0) + 1);
-    if (parsed.count === 0) noResultCounts.set(key, (noResultCounts.get(key) || 0) + 1);
-  }
-  const toSortedList = (map) => [...map.entries()].map(([term, n]) => ({ term, n })).sort((a, b) => b.n - a.n).slice(0, 20);
-  return { topTerms: toSortedList(termCounts), noResultTerms: toSortedList(noResultCounts) };
-}
 
-// Top URLs for a plain-string-detail event (outbound_link, download) — same
-// "getEventCounts only groups by name" gap as search, but simpler since the
-// detail here is just the URL itself, not JSON.
-export async function getTopEventUrls(env, eventName, days = 30) {
-  const { results } = await env.DB
-    .prepare(
-      `SELECT detail, COUNT(*) AS n FROM events WHERE name = ? AND created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')
-       AND detail IS NOT NULL GROUP BY detail ORDER BY n DESC LIMIT 20`
-    )
-    .bind(eventName)
-    .all();
-  return results.map((r) => ({ url: r.detail, n: r.n }));
-}
 
-// The addresses readers asked for that don't exist (recorded as "not_found" events by the public 404), most-asked first: how many
-// times, when last, where from (the most common referring site, if any), whether a redirect already covers it, and the nearest
-// real address as a suggested destination (when one is close enough to be a likely typo).
-export async function getMissingPages(env, days = 30) {
-  const window = `created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
-  const { results: rows } = await env.DB
-    .prepare(
-      `SELECT path, COUNT(*) AS n, MAX(created_at) AS last_seen FROM events WHERE name = 'not_found' AND path IS NOT NULL AND ${window}
-       GROUP BY path ORDER BY n DESC, last_seen DESC LIMIT 25`
-    )
-    .all();
-  if (!rows.length) return [];
-  const marks = rows.map(() => "?").join(",");
-  const paths = rows.map((r) => r.path);
-  const [{ results: refs }, { results: redirected }] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT path, detail, COUNT(*) AS n FROM events WHERE name = 'not_found' AND detail IS NOT NULL AND ${window} AND path IN (${marks})
-         GROUP BY path, detail ORDER BY n DESC`
-      )
-      .bind(...paths)
-      .all(),
-    env.DB.prepare(`SELECT from_path FROM redirects WHERE from_path IN (${marks})`).bind(...paths).all(),
-  ]);
-  const topReferrer = new Map();
-  for (const r of refs) if (!topReferrer.has(r.path)) topReferrer.set(r.path, r.detail);
-  const covered = new Set(redirected.map((r) => r.from_path));
-  const candidates = await listLinkTargets(env);
-  return rows.map((r) => ({
-    path: r.path,
-    n: r.n,
-    lastSeen: r.last_seen,
-    referrer: topReferrer.get(r.path) || null,
-    redirected: covered.has(r.path),
-    suggestion: suggestNearest(r.path, candidates),
-  }));
-}
 
-// The site's own public addresses with a readable name for each (published pages, articles and projects), for "did you mean"
-// suggestions. Drafts, scheduled, archived and expired items are left out, as they are everywhere else.
-export async function listLinkTargets(env, { publicOnly = false } = {}) {
-  const [allPages, articles, projects] = await Promise.all([
-    listPages(env),
-    listArticles(env, { publishedOnly: true }),
-    listProjects(env, { publishedOnly: true }),
-  ]);
-  // publicOnly (used for "did you mean" on a 404 page that anyone can see) leaves out password-protected pages.
-  const pages = publicOnly ? allPages.filter((p) => !p.password_hash) : allPages;
-  return [
-    ...pages.filter((p) => p.slug && p.slug !== "home").map((p) => ({ path: `/${p.slug}`, label: visibleText(p.title) || visibleText(p.nav_label) || p.slug })),
-    ...articles.map((a) => ({ path: `/random/${a.slug}`, label: visibleText(a.title) || a.slug })),
-    ...projects.map((p) => ({ path: `/projects/${p.slug}`, label: visibleText(p.title) || p.slug })),
-  ];
-}
 
 // ---------- Rate limiting (generic) ----------
 // Separate from login's own checkLoginRateLimit/recordLoginAttempt — that
@@ -1866,13 +739,6 @@ export async function logActivity(env, action, entity_type, entity_label, detail
     .catch(() => {});
 }
 
-export async function listActivityLog(env, limit = 100) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM activity_log ORDER BY id DESC LIMIT ?")
-    .bind(Math.max(1, Math.floor(limit)))
-    .all();
-  return results;
-}
 
 // ---------- Media metadata ----------
 // R2 holds the actual files; this table is a thin metadata layer on top
@@ -2025,29 +891,7 @@ export async function upsertMediaMeta(
   }
 }
 
-export async function listMediaRevisions(env, key) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM media_revisions WHERE media_key = ? ORDER BY created_at DESC")
-    .bind(key)
-    .all();
-  return results.map((r) => ({ ...r, tags: JSON.parse(r.tags || "[]") }));
-}
 
-// Restoring doesn't itself snapshot the pre-restore state — the restore
-// goes through upsertMediaMeta just like a normal edit would, so it gets
-// its own "before" snapshot the same way, and can itself be undone.
-export async function restoreMediaRevision(env, revisionId) {
-  const rev = await env.DB.prepare("SELECT * FROM media_revisions WHERE id = ?").bind(revisionId).first();
-  if (!rev) throw new Error("Revision not found");
-  await upsertMediaMeta(env, rev.media_key, {
-    folder: rev.folder,
-    tags: JSON.parse(rev.tags || "[]"),
-    alt_text: rev.alt_text,
-    caption: rev.caption,
-    credit: rev.credit,
-    license: rev.license,
-  });
-}
 
 export async function recordMediaVersion(env, mediaKey, versionKey, size) {
   await env.DB
@@ -2064,9 +908,6 @@ export async function listMediaVersions(env, mediaKey) {
   return results;
 }
 
-export async function getMediaVersion(env, id) {
-  return await env.DB.prepare("SELECT * FROM media_versions WHERE id = ?").bind(id).first();
-}
 
 export async function deleteMediaVersions(env, mediaKey) {
   await env.DB.prepare("DELETE FROM media_versions WHERE media_key = ?").bind(mediaKey).run();
@@ -2091,10 +932,6 @@ export async function deleteMediaMeta(env, key) {
   ]);
 }
 
-export async function listMediaFolders(env) {
-  const { results } = await env.DB.prepare("SELECT DISTINCT folder FROM media WHERE folder IS NOT NULL ORDER BY folder").all();
-  return results.map((r) => r.folder);
-}
 
 // Single traversal producing every media URL's usage details at once — one
 // walk of pages/blocks/articles/projects/settings, not one per file. Both
@@ -2178,12 +1015,6 @@ async function getMediaUsageMap(env) {
   return usage;
 }
 
-// Walks every page block and article/project/setting field that can hold a
-// media URL, for "where is this used?" before someone deletes a file.
-export async function findMediaUsage(env, mediaUrl) {
-  const map = await getMediaUsageMap(env);
-  return map.get(mediaUrl) || [];
-}
 
 // The full per-location breakdown for every used URL at once, for the
 // library's "usage" filter — typing e.g. "About" narrows the grid to
@@ -2201,289 +1032,33 @@ export async function listScans(env) {
   return results;
 }
 
-export async function getScan(env, id) {
-  return env.DB.prepare("SELECT * FROM scans WHERE id = ?").bind(id).first();
-}
 
-export async function createScan(env, { name, glb_key, usdz_key, poster_key, camera_orbit, camera_target, field_of_view, size }) {
-  const res = await env.DB
-    .prepare(
-      `INSERT INTO scans (name, glb_key, usdz_key, poster_key, camera_orbit, camera_target, field_of_view, size)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(name, glb_key, usdz_key || null, poster_key || null, camera_orbit || null, camera_target || null, field_of_view || null, size || 0)
-    .run();
-  return res.meta.last_row_id;
-}
 
-export async function updateScan(env, id, fields) {
-  const cols = [];
-  const vals = [];
-  for (const key of ["name", "glb_key", "usdz_key", "poster_key", "camera_orbit", "camera_target", "field_of_view", "size"]) {
-    if (key in fields) {
-      cols.push(`${key} = ?`);
-      vals.push(fields[key]);
-    }
-  }
-  if (!cols.length) return;
-  cols.push("updated_at = datetime('now')");
-  vals.push(id);
-  await env.DB.prepare(`UPDATE scans SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
-}
 
-export async function deleteScan(env, id) {
-  await env.DB.prepare("DELETE FROM scans WHERE id = ?").bind(id).run();
-}
 
-// Unified "what uses this" check for the reusable library items that can be
-// deleted out from under something still pointing at them — a scan/
-// simulation/song can be referenced by a page block (block.content.scan_id/
-// simulation_id/song_id) *and*, for scans/simulations specifically, by a
-// project's "Related X" multi-select (project.related_scans/
-// related_simulations/related_songs). An earlier,
-// per-type findScanUsage() only checked blocks, missing the project-
-// relation case entirely; this covers both for every type from one place
-// instead of three near-duplicate functions each with their own gaps.
-// "shared-block" and "tag" are included too so every "usage" concept in
-// the admin (the confirm-before-delete on scans/simulations/songs, the
-// Reusable Blocks list, a tag rename/merge) can go through one function.
-export async function findContentUsage(env, type, id) {
-  const blockTypeKey = { scan: "scan_id", simulation: "simulation_id", song: "song_id" };
-  if (type === "shared-block") return findSharedBlockUsage(env, id);
-  if (type === "tag") {
-    const [articles, projects] = await Promise.all([listArticles(env), listProjects(env)]);
-    return [
-      ...articles.filter((a) => a.tags.includes(id)).map((a) => ({ type: "Article", title: a.title })),
-      ...projects.filter((p) => p.tags.includes(id)).map((p) => ({ type: "Project", title: p.title })),
-    ];
-  }
-  const contentKey = blockTypeKey[type];
-  if (!contentKey) return [];
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const usage = [];
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      if (b.type === type && Number((b.content || {})[contentKey]) === Number(id)) {
-        usage.push({ type: `${blockLabel(type)} block`, title: p.title });
-      }
-    }
-  });
-  if (type === "scan" || type === "simulation" || type === "song") {
-    const relatedKey = type === "scan" ? "related_scans" : type === "song" ? "related_songs" : "related_simulations";
-    const projects = await listProjects(env);
-    projects.forEach((p) => {
-      if ((p[relatedKey] || []).map(Number).includes(Number(id))) {
-        usage.push({ type: "Project (Related)", title: p.title });
-      }
-    });
-    // Placed into text with ::sim 148:: (also ::song / ::scan): article and project bodies, project journal entries, and the text,
-    // quote, accordion and tabs blocks of pages.
-    const embedKind = { scan: "scan", simulation: "sim", song: "song" }[type];
-    const embeds = (text) => bodyEmbeds(text).some((e) => e.kind === embedKind && e.id === Number(id));
-    const [articles, journalRows] = await Promise.all([
-      listArticles(env),
-      env.DB.prepare("SELECT j.body AS body, pr.title AS title FROM journal_entries j JOIN projects pr ON pr.id = j.project_id WHERE pr.deleted_at IS NULL").all(),
-    ]);
-    for (const a of articles) if (embeds(a.body)) usage.push({ type: "Article (embedded in the text)", title: a.title });
-    for (const pr of projects) if (embeds(pr.body)) usage.push({ type: "Project (embedded in the text)", title: pr.title });
-    for (const j of journalRows.results || []) if (embeds(j.body)) usage.push({ type: "Project journal (embedded in the text)", title: j.title });
-    pages.forEach((p, i) => {
-      for (const b of pageBlocks[i]) {
-        if (blockTexts(b).some(embeds)) usage.push({ type: "Text on a page (embedded)", title: p.title });
-      }
-    });
-  }
-  return usage;
-}
 
-// Matches the admin SPA's own blockLabel() naming for the block types this
-// covers — kept minimal (only what findContentUsage needs) rather than
-// duplicating the SPA's full type-name map.
-function blockLabel(type) {
-  return { scan: "3D Scan", simulation: "Simulation", song: "Song" }[type] || type;
-}
 
-// ---------- Templates ----------
-// A saved starting point — a page's block layout, or an article body — that
-// new pages/articles can be seeded from instead of starting blank.
-export async function listTemplates(env, kind) {
-  const { results } = await env.DB.prepare("SELECT * FROM templates WHERE kind = ? ORDER BY name").bind(kind).all();
-  return results.map((t) => ({ ...t, data: JSON.parse(t.data || "{}") }));
-}
 
-export async function createTemplate(env, { kind, name, data }) {
-  const res = await env.DB
-    .prepare("INSERT INTO templates (kind, name, data) VALUES (?, ?, ?)")
-    .bind(kind, name, JSON.stringify(data || {}))
-    .run();
-  return res.meta.last_row_id;
-}
 
-export async function deleteTemplate(env, id) {
-  await env.DB.prepare("DELETE FROM templates WHERE id = ?").bind(id).run();
-}
 
-// ---------- Simulations ----------
-export async function listSimulations(env) {
-  const { results } = await env.DB
-    .prepare("SELECT id, name, updated_at, (published_data IS NOT NULL AND published_name IS NOT NULL) AS is_published FROM simulations ORDER BY name")
-    .all();
-  return results.map((row) => ({ ...row, is_published: !!row.is_published }));
-}
 
-export async function listPublishedSimulationIds(env) {
-  const { results } = await env.DB
-    .prepare("SELECT id FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL ORDER BY id")
-    .all();
-  return results.map(({ id }) => id);
-}
 
-// Published circuits with the time each last changed, for the sitemap.
-export async function listPublishedSimulations(env) {
-  const { results } = await env.DB
-    .prepare("SELECT id, updated_at FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL ORDER BY id")
-    .all();
-  return results;
-}
 
-export async function getSimulation(env, id, { includeData = true, includeRawData = false } = {}) {
-  const row = await env.DB
-    .prepare("SELECT id, name, data, published_name, published_data, created_at, updated_at FROM simulations WHERE id = ?")
-    .bind(id)
-    .first();
-  if (!row) return null;
-  const simulation = {
-    id: row.id,
-    name: row.name,
-    is_published: row.published_data !== null && row.published_name !== null,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
-  if (includeData) simulation.data = JSON.parse(row.data || "{}");
-  if (includeRawData) simulation.raw_data = row.data;
-  return simulation;
-}
 
-export async function getPublishedSimulation(env, id) {
-  const row = await env.DB
-    .prepare("SELECT id, published_name AS name, published_data AS data FROM simulations WHERE id = ? AND published_data IS NOT NULL AND published_name IS NOT NULL")
-    .bind(id)
-    .first();
-  if (!row) return null;
-  return { ...row, data: JSON.parse(row.data || "{}") };
-}
 
-export async function createSimulation(env, { name, data }) {
-  const res = await env.DB
-    .prepare("INSERT INTO simulations (name, data) VALUES (?, ?)")
-    .bind(name, JSON.stringify(data || {}))
-    .run();
-  return res.meta.last_row_id;
-}
 
-export async function updateSimulation(env, id, { name, data }) {
-  const res = await env.DB
-    .prepare("UPDATE simulations SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
-    .bind(name, JSON.stringify(data || {}), id)
-    .run();
-  return res.meta.changes > 0;
-}
 
-export async function publishSimulation(env, id, { data, expectedRawData, expectedName }) {
-  const serializedData = JSON.stringify(data || {});
-  const res = await env.DB
-    .prepare("UPDATE simulations SET data = ?, published_name = name, published_data = ?, updated_at = CASE WHEN data != ? THEN datetime('now') ELSE updated_at END WHERE id = ? AND data = ? AND name = ?")
-    .bind(serializedData, serializedData, serializedData, id, expectedRawData, expectedName)
-    .run();
-  return res.meta.changes > 0;
-}
 
-export async function unpublishSimulation(env, id) {
-  const res = await env.DB
-    .prepare("UPDATE simulations SET published_name = NULL, published_data = NULL WHERE id = ?")
-    .bind(id)
-    .run();
-  return res.meta.changes > 0;
-}
 
-export async function deleteSimulation(env, id) {
-  await env.DB.prepare("DELETE FROM simulations WHERE id = ?").bind(id).run();
-}
 
-export async function duplicateSimulation(env, id, data) {
-  const source = await getSimulation(env, id);
-  if (!source) return null;
-  return createSimulation(env, { name: `${source.name} (copy)`, data: data ?? source.data });
-}
 
-// ---------- Songs (DAW module) ----------
-// Mirrors the simulations CRUD exactly — same reasoning: all the real
-// structure (tempo, drum-grid steps, piano-roll notes, drum kit, animation
-// sync settings) lives in `data` as JSON.
-export async function listSongs(env) {
-  const { results } = await env.DB.prepare("SELECT id, name, updated_at FROM songs ORDER BY name").all();
-  return results;
-}
 
-export async function getSong(env, id) {
-  const row = await env.DB.prepare("SELECT * FROM songs WHERE id = ?").bind(id).first();
-  if (!row) return null;
-  return { ...row, data: parseSongData(row.data) };
-}
 
-// Song data is always an object; a damaged or odd row reads as an empty song
-// instead of taking a page (or a delete) down with it.
-function parseSongData(text) {
-  try {
-    const value = JSON.parse(text || "{}");
-    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  } catch {
-    return {};
-  }
-}
 
-// Several songs in one query, in the order asked for; unknown ids are skipped.
-export async function getSongsByIds(env, ids) {
-  const list = cleanIdList(ids);
-  if (!list.length) return [];
-  const { results } = await env.DB
-    .prepare(`SELECT * FROM songs WHERE id IN (${list.map(() => "?").join(",")})`)
-    .bind(...list)
-    .all();
-  const byId = new Map((results || []).map((row) => [row.id, { ...row, data: parseSongData(row.data) }]));
-  return list.map((id) => byId.get(id)).filter(Boolean);
-}
 
-export async function createSong(env, { name, data }) {
-  const res = await env.DB
-    .prepare("INSERT INTO songs (name, data) VALUES (?, ?)")
-    .bind(name, JSON.stringify(data || {}))
-    .run();
-  return res.meta.last_row_id;
-}
 
-// data left out (undefined) renames the song and leaves what is in it alone.
-export async function updateSong(env, id, { name, data }) {
-  const res =
-    data === undefined
-      ? await env.DB.prepare("UPDATE songs SET name = ?, updated_at = datetime('now') WHERE id = ?").bind(name, id).run()
-      : await env.DB
-          .prepare("UPDATE songs SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
-          .bind(name, JSON.stringify(data || {}), id)
-          .run();
-  return res.meta.changes > 0;
-}
 
-export async function deleteSong(env, id) {
-  await env.DB.prepare("DELETE FROM songs WHERE id = ?").bind(id).run();
-}
 
-export async function duplicateSong(env, id) {
-  const source = await getSong(env, id);
-  if (!source) return null;
-  return createSong(env, { name: `${source.name} (copy)`, data: source.data });
-}
 
 // ---------- Revisions ----------
 // A snapshot of a page's blocks, or an article's row, kept so a bad editing
@@ -2687,312 +1262,30 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
     .run();
 }
 
-// ---------- Search ----------
-export async function search(env, q) {
-  const like = likePattern(q);
-  const [pages, articles, blocks, projects, simulations, songs, scans, sharedBlocks] = await Promise.all([
-    env.DB
-      .prepare(
-        "SELECT id, slug, title FROM pages WHERE title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\' OR nav_label LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
-      )
-      .bind(like, like, like, like)
-      .all(),
-    env.DB
-      .prepare(
-        "SELECT id, slug, title FROM articles WHERE title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
-      )
-      .bind(like, like, like, like)
-      .all(),
-    env.DB.prepare("SELECT id, page_id, type FROM blocks WHERE content LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
-    env.DB
-      .prepare(
-        "SELECT id, slug, title FROM projects WHERE title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
-      )
-      .bind(like, like, like, like, like)
-      .all(),
-    // Simulations/Songs/Scans/Reusable Blocks each have their own dedicated
-    // editor (opened via the "More" menu, not a URL), so unlike
-    // pages/articles/projects there's no slug to also match against — just
-    // the one name field each is keyed by.
-    env.DB.prepare("SELECT id, name FROM simulations WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
-    env.DB.prepare("SELECT id, name FROM songs WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
-    env.DB.prepare("SELECT id, name FROM scans WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
-    env.DB.prepare("SELECT id, name, type FROM shared_blocks WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
-  ]);
-  return {
-    pages: pages.results,
-    articles: articles.results,
-    blocks: blocks.results,
-    projects: projects.results,
-    simulations: simulations.results,
-    songs: songs.results,
-    scans: scans.results,
-    sharedBlocks: sharedBlocks.results,
-  };
-}
 
-// Public-facing search: only live pages and published articles, unlike the
-// admin command palette's search() above which intentionally sees everything.
-export const SEARCH_PAGE_SIZE = 20;
 
-// `type` narrows to one category ("page"/"article"/"project"), skipping the
-// other queries entirely rather than just filtering their results client-
-// side. `sort` ("newest" default, or "oldest") only affects articles/
-// projects — pages have no publish date, so they always sort by title.
-// `page` (1-indexed) only applies when `type` picks one specific category —
-// with all three shown together there'd be three separate page counters on
-// one screen, more confusing than the flat top-20-each it falls back to;
-// pagination is really only useful once you've already narrowed to one type.
-// A password-protected page is left out: its title, link and description would otherwise be readable by anyone who searches.
-export async function publicSearch(env, q, { type = "", sort = "relevance", page = 1 } = {}) {
-  // Every word has to be found (in any order, in the title, tags or text) and a "quoted phrase" counts as one; the best matches
-  // come first (title hits, then tags and summaries, then body text) unless a date order was asked for.
-  const terms = parseSearchTerms(q);
-  if (!terms.length) return { pages: [], articles: [], projects: [], totalCount: 0, terms };
-  const byDate = sort === "oldest" ? "ASC" : "DESC";
-  const relevance = sort === "relevance" || !["newest", "oldest"].includes(sort);
-  const now = nowIso(env);
-  const paginated = !!type;
-  const limit = paginated ? SEARCH_PAGE_SIZE : 20;
-  const offset = paginated ? (Math.max(1, page) - 1) * SEARCH_PAGE_SIZE : 0;
-  const pageSql = searchSql(terms, { title: 4, meta_description: 2 });
-  const articleSql = searchSql(terms, { title: 4, tags: 2, body: 1 });
-  const projectSql = searchSql(terms, { title: 4, summary: 2, tags: 2, body: 1 });
-  const live = `deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`;
-  const [pages, articles, projects, pageCount, articleCount, projectCount] = await Promise.all([
-    !type || type === "page"
-      ? env.DB
-          .prepare(
-            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND password_hash IS NULL AND ${pageSql.where}
-             ORDER BY ${relevance ? `${pageSql.score} DESC, ` : ""}title LIMIT ? OFFSET ?`
-          )
-          .bind(...pageSql.whereBinds, ...(relevance ? pageSql.scoreBinds : []), limit, offset)
-          .all()
-      : { results: [] },
-    !type || type === "article"
-      ? env.DB
-          .prepare(
-            `SELECT id, slug, title, body, tags, published_at FROM articles WHERE ${live} AND ${articleSql.where}
-             ORDER BY ${relevance ? `${articleSql.score} DESC, ` : ""}published_at ${relevance ? "DESC" : byDate} LIMIT ? OFFSET ?`
-          )
-          .bind(now, now, ...articleSql.whereBinds, ...(relevance ? articleSql.scoreBinds : []), limit, offset)
-          .all()
-      : { results: [] },
-    !type || type === "project"
-      ? env.DB
-          .prepare(
-            `SELECT id, slug, title, summary, body, tags, published_at FROM projects WHERE ${live} AND ${projectSql.where}
-             ORDER BY ${relevance ? `${projectSql.score} DESC, ` : ""}published_at ${relevance ? "DESC" : byDate} LIMIT ? OFFSET ?`
-          )
-          .bind(now, now, ...projectSql.whereBinds, ...(relevance ? projectSql.scoreBinds : []), limit, offset)
-          .all()
-      : { results: [] },
-    // Counted whenever a category is included at all, not just when paginated — the unfiltered "All" view used to skip these and
-    // show however many rows came back from its own LIMIT, silently capped with no indication anything was cut off.
-    !type || type === "page"
-      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND password_hash IS NULL AND ${pageSql.where}`).bind(...pageSql.whereBinds).first()
-      : null,
-    !type || type === "article"
-      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM articles WHERE ${live} AND ${articleSql.where}`).bind(now, now, ...articleSql.whereBinds).first()
-      : null,
-    !type || type === "project"
-      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM projects WHERE ${live} AND ${projectSql.where}`).bind(now, now, ...projectSql.whereBinds).first()
-      : null,
-  ]);
-  // Filtered to one type: that type's own exact count (used for real pagination). Unfiltered: the true sum across all three, so
-  // "N results" is never just "however many rows fit under each category's 20-row display cap."
-  const totalCount = paginated ? pageCount?.n ?? articleCount?.n ?? projectCount?.n ?? null : (pageCount?.n || 0) + (articleCount?.n || 0) + (projectCount?.n || 0);
-  return {
-    pages: pages.results,
-    articles: articles.results.map(parseArticleRow),
-    projects: projects.results.map(parseProjectRow),
-    totalCount,
-    terms,
-  };
-}
 
-// Related posts for an article: prefers shared tags (most overlap first,
-// ties broken by recency), falls back to just-recent when nothing shares a
-// tag — so the section never comes up empty for an untagged post.
-export async function getRelatedArticles(env, article, limit = 3) {
-  const candidates = await listArticles(env, { publishedOnly: true });
-  const others = candidates.filter((a) => a.id !== article.id);
-  // An admin-pinned override always wins over the automatic tag match,
-  // when it actually resolves to at least one still-published article —
-  // an override pointing only at unpublished/deleted articles falls
-  // through to the automatic match below rather than showing nothing.
-  if (article.related_override && article.related_override.length) {
-    const byId = new Map(others.map((a) => [a.id, a]));
-    const pinned = article.related_override.map((id) => byId.get(id)).filter(Boolean).slice(0, limit);
-    if (pinned.length) return pinned;
-  }
-  if (!article.tags || !article.tags.length) return others.slice(0, limit);
-  const scored = others
-    .map((a) => ({ a, score: a.tags.filter((t) => article.tags.includes(t)).length }))
-    .sort((x, y) => y.score - x.score);
-  if (scored[0] && scored[0].score > 0) {
-    return scored.filter((s) => s.score > 0).slice(0, limit).map((s) => s.a);
-  }
-  return others.slice(0, limit);
-}
 
-export async function getRelatedProjects(env, project, limit = 3) {
-  const candidates = await listProjects(env, { publishedOnly: true });
-  const others = candidates.filter((p) => p.id !== project.id);
-  if (project.related_override && project.related_override.length) {
-    const byId = new Map(others.map((p) => [p.id, p]));
-    const pinned = project.related_override.map((id) => byId.get(id)).filter(Boolean).slice(0, limit);
-    if (pinned.length) return pinned;
-  }
-  if (!project.tags || !project.tags.length) return others.slice(0, limit);
-  const scored = others
-    .map((p) => ({ p, score: p.tags.filter((t) => project.tags.includes(t)).length }))
-    .sort((x, y) => y.score - x.score);
-  if (scored[0] && scored[0].score > 0) {
-    return scored.filter((s) => s.score > 0).slice(0, limit).map((s) => s.p);
-  }
-  return others.slice(0, limit);
-}
 
-// Published projects that name this article in their own related_articles
-// field — the reverse direction of that relationship, which nothing
-// previously surfaced: a project page shows "related articles" it picked,
-// but the article itself never showed "featured in this project" back.
-// No new field needed — this is the same relationship, just read
-// backwards, so it works for every project that already links an article
-// without the article's author having to do anything.
-export async function getProjectsLinkingToArticle(env, articleId, limit = 3) {
-  const projects = await listProjects(env, { publishedOnly: true });
-  return projects.filter((p) => Array.isArray(p.related_articles) && p.related_articles.includes(articleId)).slice(0, limit);
-}
 
-// Tag counts across every published article and project, for a topic-
-// browsing index — sorted most-used first, ties broken alphabetically.
-export async function getTagCounts(env) {
-  const [articles, projects] = await Promise.all([
-    listArticles(env, { publishedOnly: true }),
-    listProjects(env, { publishedOnly: true }),
-  ]);
-  const counts = new Map();
-  for (const item of [...articles, ...projects]) {
-    for (const t of item.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
-}
 
-export async function getTopicMeta(env, tag) {
-  return await env.DB.prepare("SELECT * FROM topic_meta WHERE tag = ?").bind(tag).first();
-}
 
 export async function listTopicMeta(env) {
   const { results } = await env.DB.prepare("SELECT * FROM topic_meta ORDER BY tag ASC").all();
   return results;
 }
 
-export async function setTopicMeta(env, tag, { description, og_image }) {
-  await env.DB
-    .prepare(
-      `INSERT INTO topic_meta (tag, description, og_image, updated_at) VALUES (?, ?, ?, datetime('now'))
-       ON CONFLICT(tag) DO UPDATE SET description = excluded.description, og_image = excluded.og_image, updated_at = datetime('now')`
-    )
-    .bind(tag, description || null, og_image || null)
-    .run();
-}
 
-export async function deleteTopicMeta(env, tag) {
-  await env.DB.prepare("DELETE FROM topic_meta WHERE tag = ?").bind(tag).run();
-}
 
-// Every published article and project carrying a given tag, for the
-// per-tag topic page (tag chips link here regardless of which content
-// type they came from, so a project's tag also surfaces matching articles
-// and vice versa).
-export async function getContentByTag(env, tag) {
-  const [articles, projects] = await Promise.all([
-    listArticles(env, { publishedOnly: true, tag }),
-    listProjects(env, { publishedOnly: true, tag }),
-  ]);
-  return { articles, projects };
-}
 
-// Every published article and project grouped by the year it was
-// published, newest year first, items within a year newest first — the
-// site-wide timeline archive.
-export async function getArchive(env) {
-  const [articles, projects] = await Promise.all([
-    listArticles(env, { publishedOnly: true }),
-    listProjects(env, { publishedOnly: true }),
-  ]);
-  const items = [
-    ...articles.map((a) => ({ type: "article", title: a.title, slug: a.slug, published_at: a.published_at })),
-    ...projects.map((p) => ({ type: "project", title: p.title, slug: p.slug, published_at: p.published_at })),
-  ].sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
-  const byYear = new Map();
-  for (const item of items) {
-    const year = (item.published_at || "").slice(0, 4) || "Unknown";
-    if (!byYear.has(year)) byYear.set(year, []);
-    byYear.get(year).push(item);
-  }
-  return [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([year, items]) => ({ year, items }));
-}
 
-// The keys reactions are stored under (thumbs up, light bulb, heart). They are data only: the page draws an icon for each
-// (`renderReactionsHtml`), never the character.
-export const REACTION_EMOJI = ["\u{1F44D}", "\u{1F4A1}", "\u2764\uFE0F"]; // no-emoji: data
+// no-emoji: data
 
-export async function addReaction(env, contentType, contentId, emoji) {
-  if (!REACTION_EMOJI.includes(emoji)) throw new Error("Invalid reaction");
-  await env.DB
-    .prepare("INSERT INTO reactions (content_type, content_id, emoji) VALUES (?, ?, ?)")
-    .bind(contentType, contentId, emoji)
-    .run();
-}
 
-export async function getReactionCounts(env, contentType, contentId) {
-  const { results } = await env.DB
-    .prepare("SELECT emoji, COUNT(*) AS count FROM reactions WHERE content_type = ? AND content_id = ? GROUP BY emoji")
-    .bind(contentType, contentId)
-    .all();
-  const counts = {};
-  for (const emoji of REACTION_EMOJI) counts[emoji] = 0;
-  for (const r of results) counts[r.emoji] = r.count;
-  return counts;
-}
 
-export async function createPreviewLink(env, contentType, contentId, hours) {
-  const token = crypto.randomUUID().replace(/-/g, "");
-  const expiresAt = new Date(Date.now() + Math.max(1, hours) * 3600 * 1000).toISOString();
-  await env.DB
-    .prepare("INSERT INTO preview_links (content_type, content_id, token, expires_at) VALUES (?, ?, ?, ?)")
-    .bind(contentType, contentId, token, expiresAt)
-    .run();
-  return { token, expires_at: expiresAt };
-}
 
-export async function listPreviewLinks(env, contentType, contentId) {
-  const { results } = await env.DB
-    .prepare("SELECT * FROM preview_links WHERE content_type = ? AND content_id = ? ORDER BY created_at DESC")
-    .bind(contentType, contentId)
-    .all();
-  return results;
-}
 
-export async function revokePreviewLink(env, id) {
-  await env.DB.prepare("UPDATE preview_links SET revoked_at = datetime('now') WHERE id = ?").bind(id).run();
-}
 
-export async function getValidPreviewLink(env, contentType, contentId, token) {
-  if (!token) return null;
-  // expires_at is a JS-generated ISO string (like articles/projects.expires_at
-  // elsewhere in this file), not a SQLite datetime('now') value — those two
-  // formats don't compare correctly against each other as plain strings.
-  return env.DB
-    .prepare("SELECT * FROM preview_links WHERE content_type = ? AND content_id = ? AND token = ? AND revoked_at IS NULL AND expires_at > ?")
-    .bind(contentType, contentId, token, new Date().toISOString())
-    .first();
-}
 
 // Settings are read a lot (a page needs about 30 of them for its theme, footer and custom head). A public page request carries
 // `env.__settingsCache` (a Map made for that one request, see worker/index.js): what was already read is not asked for again, and
@@ -3065,10 +1358,6 @@ export async function getLoginLockout(env, ip, nowMs = Date.now()) {
   return { allowed: retryAfterSeconds === 0, retryAfterSeconds };
 }
 
-// Returns true if this IP is currently allowed to attempt a login.
-export async function checkLoginRateLimit(env, ip) {
-  return (await getLoginLockout(env, ip)).allowed;
-}
 
 // Only wrong passwords are recorded: signing in correctly several times in a row must never lock the owner out.
 export async function recordLoginAttempt(env, ip) {
@@ -3086,334 +1375,15 @@ export async function recordLoginAttempt(env, ip) {
   return row ? row.n || 0 : 0;
 }
 
-export async function recordPageview(env, { path, referrer, country, device, browser, region, city }) {
-  await env.DB
-    .prepare("INSERT INTO pageviews (path, referrer, country, device, browser, region, city) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .bind(path, referrer || null, country || null, device || null, browser || null, region || null, city || null)
-    .run();
-}
 
-// A coarse device/browser label only — never the raw User-Agent string
-// itself, so pageviews stay a lot less fingerprintable than most analytics
-// setups while still answering "mobile or desktop, and which browser".
-// Order matters: several UAs contain more than one of these tokens (every
-// Chrome UA also contains "Safari/"), so the more specific check has to
-// run first.
-export function parseUserAgent(ua) {
-  if (!ua) return { device: null, browser: null };
-  const device = /Tablet|iPad/i.test(ua) ? "Tablet" : /Mobi|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
-  let browser = "Other";
-  if (/Edg\//.test(ua)) browser = "Edge";
-  else if (/OPR\/|Opera/.test(ua)) browser = "Opera";
-  else if (/Firefox\//.test(ua)) browser = "Firefox";
-  else if (/Chrome\/|CriOS\//.test(ua)) browser = "Chrome";
-  else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = "Safari";
-  return { device, browser };
-}
 
-// Crawlers, link-preview fetchers, uptime monitors and command-line clients: none of them is a reader, so their requests are
-// not counted as pageviews. A missing User-Agent counts as a bot (every real browser sends one). Headless Chrome is NOT
-// listed: scripted traffic that looks like a browser cannot be told apart, and the site's own browser tests use it.
-export function isBot(ua) {
-  if (!ua || !String(ua).trim()) return true;
-  return /bot\b|bot\/|crawl|spider|slurp|scrape|facebookexternalhit|facebot|embedly|quora link preview|whatsapp|telegram|discord|slack|skype|pinterest|vkshare|w3c_validator|lighthouse|pagespeed|gtmetrix|pingdom|uptime|monitor|statuscake|datadog|newrelic|curl\/|wget\/|python-requests|python-urllib|aiohttp|httpx|go-http-client|okhttp|java\/|apache-httpclient|libwww|node-fetch|axios\/|undici|postman|insomnia|feedfetcher|feedly|newsblur|inoreader|rss|reader\b/i.test(String(ua));
-}
 
-// contentType maps to a path prefix: "article" -> /random/, "project" ->
-// /projects/, "page" -> neither of those (everything else — pages, home,
-// topics, archive). device/referrer match the pageviews columns exactly
-// (the same values the top-devices/top-referrers lists already show, so
-// the dashboard's filter dropdowns are just populated from those lists).
-function buildPageviewFilter({ device, referrer, contentType } = {}) {
-  const clauses = [];
-  const binds = [];
-  if (device) {
-    clauses.push(device === "?" ? "device IS NULL" : "device = ?");
-    if (device !== "?") binds.push(device);
-  }
-  if (referrer) {
-    clauses.push(referrer === "(direct)" ? "referrer IS NULL" : "referrer = ?");
-    if (referrer !== "(direct)") binds.push(referrer);
-  }
-  if (contentType === "article") clauses.push("path LIKE '/random/%'");
-  else if (contentType === "project") clauses.push("path LIKE '/projects/%'");
-  else if (contentType === "page") clauses.push("path NOT LIKE '/random/%' AND path NOT LIKE '/projects/%'");
-  return { sql: clauses.length ? `AND ${clauses.join(" AND ")}` : "", binds };
-}
 
-// A readable name for each address in a "top pages" list: the title of the article, project, page or circuit behind it (Home,
-// Articles and Projects for the index pages). An address that matches nothing (a deleted page, a search, a topic) gets no entry.
-export async function titlesForPaths(env, paths) {
-  const out = new Map();
-  const slugs = { articles: new Map(), projects: new Map(), pages: new Map() };
-  const sims = new Map();
-  const fixed = { "/": "Home", "/random": "Articles", "/projects": "Projects" };
-  const decode = (v) => {
-    try {
-      return decodeURIComponent(v);
-    } catch {
-      return null;
-    }
-  };
-  for (const path of paths || []) {
-    if (fixed[path]) {
-      out.set(path, fixed[path]);
-      continue;
-    }
-    let m;
-    if ((m = /^\/random\/([^/]+)$/.exec(path))) slugs.articles.set(path, decode(m[1]));
-    else if ((m = /^\/projects\/([^/]+)$/.exec(path))) slugs.projects.set(path, decode(m[1]));
-    else if ((m = /^\/simulation\/(\d{1,9})$/.exec(path))) sims.set(path, Number(m[1]));
-    else if ((m = /^\/([^/]+)$/.exec(path))) slugs.pages.set(path, decode(m[1]));
-  }
-  const lookup = async (table, keyColumn, titleSql, byPath) => {
-    const wanted = [...new Set([...byPath.values()].filter((v) => v !== null && v !== undefined))];
-    if (!wanted.length) return;
-    try {
-      const results = await selectIn(env, (marks) => `SELECT ${keyColumn} AS k, ${titleSql} AS title FROM ${table} WHERE ${keyColumn} IN (${marks})`, wanted);
-      const titles = new Map(results.map((r) => [r.k, r.title]));
-      for (const [path, key] of byPath) if (titles.get(key)) out.set(path, String(titles.get(key)).slice(0, 80));
-    } catch {
-      // A title is a nicety: a failed lookup leaves the bare address.
-    }
-  };
-  await Promise.all([
-    lookup("articles", "slug", "title", slugs.articles),
-    lookup("projects", "slug", "title", slugs.projects),
-    lookup("pages", "slug", "title", slugs.pages),
-    lookup("simulations", "id", "COALESCE(published_name, name)", sims),
-  ]);
-  return out;
-}
 
-// The most-read articles in the last `days` days next to the days before them, for the Dashboard: [{ slug, id, title, views, previous }],
-// busiest first. One grouped query over two periods; titles and editor ids come from one small lookup. An article that no longer exists
-// keeps its address but has no id (the Dashboard shows it without a link).
-export async function getTopArticles(env, days = 7, limit = 5) {
-  const n = Math.max(1, Math.min(90, Math.floor(days) || 7));
-  const max = Math.max(1, Math.min(20, Math.floor(limit) || 5));
-  const { results } = await env.DB
-    .prepare(
-      `SELECT path,
-         SUM(CASE WHEN created_at > datetime('now', '-${n} days') THEN 1 ELSE 0 END) AS views,
-         SUM(CASE WHEN created_at <= datetime('now', '-${n} days') THEN 1 ELSE 0 END) AS previous
-       FROM pageviews
-       WHERE created_at > datetime('now', '-${2 * n} days') AND path LIKE '/random/%' AND path NOT LIKE '/random/%/%'
-       GROUP BY path HAVING views > 0 ORDER BY views DESC, path ASC LIMIT ?`
-    )
-    .bind(max)
-    .all();
-  const slugOf = (path) => {
-    try {
-      return decodeURIComponent(path.slice("/random/".length));
-    } catch {
-      return null;
-    }
-  };
-  const slugs = [...new Set(results.map((r) => slugOf(r.path)).filter(Boolean))];
-  const rows = new Map();
-  if (slugs.length) {
-    try {
-      const found = await selectIn(env, (marks) => `SELECT id, slug, title FROM articles WHERE slug IN (${marks})`, slugs);
-      for (const a of found) rows.set(a.slug, a);
-    } catch {
-      // Titles are a nicety: without them the address is shown.
-    }
-  }
-  return results.map((r) => {
-    const slug = slugOf(r.path) || r.path;
-    const a = rows.get(slug);
-    return { slug, id: a ? a.id : null, title: a ? String(a.title).slice(0, 120) : null, views: r.views, previous: r.previous };
-  });
-}
 
-// How many of the visits to each article and project went on to read it to the end: the page views of those addresses against the
-// "read_complete" events the page sends (see public/article-extras.js), most-visited first. Counts are per visit, so a share is never
-// more than 100%. Not filtered by device or referrer (the events carry neither), so the dashboard leaves it out while a filter is on.
-export async function getReadCompletion(env, days = 7) {
-  const d = Math.max(1, Math.floor(days));
-  const since = `datetime('now', '-${d} days')`;
-  const [views, reads] = await Promise.all([
-    env.DB
-      .prepare(`SELECT path, COUNT(*) AS views FROM pageviews WHERE created_at > ${since} AND (path LIKE '/random/%' OR path LIKE '/projects/%') GROUP BY path ORDER BY views DESC LIMIT 15`)
-      .all(),
-    env.DB.prepare(`SELECT path, COUNT(*) AS n FROM events WHERE name = 'read_complete' AND path IS NOT NULL AND created_at > ${since} GROUP BY path`).all(),
-  ]);
-  const readsByPath = new Map(reads.results.map((r) => [r.path, r.n]));
-  const rows = views.results.map((r) => {
-    const n = Math.min(r.views, readsByPath.get(r.path) || 0);
-    return { path: r.path, views: r.views, reads: n, percent: Math.round((n / r.views) * 100) };
-  });
-  const titles = await titlesForPaths(env, rows.map((r) => r.path));
-  return rows.map((r) => (titles.has(r.path) ? { ...r, title: titles.get(r.path) } : r));
-}
 
-export async function getAnalytics(env, days = 7, filters = {}) {
-  const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
-  const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
-  const isFiltered = !!filterSql;
 
-  const [
-    totalsRow,
-    byDay,
-    topPaths,
-    topReferrers,
-    topCountries,
-    topLocations,
-    topDevices,
-    topBrowsers,
-    topEvents,
-    searchInsights,
-    topOutboundLinks,
-    topDownloads,
-    missingPages,
-    readCompletion,
-    periodRow,
-  ] = await Promise.all([
-    isFiltered
-      ? env.DB
-          .prepare(
-            `SELECT
-               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes') ${filterSql}) AS activeNow,
-               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days') ${filterSql}) AS today,
-               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days') ${filterSql}) AS last7,
-               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days') ${filterSql}) AS last30,
-               (SELECT COUNT(*) FROM pageviews WHERE 1=1 ${filterSql}) AS allTime`
-          )
-          .bind(...filterBinds, ...filterBinds, ...filterBinds, ...filterBinds, ...filterBinds)
-          .first()
-      : env.DB.prepare(
-          `SELECT
-             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
-             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days')) AS today,
-             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days')) AS last7,
-             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days')) AS last30,
-             (SELECT COUNT(*) FROM pageviews) AS allTime`
-        ).first(),
-    env.DB
-      .prepare(
-        `SELECT date(created_at) AS day, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY day ORDER BY day ASC`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT path, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY path ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COALESCE(referrer, '(direct)') AS referrer, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY referrer ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COALESCE(country, '?') AS country, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY country ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    // City/region come from the same Cloudflare-populated request.cf as
-    // country, so they're free — just unset on `wrangler dev` locally,
-    // which doesn't have real edge geolocation. Grouped together as one
-    // "City, Region" location rather than three separate breakdowns.
-    env.DB
-      .prepare(
-        `SELECT COALESCE(city, '?') AS city, COALESCE(region, '?') AS region, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY city, region ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COALESCE(device, '?') AS device, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY device ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT COALESCE(browser, '?') AS browser, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} ${filterSql} GROUP BY browser ORDER BY n DESC LIMIT 10`
-      )
-      .bind(...filterBinds)
-      .all(),
-    getEventCounts(env, days),
-    getSearchInsights(env, days),
-    getTopEventUrls(env, "outbound_link", days),
-    getTopEventUrls(env, "download", days),
-    getMissingPages(env, days),
-    isFiltered ? Promise.resolve(null) : getReadCompletion(env, days),
-    // Views in this range, and in the range of the same length just before it (for "up 12% on the week before").
-    env.DB
-      .prepare(
-        `SELECT
-           (SELECT COUNT(*) FROM pageviews WHERE created_at > ${since} ${filterSql}) AS current,
-           (SELECT COUNT(*) FROM pageviews WHERE created_at <= ${since} AND created_at > datetime('now', '-${2 * Math.max(1, Math.floor(days))} days') ${filterSql}) AS previous`
-      )
-      .bind(...filterBinds, ...filterBinds)
-      .first(),
-  ]);
-  const titles = await titlesForPaths(env, topPaths.results.map((r) => r.path));
 
-  return {
-    rangeDays: Math.max(1, Math.floor(days)),
-    rangeTotal: periodRow?.current || 0,
-    previousTotal: periodRow?.previous || 0,
-    activeNow: totalsRow?.activeNow || 0,
-    today: totalsRow?.today || 0,
-    last7: totalsRow?.last7 || 0,
-    last30: totalsRow?.last30 || 0,
-    allTime: totalsRow?.allTime || 0,
-    byDay: byDay.results,
-    topPaths: topPaths.results.map((r) => (titles.has(r.path) ? { ...r, title: titles.get(r.path) } : r)),
-    topReferrers: topReferrers.results,
-    topCountries: topCountries.results,
-    topLocations: topLocations.results.map((r) => ({ location: r.city !== "?" ? `${r.city}, ${r.region}` : "?", n: r.n })),
-    topDevices: topDevices.results,
-    topBrowsers: topBrowsers.results,
-    topEvents,
-    topSearchTerms: searchInsights.topTerms,
-    noResultSearchTerms: searchInsights.noResultTerms,
-    topOutboundLinks,
-    topDownloads,
-    missingPages,
-    readCompletion,
-  };
-}
-
-// Raw, unaggregated rows for the "export raw events" CSV — every
-// individual pageview and event, not the top-N breakdowns getAnalytics()
-// returns. Same date-range and pageview filters (device/referrer/
-// contentType) as the dashboard; events have no device/referrer/path-type
-// columns to filter on, same limitation the dashboard's own filters
-// already carry (see the "raw event export" outline note). Capped at
-// 20,000 rows each — plenty for a personal-blog volume of traffic without
-// risking an unbounded response.
-const RAW_EXPORT_ROW_LIMIT = 20000;
-
-export async function getRawAnalyticsEvents(env, days = 7, filters = {}) {
-  const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
-  const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
-  const [pageviews, events] = await Promise.all([
-    env.DB
-      .prepare(
-        `SELECT created_at, path, referrer, device, browser, country, region, city FROM pageviews
-         WHERE created_at > ${since} ${filterSql} ORDER BY created_at DESC LIMIT ${RAW_EXPORT_ROW_LIMIT}`
-      )
-      .bind(...filterBinds)
-      .all(),
-    env.DB
-      .prepare(`SELECT created_at, name, path, detail FROM events WHERE created_at > ${since} ORDER BY created_at DESC LIMIT ${RAW_EXPORT_ROW_LIMIT}`)
-      .all(),
-  ]);
-  return { pageviews: pageviews.results, events: events.results };
-}
 
 export async function setSetting(env, key, value) {
   await env.DB
@@ -3428,36 +1398,13 @@ export async function setSetting(env, key, value) {
 
 const BACKUP_VERSION = 1;
 
+// A backup row for a circuit simulation is kept as the text it was exported as. The circuit builder is gone from the site, so nothing reads
+// these rows any more; they stay in the backup so a restore never loses them.
 function normalizeSimulationBackupData(value, label) {
   if (typeof value !== "string") throw new Error(`Invalid ${label} in backup`);
-  let parsed;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new Error(`Invalid ${label} in backup`);
-  }
-  const normalized = normalizeLegacySimulationWireIds(parsed);
-  const dataError = simulationDataError(normalized);
-  if (dataError) throw new Error(`Invalid ${label} in backup: ${dataError}`);
-  return JSON.stringify(normalized);
+  return value;
 }
 
-// Tables a backup deliberately leaves out, each with the reason. tests/backup-coverage.test.mjs fails when a table is in neither
-// exportAll() nor this list, so a new table is a decision made on purpose, not a quiet hole in the backup.
-export const BACKUP_NOT_INCLUDED = {
-  login_attempts: "Short-lived sign-in rate-limit counters; nothing worth restoring.",
-  rate_limits: "Short-lived request counters; nothing worth restoring.",
-  error_log: "A rolling log of recent errors, pruned automatically; only useful for the current session of problems.",
-  events: "Analytics events (clicks, searches, misses), a rolling record rather than site content.",
-  pageviews: "Analytics page views, a rolling record rather than site content; large and rebuilt as visitors arrive.",
-  activity_log: "The admin activity trail, pruned automatically.",
-  webhook_deliveries: "A short history of webhook calls, pruned to the latest 200.",
-  revisions: "Version history of pages, articles and projects. Not in the backup file today; the current content is. Restoring starts history afresh. (Worth deciding whether to include.)",
-  media_revisions: "History of each media file's description edits. Not in the backup file today. (Worth deciding whether to include.)",
-  media_versions: "Pointers to older uploaded versions of a file (the old bytes stay in R2). Not in the backup file today. (Worth deciding whether to include.)",
-  reactions: "Reader reaction counts. Not in the backup file today. (Worth deciding whether to include.)",
-  preview_links: "Secret share-links for unpublished items; deliberately not copied into a backup file, so a leaked backup can't reveal working links.",
-};
 
 export async function exportAll(env) {
   const [
@@ -3599,13 +1546,6 @@ export function alertLoginFailures(env, count, send = fetch) {
   );
 }
 
-// ---------- Scheduled posts and the publish webhook ----------
-// Saving something already live fires the publish webhook on the spot (maybeFireWebhook in admin-api.js). Something scheduled for later
-// has nothing to fire it when its time comes, so the daily cron looks back over what has gone live since the last look and tells the
-// webhook URLs about each. The marker starts at "now", so turning this on never announces posts that were already out.
-export const SCHEDULED_WEBHOOK_MARKER = "webhook_scheduled_last_sweep";
-export const SCHEDULED_WEBHOOK_CAP = 10;
-const SCHEDULED_WEBHOOK_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Stored dates come in two shapes (ISO with a T from the editors, "YYYY-MM-DD HH:MM:SS" from SQL's datetime('now')); both are UTC.
 export function stampMs(value) {
@@ -3616,103 +1556,8 @@ export function stampMs(value) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-// The body every publish webhook sends, whether it fires at save time or from the cron.
-export function publishWebhookPayload(contentType, item) {
-  const path = contentType === "project" ? "projects" : "random";
-  return {
-    contentType,
-    title: item.title,
-    slug: item.slug,
-    url: `https://dominickdominick.com/${path}/${item.slug}`,
-    published_at: item.published_at,
-  };
-}
 
-// Items whose publish time falls after afterMs and no later than upToMs, oldest first, leaving out any that skip() says were already
-// announced. At most cap are due now; the rest wait for the next sweep.
-export function duePublishes(items, afterMs, upToMs, cap = SCHEDULED_WEBHOOK_CAP, skip = () => false) {
-  const live = [];
-  for (const item of items || []) {
-    const t = stampMs(item && item.published_at);
-    if (t !== null && t > afterMs && t <= upToMs && !skip(item)) live.push({ item, t });
-  }
-  live.sort((a, b) => a.t - b.t);
-  return { due: live.slice(0, cap), deferred: Math.max(0, live.length - cap) };
-}
 
-export async function runScheduledPostWebhooks(env, { send = fetch, now = Date.now() } = {}) {
-  const last = stampMs(await getSetting(env, SCHEDULED_WEBHOOK_MARKER));
-  if (last === null) {
-    await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(now).toISOString());
-    return { initialised: true, posts: 0, deliveries: 0, deferred: 0 };
-  }
-  const afterMs = Math.max(last, now - SCHEDULED_WEBHOOK_LOOKBACK_MS);
-  const urls = ((await getSetting(env, "webhook_url")) || "")
-    .split("\n")
-    .map((u) => u.trim())
-    .filter((u) => /^https?:\/\//i.test(u));
-  if (!urls.length) {
-    // Nobody to tell; move on so a URL added later does not announce the past.
-    await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(now).toISOString());
-    return { initialised: false, posts: 0, deliveries: 0, deferred: 0 };
-  }
-  const kinds = ["article"];
-  if (await getSetting(env, "webhook_on_project_publish")) kinds.push("project");
-  const floorDay = new Date(afterMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const nowIso = new Date(now).toISOString();
-  const candidates = [];
-  for (const kind of kinds) {
-    const table = kind === "project" ? "projects" : "articles";
-    const { results } = await env.DB
-      .prepare(
-        `SELECT title, slug, published_at FROM ${table}
-         WHERE deleted_at IS NULL AND archived = 0 AND published_at IS NOT NULL AND published_at >= ? AND (expires_at IS NULL OR expires_at > ?)
-         ORDER BY published_at LIMIT 100`
-      )
-      .bind(floorDay, nowIso)
-      .all();
-    for (const row of results || []) candidates.push({ ...row, kind });
-  }
-  // Already announced at save time (or by an earlier sweep that died before it moved the marker): the delivery history says so.
-  // Compared by moment, not by spelling: the save-time payload carries the date as typed, the table may hold the same moment differently.
-  const sentKey = (url, p) => `${url}|${p.contentType}|${p.slug}|${stampMs(p.published_at) ?? p.published_at}`;
-  const sent = new Set();
-  const { results: history } = await env.DB.prepare("SELECT url, payload FROM webhook_deliveries ORDER BY id DESC LIMIT 200").all();
-  for (const row of history || []) {
-    try {
-      const p = JSON.parse(row.payload);
-      sent.add(sentKey(row.url, p));
-    } catch {
-      /* not a publish notice */
-    }
-  }
-  const { due, deferred } = duePublishes(candidates, afterMs, now, SCHEDULED_WEBHOOK_CAP, (item) => {
-    const payload = publishWebhookPayload(item.kind, item);
-    return urls.every((url) => sent.has(sentKey(url, payload)));
-  });
-  let posts = 0;
-  let deliveries = 0;
-  for (const { item } of due) {
-    const payload = publishWebhookPayload(item.kind, item);
-    let announced = false;
-    for (const url of urls) {
-      if (sent.has(sentKey(url, payload))) continue;
-      try {
-        const res = await send(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        await logWebhookDelivery(env, { url, payload, status: res.ok ? "success" : "failed", status_code: res.status, error: res.ok ? null : `HTTP ${res.status}` });
-      } catch (err) {
-        await logWebhookDelivery(env, { url, payload, status: "failed", error: err && err.message ? err.message : "Request failed" }).catch(() => {});
-      }
-      deliveries++;
-      announced = true;
-    }
-    if (announced) posts++;
-  }
-  // Over the cap, the marker stops at the last post handled so the rest go out on the next sweep.
-  const moveTo = deferred ? due[due.length - 1].t - 1 : now;
-  await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(moveTo).toISOString());
-  return { initialised: false, posts, deliveries, deferred };
-}
 
 export async function runScheduledBackup(env, { alert = false } = {}) {
   try {
@@ -3824,64 +1669,8 @@ export async function listScheduledBackups(env) {
     .map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded }));
 }
 
-// Sums every object under a prefix, paging through R2's list() cursor —
-// a single call caps out at 1000 objects, and the media library alone can
-// exceed that over time.
-async function sumR2Prefix(env, prefix) {
-  let count = 0;
-  let bytes = 0;
-  let cursor;
-  do {
-    const listed = await env.MEDIA.list({ prefix, cursor });
-    for (const o of listed.objects) {
-      count++;
-      bytes += o.size;
-    }
-    cursor = listed.truncated ? listed.cursor : undefined;
-  } while (cursor);
-  return { count, bytes };
-}
 
-// R2 usage by prefix (images/audio/video/scans/backups/version-history)
-// plus an approximate D1 database size and a few row counts for the
-// tables most likely to grow unbounded on their own (pageviews/events
-// accumulate forever unless pruned; everything else grows with content).
-// D1 reports size_after on every query's meta; fall back to null if a
-// future D1 runtime version ever stops populating it, rather than assume
-// it's always there.
-const STORAGE_USAGE_TABLE_NAMES = ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"];
 
-export async function getStorageUsage(env) {
-  const [images, audio, video, scans, backups, versions, sizeProbe, rowCounts] = await Promise.all([
-    sumR2Prefix(env, "uploads/"),
-    sumR2Prefix(env, "audio/"),
-    sumR2Prefix(env, "video/"),
-    sumR2Prefix(env, "scans/"),
-    sumR2Prefix(env, BACKUP_PREFIX),
-    sumR2Prefix(env, "_versions/"),
-    env.DB.prepare("SELECT 1").run(),
-    Promise.all(STORAGE_USAGE_TABLE_NAMES.map((table) => env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first())),
-  ]);
-  const byPrefix = [
-    { label: "Images", prefix: "uploads/", ...images },
-    { label: "Audio", prefix: "audio/", ...audio },
-    { label: "Video", prefix: "video/", ...video },
-    { label: "3D scans", prefix: "scans/", ...scans },
-    { label: "Backups", prefix: BACKUP_PREFIX, ...backups },
-    { label: "Image version history", prefix: "_versions/", ...versions },
-  ];
-  return {
-    r2: {
-      totalBytes: byPrefix.reduce((sum, p) => sum + p.bytes, 0),
-      totalCount: byPrefix.reduce((sum, p) => sum + p.count, 0),
-      byPrefix,
-    },
-    d1: {
-      sizeBytes: sizeProbe.meta?.size_after ?? null,
-      rowCounts: STORAGE_USAGE_TABLE_NAMES.reduce((acc, name, i) => ((acc[name] = rowCounts[i]?.n || 0), acc), {}),
-    },
-  };
-}
 
 export async function importAll(env, data) {
   if (!data || typeof data !== "object") throw new Error("Not a valid backup file");
@@ -4254,752 +2043,40 @@ export async function importAll(env, data) {
 // now, not just whether it exists (no network call); external links get a
 // live HEAD/GET request with a short timeout.
 
-// Whether an article/project would actually be servable to a visitor right
-// now — a link to a real-but-draft or real-but-expired item 404s exactly
-// like a link to a nonexistent one, so the Link Checker needs to know the
-// difference between "exists" and "exists and is live".
-function isCurrentlyPublished(item) {
-  if (!item || !item.published_at) return false;
-  const now = new Date().toISOString();
-  return item.published_at <= now && (!item.expires_at || item.expires_at > now);
-}
-
-async function checkOneLink(env, rawUrl) {
-  if (!rawUrl) return { ok: null, status: "Empty" };
-  // A song or scan placed into text with ::song 3:: / ::scan 2:: (it has no page of its own to link to).
-  const embedded = rawUrl.match(/^Embedded (song|scan) #(\d+)$/);
-  if (embedded) {
-    const row = embedded[1] === "song" ? await getSong(env, Number(embedded[2])) : await getScan(env, Number(embedded[2]));
-    return row ? { ok: true, status: "OK" } : { ok: false, status: "Not found (deleted?)" };
-  }
-  // A simulation's own page (also what ::sim 148:: is checked as): only a published one is public.
-  const simPage = rawUrl.split(/[?#]/)[0].match(/^\/simulation\/(\d+)$/);
-  if (simPage) {
-    return (await getPublishedSimulation(env, Number(simPage[1]))) ? { ok: true, status: "OK" } : { ok: false, status: "Not found or not published" };
-  }
-  if (rawUrl.startsWith("/")) {
-    // A file in the Media Library (a picture, a download): it has to exist, and a private upload is invisible to readers.
-    const file = rawUrl.split(/[?#]/)[0].match(/^\/media\/((?:uploads|scans|audio|video|fonts)\/[A-Za-z0-9_.\-\/]+)$/);
-    if (file) {
-      if (!(await env.MEDIA.head(file[1]))) return { ok: false, status: "Not found" };
-      if (file[1].startsWith("uploads/")) {
-        const meta = await env.DB.prepare("SELECT private FROM media WHERE key = ?").bind(file[1]).first();
-        if (meta && meta.private) return { ok: false, status: "Private file (readers can't see it)" };
-      }
-      return { ok: true, status: "OK" };
-    }
-    if (rawUrl === "/" || (await getPageBySlug(env, rawUrl.replace(/^\/+/, "").replace(/\/+$/, "") || "home"))) {
-      return { ok: true, status: "OK" };
-    }
-    const articleMatch = rawUrl.match(/^\/random\/([a-z0-9-]+)$/);
-    if (articleMatch) {
-      const article = await getArticleBySlug(env, articleMatch[1]);
-      if (!article) return { ok: false, status: "Not found" };
-      if (isCurrentlyPublished(article)) return { ok: true, status: "OK" };
-      return { ok: false, status: article.published_at ? "Expired" : "Not published (draft)" };
-    }
-    const projectMatch = rawUrl.match(/^\/projects\/([a-z0-9-]+)$/);
-    if (projectMatch) {
-      const project = await getProjectBySlug(env, projectMatch[1]);
-      if (!project) return { ok: false, status: "Not found" };
-      if (isCurrentlyPublished(project)) return { ok: true, status: "OK" };
-      return { ok: false, status: project.published_at ? "Expired" : "Not published (draft)" };
-    }
-    const redirect = await getRedirect(env, rawUrl);
-    if (redirect) return { ok: true, status: `Redirects to ${redirect.to_path}` };
-    return { ok: false, status: "Not found" };
-  }
-  if (!/^https?:\/\//i.test(rawUrl)) return { ok: null, status: "Skipped" };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    let res = await fetch(rawUrl, { method: "HEAD", redirect: "follow", signal: controller.signal });
-    if (res.status === 405 || res.status === 501) {
-      res = await fetch(rawUrl, { method: "GET", redirect: "follow", signal: controller.signal });
-    }
-    return { ok: res.ok, status: String(res.status) };
-  } catch {
-    return { ok: false, status: "Unreachable" };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// Walks every button/project-card/link-block/markdown link across pages,
-// articles and projects (including project journals) — shared by
-// checkLinks() (which pings each url) and getOrphanContent() (which
-// resolves them against site content to find what nothing links to).
-async function gatherInternalLinks(env) {
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const articles = await listArticles(env);
-  const projects = await listProjects(env);
-  const projectJournals = await Promise.all(projects.map((p) => listJournalEntries(env, p.id)));
-
-  const markdownLinks = (text) => markdownLinkTargets(text);
-  // Simulations, songs and scans placed into text (::sim 148::) are checked like links: do they still exist (and is a simulation published)?
-  const embedLinks = (text) => bodyEmbeds(text).map((e) => (e.kind === "sim" ? `/simulation/${e.id}` : `Embedded ${e.kind} #${e.id}`));
-
-  const found = [];
-  const addTextLinks = (text, source) => {
-    for (const url of markdownLinks(text)) found.push({ url, source });
-    for (const url of embedLinks(text)) found.push({ url, source: `${source} (embedded)` });
-  };
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      const c = b.content || {};
-      if ((b.type === "button" || b.type === "project-card") && c.url) {
-        found.push({ url: c.url, source: `Page "${p.title}" — ${b.type === "button" ? "Button" : "Project Card"} block` });
-      }
-      if (b.type === "links" && Array.isArray(c.items)) {
-        for (const it of c.items) if (it && it.url) found.push({ url: it.url, source: `Page "${p.title}" — Links block` });
-      }
-      for (const text of blockTexts(b)) {
-        const label = { text: "Text block", quote: "Quote block", accordion: "Accordion block", tabs: "Tabs block" }[b.type] || "Text";
-        addTextLinks(text, `Page "${p.title}" — ${label}`);
-      }
-    }
-  });
-  for (const a of articles) {
-    addTextLinks(a.body, `Article "${a.title}"`);
-  }
-  projects.forEach((p, i) => {
-    addTextLinks(p.body, `Project "${p.title}"`);
-    for (const key of ["github", "demo", "docs", "download"]) {
-      if (p.links && p.links[key]) found.push({ url: p.links[key], source: `Project "${p.title}" — ${key} link` });
-    }
-    if (p.links && Array.isArray(p.links.downloads)) {
-      for (const d of p.links.downloads) {
-        if (d && d.url) found.push({ url: d.url, source: `Project "${p.title}" — download manifest: ${d.label || d.url}` });
-      }
-    }
-    for (const j of projectJournals[i]) {
-      addTextLinks(j.body, `Project "${p.title}" — journal entry "${j.title || j.entry_date}"`);
-    }
-  });
-  return { found, pages, articles, projects };
-}
-
-export async function checkLinks(env) {
-  const { found } = await gatherInternalLinks(env);
-  const uniqueUrls = [...new Set(found.map((f) => f.url))];
-  const statusByUrl = {};
-  await Promise.all(
-    uniqueUrls.map(async (u) => {
-      statusByUrl[u] = await checkOneLink(env, u);
-    })
-  );
-  return found.map((f) => ({ ...f, ...statusByUrl[f.url] }));
-}
-
-// The on-demand Link Checker above only ever runs when an admin opens the
-// SEO Dashboard and clicks the button — a link can quietly go dead (a
-// third-party page taken down, a demo site expiring) for weeks before
-// anyone notices. Runs on the same daily cron as the scheduled backup,
-// storing just the broken subset (not a run history — same "latest only"
-// scope as the backup-failure status line) so the SEO Dashboard can show
-// "N broken links found" without anyone having to click "Check links" first.
-// Other sites are only checked a few at a time, so a long list of outside links never runs into the platform's limit on outgoing
-// requests (which used to turn the links past the limit into false "Unreachable" reports). The daily run takes the next batch in
-// alphabetical order after where the last run stopped, and carries every earlier result forward, so each outside link is checked
-// every few days and a dead one stays reported until it is looked at again. Links to this site's own pages and files are cheap
-// and are all checked every run.
-export const LINK_CHECK_EXTERNAL_PER_RUN = 25;
-const LINK_STATE_MAX = 600;
-const isOutsideUrl = (u) => /^https?:\/\//i.test(u);
-
-// Which outside addresses to check this run: up to `limit` of them, starting just after `cursor` and wrapping round, and the
-// address to remember as the new cursor.
-export function pickExternalBatch(urls, cursor, limit = LINK_CHECK_EXTERNAL_PER_RUN) {
-  const sorted = [...new Set(urls || [])].sort();
-  if (!sorted.length) return { batch: [], next: "" };
-  let start = sorted.findIndex((u) => u > String(cursor || ""));
-  if (start < 0) start = 0;
-  const count = Math.min(Math.max(1, Math.floor(Number(limit)) || LINK_CHECK_EXTERNAL_PER_RUN), sorted.length);
-  const batch = Array.from({ length: count }, (_, i) => sorted[(start + i) % sorted.length]);
-  return { batch, next: batch[batch.length - 1] };
-}
-
-export async function runScheduledLinkCheck(env, { gather = gatherInternalLinks, check = checkOneLink, limit = LINK_CHECK_EXTERNAL_PER_RUN, now = new Date() } = {}) {
-  const { found } = await gather(env);
-  const unique = [...new Set(found.map((f) => f.url))];
-  const external = unique.filter(isOutsideUrl);
-  let state = {};
-  try {
-    const parsed = JSON.parse((await getSetting(env, "link_check_external_state")) || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) state = parsed;
-  } catch {
-    state = {};
-  }
-  const { batch, next } = pickExternalBatch(external, await getSetting(env, "link_check_cursor"), limit);
-  const todo = [...unique.filter((u) => !isOutsideUrl(u)), ...batch];
-  const fresh = {};
-  await Promise.all(
-    todo.map(async (u) => {
-      fresh[u] = await check(env, u);
-    })
-  );
-  const stamp = now.toISOString();
-  // Results carried forward: only addresses still in use, this run's checks on top, the oldest dropped if the list is huge.
-  const keep = {};
-  for (const u of external) {
-    if (fresh[u]) keep[u] = { ok: fresh[u].ok, status: fresh[u].status, at: stamp };
-    else if (state[u] && typeof state[u] === "object") keep[u] = state[u];
-  }
-  const kept = Object.entries(keep).sort((a, b) => String(b[1].at || "").localeCompare(String(a[1].at || ""))).slice(0, LINK_STATE_MAX);
-  const resultFor = (u) => (isOutsideUrl(u) ? keep[u] || null : fresh[u] || null);
-  const broken = [];
-  for (const f of found) {
-    const r = resultFor(f.url);
-    if (r && r.ok === false) broken.push({ url: f.url, source: f.source, status: r.status, ...(isOutsideUrl(f.url) && r.at ? { checkedAt: r.at } : {}) });
-  }
-  const notChecked = external.filter((u) => !keep[u]).length;
-  await setSetting(env, "last_link_check_at", stamp);
-  await setSetting(env, "last_link_check_broken", JSON.stringify(broken));
-  await setSetting(env, "last_link_check_unchecked", String(notChecked));
-  await setSetting(env, "link_check_cursor", next);
-  await setSetting(env, "link_check_external_state", JSON.stringify(Object.fromEntries(kept)));
-  return { checked: todo.length, outsideChecked: batch.length, outsideTotal: external.length, notChecked, broken: broken.length };
-}
-
-export async function getLinkCheckStatus(env) {
-  const [lastAt, brokenRaw, unchecked] = await Promise.all([
-    getSetting(env, "last_link_check_at"),
-    getSetting(env, "last_link_check_broken"),
-    getSetting(env, "last_link_check_unchecked"),
-  ]);
-  let broken = [];
-  try {
-    broken = JSON.parse(brokenRaw || "[]");
-  } catch {
-    broken = [];
-  }
-  return { lastAt: lastAt || null, broken, notChecked: Math.max(0, Number(unchecked) || 0), perRun: LINK_CHECK_EXTERNAL_PER_RUN };
-}
-
-// Rolls up several already-separate status signals (backup failure, broken
-// links, recent errors, recent failed webhook deliveries) into the one
-// number the admin header's notification bell needs — no new "read/
-// unread" state to track, just "how many things currently need a look",
-// recomputed fresh each time rather than persisted anywhere.
-const NOTIFICATION_RECENT_HOURS = 24;
-export async function getNotificationSummary(env) {
-  const since = `datetime('now', '-${NOTIFICATION_RECENT_HOURS} hours')`;
-  const [backupStatus, linkCheckStatus, recentErrors, recentFailedWebhooks] = await Promise.all([
-    getBackupStatus(env),
-    getLinkCheckStatus(env),
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM error_log WHERE created_at > ${since}`).first(),
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM webhook_deliveries WHERE status = 'failed' AND created_at > ${since}`).first(),
-  ]);
-  return {
-    backupFailed: !!backupStatus.lastError,
-    brokenLinks: linkCheckStatus.broken.length,
-    recentErrors: recentErrors?.n || 0,
-    recentFailedWebhooks: recentFailedWebhooks?.n || 0,
-  };
-}
-
-// Orphan-page detection: published pages/articles/projects that nothing
-// else on the site links to internally (via a button/links/text block, a
-// markdown link in an article/project body or journal entry, or a
-// project's github/demo/docs/download links) AND that aren't reachable
-// from the header nav (nav_order set) — the two ways a visitor could
-// actually land on them without knowing the URL already. Related-content
-// suggestions and shuffle don't count: both are automatic/random, not a
-// deliberate link an editor placed, so they don't make a page "reachable"
-// in the sense this check cares about.
-export async function getOrphanContent(env) {
-  const { found, pages, articles, projects } = await gatherInternalLinks(env);
-  const linkedPaths = new Set();
-  for (const { url } of found) {
-    try {
-      const path = new URL(url, "https://dominickdominick.com").pathname.replace(/\/$/, "") || "/";
-      linkedPaths.add(path);
-    } catch {
-      // Not a resolvable URL (e.g. a mailto: or malformed link) — ignore.
-    }
-  }
-  const isOrphanPage = (p) => p.slug !== "home" && p.nav_order == null && !linkedPaths.has(`/${p.slug}`);
-  const isOrphanArticle = (a) => !!a.published_at && !linkedPaths.has(`/random/${a.slug}`);
-  const isOrphanProject = (p) => !!p.published_at && !linkedPaths.has(`/projects/${p.slug}`);
-  return {
-    pages: pages.filter(isOrphanPage).map((p) => ({ title: p.title, slug: p.slug })),
-    articles: articles.filter(isOrphanArticle).map((a) => ({ title: a.title, slug: a.slug })),
-    projects: projects.filter(isOrphanProject).map((p) => ({ title: p.title, slug: p.slug })),
-  };
-}
-
-// A page counts as "empty" for this report if it has no blocks at all, or
-// every block on it fails the same emptiness check the per-page
-// diagnostics panel already runs one block at a time (heading/text/quote
-// with no text, image/video/embed with no url, button with no url) —
-// i.e. nothing a visitor would actually see. "Stale" is separate: still
-// has real content, just hasn't been touched in a long time — worth a
-// second look, not necessarily a problem.
-const STALE_DAYS = 365;
-
-function isEmptyBlock(b) {
-  const c = b.content || {};
-  if (["heading", "text", "quote"].includes(b.type)) return !c.text;
-  if (["image", "video", "embed"].includes(b.type)) return !c.url;
-  if (b.type === "button") return !c.url;
-  return false;
-}
-
-export async function getContentHealth(env) {
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const emptyPages = pages
-    .filter((p, i) => p.slug !== "home" && (pageBlocks[i].length === 0 || pageBlocks[i].every(isEmptyBlock)))
-    .map((p) => ({ title: p.title, slug: p.slug }));
-
-  // updated_at is always SQLite `datetime('now')` format ("YYYY-MM-DD
-  // HH:MM:SS"), but published_at is set via JS `Date.toISOString()` on
-  // some paths and `datetime('now')` on others — comparing the raw
-  // strings would silently misorder whichever rows mix formats. Parsing
-  // through Date (same normalization renderSitemap() already uses for
-  // this exact reason) avoids that regardless of which format a given
-  // row happens to have.
-  const parseDbDate = (s) => (s ? new Date(/Z$/.test(s) ? s : `${s.replace(" ", "T")}Z`) : null);
-  const staleCutoffMs = Date.now() - STALE_DAYS * 24 * 3600 * 1000;
-  const articles = await listArticles(env, { publishedOnly: true });
-  const projects = await listProjects(env, { publishedOnly: true });
-  const isStale = (item) => {
-    const d = parseDbDate(item.updated_at || item.published_at);
-    return !!d && d.getTime() < staleCutoffMs;
-  };
-  return {
-    emptyPages,
-    staleArticles: articles.filter(isStale).map((a) => ({ title: a.title, slug: a.slug, updated_at: a.updated_at || a.published_at })),
-    staleProjects: projects.filter(isStale).map((p) => ({ title: p.title, slug: p.slug, updated_at: p.updated_at || p.published_at })),
-  };
-}
-
-// Site-wide "content integrity" sweep — dangling references that a normal
-// edit flow can leave behind without anything visibly breaking at save
-// time: a simulation/scan/song deleted after a block already pointed at it
-// (the single-page admin canvas badge added alongside this only warns
-// about whichever page happens to be open), and a project's related-X
-// arrays still listing an id whose row is long gone (deleting a related
-// article/project/simulation/scan doesn't touch anything else's
-// related_* JSON array, so a stale id just sits there silently).
-//
-// A dangling nav_parent_id was considered too, but schema.sql's
-// `nav_parent_id INTEGER REFERENCES pages(id)` is a real, D1-enforced
-// foreign key, and every trash/delete/permadelete path already nulls out
-// a deleted page's children (see the three `UPDATE pages SET
-// nav_parent_id = NULL` calls above) — confirmed via a direct D1 write
-// attempt that a dangling value can't exist, so it isn't checked here.
-export async function getContentIntegrity(env) {
-  const [pages, articles, projects, simulations, scans, songs] = await Promise.all([
-    listPages(env),
-    listArticles(env),
-    listProjects(env),
-    listSimulations(env),
-    listScans(env),
-    listSongs(env),
-  ]);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const simIds = new Set(simulations.map((s) => s.id));
-  const scanIds = new Set(scans.map((s) => s.id));
-  const songIds = new Set(songs.map((s) => s.id));
-  const articleIds = new Set(articles.map((a) => a.id));
-  const projectIds = new Set(projects.map((p) => p.id));
-
-  const brokenBlockRefs = [];
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      const c = b.content || {};
-      if (b.type === "simulation" && c.simulation_id && !simIds.has(Number(c.simulation_id))) {
-        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "Simulation" });
-      }
-      if (b.type === "scan" && c.scan_id && !scanIds.has(Number(c.scan_id))) {
-        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "3D Scan" });
-      }
-      if (b.type === "song" && c.song_id && !songIds.has(Number(c.song_id))) {
-        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "Song" });
-      }
-    }
-  });
-
-  const danglingRelations = [];
-  projects.forEach((p) => {
-    (p.related_articles || []).forEach((id) => {
-      if (!articleIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related articles" });
-    });
-    (p.related_simulations || []).forEach((id) => {
-      if (!simIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related simulations" });
-    });
-    (p.related_scans || []).forEach((id) => {
-      if (!scanIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related scans" });
-    });
-    (p.related_songs || []).forEach((id) => {
-      if (!songIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related songs" });
-    });
-    (p.related_override || []).forEach((id) => {
-      if (!projectIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related projects override" });
-    });
-  });
-
-  return { brokenBlockRefs, danglingRelations };
-}
-
-// Shared with worker/index.js's renderSitemap(), so the two never
-// independently drift on what "excluded from the sitemap" means — a
-// password-protected page 401s (with noindex) for anyone unauthenticated,
-// so listing it contradicts that gate the same way sitemap_exclude does
-// for the intentional case; only pages have a password_hash field.
-export function isInSitemap(item, type) {
-  if (item.sitemap_exclude) return false;
-  if (type === "page" && item.password_hash) return false;
-  return true;
-}
-
-// Alt text with the characters that render as nothing (zero-width spaces and joiners, BOM,
-// and ordinary whitespace) taken out, so "present but invisible" counts as missing.
-// Alt text with invisible edge characters removed (see worker/text.js); empty means missing.
-export function cleanAlt(alt) {
-  return visibleText(alt);
-}
-
-// Why an alt text is present but unhelpful to a screen-reader user or search engine, as
-// { reason, long }, or null. Missing alt text is a separate, louder finding (getSeoReport's
-// missingAlt), so an empty one returns null here. The checks are deliberately narrow so a
-// genuine description isn't flagged: a file name (one token ending in an image extension), a
-// bare camera or screenshot number, a one-word placeholder or punctuation-only text, a
-// redundant "image of ..." lead-in (the reader already announces "image"), or a description
-// so long that screen readers break it up (about 125 characters is the usual guidance, a
-// softer finding: `long` is true so it can be ranked lower).
-export function altTextProblemDetail(alt) {
-  const shown = cleanAlt(alt);
-  if (!shown) return null;
-  // Patterns are tested with zero-width characters removed everywhere (a pasted "IMG\u200b_1234"
-  // is still a camera number); the text itself is never altered.
-  const text = shown.replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
-  const bad = (reason) => ({ reason, long: false });
-  if (/^\S+\.(jpe?g|png|gif|webp|svg|avif|heic|bmp|tiff?)$/i.test(text)) return bad("Looks like a file name");
-  if (
-    /^(img|dsc|dscn|dscf|pxl|mvimg)[\s_-]?e?\d{2,}(?:[\w-]*|\s*\(\d+\))$/i.test(text) ||
-    /^(screenshot|screen shot)[\s_-]*(?:from\s+)?(?:\(\d+\)|\d{4}-\d{2}-\d{2}.*|\d+)$/i.test(text) ||
-    /^(image|photo|picture|pic)[\s_-]*\(?\d+\)?$/i.test(text)
-  ) {
-    return bad("Looks like a camera or screenshot number");
-  }
-  if (/^\p{Nd}+$/u.test(text)) return bad("Just a number");
-  if (/^[\p{P}\p{S}\p{Z}_]+$/u.test(text)) return bad("No actual words");
-  if (
-    /^(image|photo|picture|pic|img|graphic|screenshot|untitled[\s_-]*\d*|alt|alt text|placeholder|thumbnail|banner|logo|icon|spacer|n\/a|none|null|undefined|todo|tbd)\.?$/i.test(text) ||
-    /^lorem ipsum\b/i.test(text)
-  ) {
-    return bad("A generic placeholder, not a description");
-  }
-  if (/^(an?\s+)?(images?|pictures?|photos?|photographs?|graphics?)\s+(of|showing)\b/i.test(text)) {
-    return bad('Starts with "image of" (screen readers already announce it as an image)');
-  }
-  if (text.length > 125) return { reason: `${text.length} characters (screen readers handle about 125 well)`, long: true };
-  return null;
-}
-export function altTextProblem(alt) {
-  const found = altTextProblemDetail(alt);
-  return found ? found.reason : null;
-}
-
-// Site-wide SEO/accessibility sweep: pages missing a meta description
-// (falls back to the title, which is worse for search-result snippets and
-// social shares), and every image block missing alt text (aggregating
-// the same check the per-page diagnostics panel already does one page at
-// a time, so it can all be seen — and fixed — from one place).
-export async function getSeoReport(env) {
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const articles = await listArticles(env, { publishedOnly: true });
-  const projects = await listProjects(env, { publishedOnly: true });
-  const missingMeta = pages.filter((p) => !cleanAlt(p.meta_description)).map((p) => ({ title: p.title, slug: p.slug }));
-  const missingAlt = [];
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      const c = b.content || {};
-      if (b.type === "image" && c.url && !cleanAlt(c.alt)) {
-        missingAlt.push({ title: p.title, slug: p.slug, url: c.url });
-      }
-    }
-  });
-  const missingOgImage = [
-    ...articles.filter((a) => !visibleText(a.og_image)).map((a) => ({ title: a.title, slug: a.slug, type: "article" })),
-    ...projects.filter((p) => !visibleText(p.og_image)).map((p) => ({ title: p.title, slug: p.slug, type: "project" })),
-  ];
-  // Same title used more than once across pages/articles/projects — not
-  // technically broken, but confusing in search results and share cards,
-  // both of which key on the title.
-  const titleOwners = new Map();
-  for (const [items, type] of [[pages, "page"], [articles, "article"], [projects, "project"]]) {
-    for (const item of items) {
-      const key = item.title.trim().toLowerCase();
-      if (!key) continue;
-      if (!titleOwners.has(key)) titleOwners.set(key, []);
-      titleOwners.get(key).push({ title: item.title, slug: item.slug, type });
-    }
-  }
-  const duplicateTitles = [...titleOwners.values()].filter((owners) => owners.length > 1);
-  // Same meta description reused across pages — search engines treat this
-  // about as poorly as a duplicate title: it makes distinct pages look
-  // interchangeable in results. Pages only (not articles/projects), since
-  // meta_description is the one explicit admin-typed field here — the
-  // other two don't have an equivalent column, so there's nothing to
-  // compare there. Empty ones are already covered by missingMeta above,
-  // so they're excluded here to avoid double-reporting the same page.
-  const metaOwners = new Map();
-  for (const p of pages) {
-    const key = (p.meta_description || "").trim().toLowerCase();
-    if (!key) continue;
-    if (!metaOwners.has(key)) metaOwners.set(key, []);
-    metaOwners.get(key).push({ title: p.title, slug: p.slug });
-  }
-  const duplicateMeta = [...metaOwners.values()].filter((owners) => owners.length > 1);
-  // A canonical URL pointing somewhere else is exactly the signal to use
-  // for "the real version of this is over there" (e.g. a project
-  // deliberately converted from an article, per the editor's own
-  // confirm-dialog advice) — but sitemap.xml/rss.xml always list a page's
-  // own slug URL regardless, with no awareness of that signal. Search
-  // engines get told two contradictory things at once: the sitemap says
-  // "index this," the page's own <link rel="canonical"> says "no, index
-  // that instead." sitemap_exclude already exists for exactly this
-  // situation; this just flags where it was probably meant to be set but
-  // wasn't.
-  const ownUrl = { page: (p) => (p.slug === "home" ? "https://dominickdominick.com/" : `https://dominickdominick.com/${p.slug}`), article: (a) => `https://dominickdominick.com/random/${a.slug}`, project: (p) => `https://dominickdominick.com/projects/${p.slug}` };
-  const sitemapCanonicalMismatch = [];
-  for (const [items, type] of [[pages, "page"], [articles, "article"], [projects, "project"]]) {
-    for (const item of items) {
-      if (!item.canonical_url || !isInSitemap(item, type)) continue;
-      // Trailing slash on the site root is the one legitimate case where
-      // the canonical URL and the computed URL differ by punctuation only.
-      const own = ownUrl[type](item).replace(/\/$/, "") || "https://dominickdominick.com";
-      const canonical = item.canonical_url.replace(/\/$/, "");
-      if (canonical !== own) {
-        sitemapCanonicalMismatch.push({ title: item.title, slug: item.slug, type, canonicalUrl: item.canonical_url });
-      }
-    }
-  }
-  // Titles and descriptions the search engine will cut off or find thin. Measured on what is
-  // actually served: articles and projects get " · Dominick" appended to the <title>, and only
-  // an explicit, admin-typed description is judged (a page's Meta description, a project's
-  // Summary); the automatic ~155-character excerpt is already sized for a snippet.
-  const TITLE_SUFFIX = " · Dominick";
-  const TITLE_MAX = 60;
-  const DESC_MIN = 50;
-  const DESC_MAX = 160;
-  const longTitles = [];
-  // Browsers and search engines collapse runs of whitespace in a <title>, so count them that way.
-  const titleLength = (title) => String(title || "").replace(/\s+/g, " ").trim().length;
-  for (const [items, type, suffix] of [[pages, "page", ""], [articles, "article", TITLE_SUFFIX], [projects, "project", TITLE_SUFFIX]]) {
-    for (const item of items) {
-      const length = titleLength(item.title) + suffix.length;
-      if (length > TITLE_MAX) longTitles.push({ title: item.title, slug: item.slug, type, length });
-    }
-  }
-  // A published simulation's own page is titled "<published name> · Dominick" too.
-  const publishedSims = await env.DB.prepare("SELECT id, published_name FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL").all();
-  for (const sim of publishedSims.results || []) {
-    const length = titleLength(sim.published_name) + TITLE_SUFFIX.length;
-    if (length > TITLE_MAX) longTitles.push({ title: sim.published_name, slug: String(sim.id), type: "simulation", length });
-  }
-  const descriptionLength = [];
-  const judgeDescription = (item, type, text) => {
-    const length = String(text || "").trim().length;
-    if (!length) return; // absence is reported elsewhere (missingMeta) or falls back to the excerpt
-    if (length < DESC_MIN) descriptionLength.push({ title: item.title, slug: item.slug, type, length, problem: "short" });
-    else if (length > DESC_MAX) descriptionLength.push({ title: item.title, slug: item.slug, type, length, problem: "long" });
-  };
-  for (const p of pages) judgeDescription(p, "page", p.meta_description);
-  for (const pr of projects) judgeDescription(pr, "project", pr.summary);
-  // Alt text that exists but doesn't describe anything: on page image blocks, gallery images
-  // and the Media Library's default alt text (what gets inserted with an image).
-  const weakAlt = [];
-  const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
-  // Pictures written into article and project bodies, ![alt](address "caption"), found the way the renderer finds them (code and
-  // anything that isn't a valid picture line don't count). An empty alt falls back to the Media Library's default for that file
-  // (as the page does), so it is only missing when the library has none either; a typed alt is judged like any other. The row
-  // points at the article or project and names the picture, since there is no block to point at.
-  const libraryAlt = new Map((mediaAlt.results || []).map((r) => [r.key, r.alt_text]));
-  for (const [items, base] of [[articles, "/random/"], [projects, "/projects/"]]) {
-    for (const item of items) {
-      for (const pic of bodyPictures(item.body)) {
-        const typed = cleanAlt(pic.alt);
-        const alt = typed || (pic.key ? cleanAlt(libraryAlt.get(pic.key)) : "");
-        const picture = pic.key ? pic.key.split("/").pop() : pic.src.replace(/^https:\/\//, "").slice(0, 60);
-        if (!alt) {
-          missingAlt.push({ title: item.title, slug: null, url: base + item.slug, picture });
-        } else if (typed) {
-          const found = altTextProblemDetail(typed);
-          if (found) weakAlt.push({ title: item.title, slug: null, where: "Picture in the text", inText: true, picture, url: base + item.slug, alt: typed, reason: found.reason, long: found.long });
-        }
-      }
-    }
-  }
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      const c = b.content || {};
-      if (b.type === "image" && c.url) {
-        const found = altTextProblemDetail(c.alt);
-        if (found) weakAlt.push({ title: p.title, slug: p.slug, where: "Image block", url: c.url, alt: cleanAlt(c.alt), reason: found.reason, long: found.long });
-      }
-      if (b.type === "gallery" && Array.isArray(c.images)) {
-        for (const img of c.images) {
-          if (!img || typeof img === "string" || !img.url) continue;
-          const found = altTextProblemDetail(img.alt);
-          if (found) weakAlt.push({ title: p.title, slug: p.slug, where: "Gallery image", url: img.url, alt: cleanAlt(img.alt), reason: found.reason, long: found.long });
-        }
-      }
-    }
-  });
-  for (const row of mediaAlt.results || []) {
-    const found = altTextProblemDetail(row.alt_text);
-    if (found) weakAlt.push({ title: "Media Library", slug: null, where: "Media Library default alt text", url: `/media/${row.key}`, alt: cleanAlt(row.alt_text), reason: found.reason, long: found.long });
-  }
-  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch, longTitles, descriptionLength, weakAlt };
-}
-
-// Same WCAG relative-luminance contrast formula used both by the Site
-// Settings theme-color checker and the per-page Diagnostics per-block
-// check (public/admin/app.js) — duplicated here rather than shared,
-// since the admin bundle and the worker have no common module between
-// them to put it in.
-function relLuminance(hex) {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16) / 255;
-  const g = parseInt(h.slice(2, 4), 16) / 255;
-  const b = parseInt(h.slice(4, 6), 16) / 255;
-  const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-}
-function contrastRatio(hexA, hexB) {
-  const l1 = relLuminance(hexA);
-  const l2 = relLuminance(hexB);
-  const lighter = Math.max(l1, l2);
-  const darker = Math.min(l1, l2);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-const HEX_RE = /^#[0-9a-f]{6}$/i;
-
-// Most block types are already accessible by construction (semantic markup,
-// real <button>/<a> elements, a dedicated alt-text field the SEO report
-// above already checks) — "html" is the one place arbitrary admin-authored
-// markup can land, so it's the only place worth pattern-matching for known
-// keyboard-nav/focus anti-patterns. Any block type can carry a custom
-// color/bg style override though, which is checked across all of them
-// below, independent of the per-type checks.
-// Regex-based HTML scanning is inherently approximate (same trade-off the
-// markdown-link scanning elsewhere in this file already makes) — flags
-// likely issues, not a substitute for actually tabbing through the page.
-export async function checkAccessibility(env) {
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const checks = [
-    { test: /tabindex\s*=\s*["']?\s*[1-9]/i, issue: "Positive tabindex value (breaks the natural tab order)" },
-    { test: /<(div|span|li|td|tr|p|section|article)\b[^>]*\bonclick\s*=/i, issue: "onclick on a non-interactive element (not reachable or operable by keyboard)" },
-    { test: /<img\b(?![^>]*\balt\s*=)[^>]*>/i, issue: "<img> with no alt attribute" },
-    { test: /<a\b[^>]*\bhref\s*=\s*["']\s*#\s*["'][^>]*>/i, issue: '<a href="#"> with no real destination' },
-  ];
-  const issues = [];
-  pages.forEach((p, i) => {
-    for (const b of pageBlocks[i]) {
-      if (b.type === "html") {
-        const html = (b.content && b.content.html) || "";
-        for (const { test, issue } of checks) {
-          if (test.test(html)) issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue });
-        }
-      }
-      if (b.type === "gallery") {
-        const images = Array.isArray(b.content && b.content.images) ? b.content.images : [];
-        const missingAlt = images.some((img) => (typeof img === "string" ? true : !img || !img.alt));
-        if (missingAlt) {
-          issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue: "Gallery image with no alt text" });
-        }
-      }
-      // The per-page Diagnostics panel already catches this one page at a
-      // time, but there was no way to sweep the whole site for it — an
-      // admin had to happen to open Diagnostics on the specific page a bad
-      // color pair landed on. Same threshold, applied everywhere at once.
-      // WCAG AA allows a relaxed 3:1 for large text; headings are the block
-      // type most likely to actually be large enough to qualify, so they
-      // get that lower bar instead of flagging pairs that are technically
-      // compliant.
-      const color = b.style && b.style.color;
-      const bg = b.style && b.style.bg;
-      if (color && bg && HEX_RE.test(color) && HEX_RE.test(bg)) {
-        const ratio = contrastRatio(color, bg);
-        const threshold = b.type === "heading" ? 3 : 4.5;
-        if (ratio < threshold) {
-          issues.push({
-            pageTitle: p.title,
-            pageSlug: p.slug,
-            blockId: b.id,
-            issue: `Custom text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of ${threshold}:1`,
-          });
-        }
-      }
-    }
-  });
-  return issues;
-}
 
 
-// ---------- Hidden Notes vault (sealed in the browser; see hidden-notes.js) ----------
-export async function getHiddenVault(env) {
-  const [{ results }, metaRow] = await Promise.all([
-    env.DB.prepare("SELECT key, value FROM settings WHERE substr(key, 1, 12) = ? ORDER BY key").bind(HIDDEN_NOTE_PREFIX).all(),
-    env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(HIDDEN_META_KEY).first(),
-  ]);
-  let meta = null;
-  try { meta = metaRow ? JSON.parse(metaRow.value) : null; } catch { meta = null; }
-  const notes = results.flatMap((r) => {
-    try {
-      const v = JSON.parse(r.value);
-      return [{ id: r.key.slice(HIDDEN_NOTE_PREFIX.length), blob: v.blob, created_at: v.created_at, updated_at: v.updated_at }];
-    } catch {
-      return [];
-    }
-  });
-  return { meta, notes };
-}
-export async function countHiddenNotes(env) {
-  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM settings WHERE substr(key, 1, 12) = ?").bind(HIDDEN_NOTE_PREFIX).first();
-  return row ? row.n : 0;
-}
-export async function getHiddenNoteRow(env, id) {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(HIDDEN_NOTE_PREFIX + id).first();
-  try { return row ? JSON.parse(row.value) : null; } catch { return null; }
-}
-export async function putHiddenNote(env, id, blob, createdAt) {
-  const now = new Date().toISOString();
-  await env.DB
-    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-    .bind(HIDDEN_NOTE_PREFIX + id, JSON.stringify({ blob, created_at: createdAt || now, updated_at: now }))
-    .run();
-  return { id, created_at: createdAt || now, updated_at: now };
-}
-export async function deleteHiddenNote(env, id) {
-  await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(HIDDEN_NOTE_PREFIX + id).run();
-}
-export async function setHiddenMeta(env, meta) {
-  await setSetting(env, HIDDEN_META_KEY, JSON.stringify(meta));
-}
-// Replaces the whole vault in one batch (a new passphrase re-seals every note; an import brings a copy in).
-export async function replaceHiddenVault(env, meta, notes) {
-  const now = new Date().toISOString();
-  const stmts = [env.DB.prepare("DELETE FROM settings WHERE substr(key, 1, 12) = ?").bind(HIDDEN_NOTE_PREFIX)];
-  for (const n of notes) {
-    const id = n.id || crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-    const created = n.created_at || now;
-    stmts.push(
-      env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").bind(HIDDEN_NOTE_PREFIX + id, JSON.stringify({ blob: n.blob, created_at: created, updated_at: n.updated_at || created }))
-    );
-  }
-  stmts.push(
-    env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(HIDDEN_META_KEY, JSON.stringify(meta))
-  );
-  await env.DB.batch(stmts);
-}
-export async function eraseHiddenVault(env) {
-  await env.DB.prepare("DELETE FROM settings WHERE substr(key, 1, 11) = 'hidden_note'").run();
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Tables that are deliberately not in the backup file, with the reason, so a new table cannot be forgotten silently (tests/backup-coverage.test.mjs).
+export const BACKUP_NOT_INCLUDED = {
+  login_attempts: "Short-lived sign-in rate-limit counters; nothing worth restoring.",
+  rate_limits: "Short-lived request counters; nothing worth restoring.",
+  error_log: "A rolling log of recent errors, pruned automatically; only useful for the current session of problems.",
+  events: "Analytics events (clicks, searches, misses), a rolling record rather than site content.",
+  pageviews: "Analytics page views, a rolling record rather than site content; large and rebuilt as visitors arrive.",
+  activity_log: "The admin activity trail, pruned automatically.",
+  webhook_deliveries: "A short history of webhook calls, pruned to the latest 200.",
+  revisions: "Version history of pages, articles and projects. Not in the backup file today; the current content is. Restoring starts history afresh. (Worth deciding whether to include.)",
+  media_revisions: "History of each media file's description edits. Not in the backup file today. (Worth deciding whether to include.)",
+  media_versions: "Pointers to older uploaded versions of a file (the old bytes stay in R2). Not in the backup file today. (Worth deciding whether to include.)",
+  reactions: "Reader reaction counts. Not in the backup file today. (Worth deciding whether to include.)",
+  preview_links: "Secret share-links for unpublished items; deliberately not copied into a backup file, so a leaked backup can't reveal working links.",
+};

@@ -1,13 +1,10 @@
-// The Features board: a to-do side you can add to (bugs, things that need attention, almost-done work, ideas, decisions waiting on you) and a
+// The Features board, read-only: a to-do side (bugs, things that need attention, almost-done work, ideas, decisions waiting on you) and a
 // side with what is being worked on right now and what is done. The list comes from features.json (kept up to date with each change, served
-// by /api/admin/features); your own requests are stored on the site. When a request is picked up, features.json gets an entry with
-// `request` set to its id, and that entry's status and kind are what the board shows for it.
+// by /api/admin/features). An entry with `request` set to a request id shows that request's text with the entry's status and kind.
 (function () {
   const KIND_LABELS = { decision: "Needs your decision", bug: "Bug", attention: "Needs attention", almost: "Almost done", idea: "Idea" };
   // What needs the owner first, then what is broken, then the rest.
   const KIND_ORDER = ["decision", "bug", "attention", "almost", "idea"];
-  const REQUEST_KINDS = ["idea", "bug", "attention"];
-  const STATUS_LABELS = { todo: "To do", done: "Done", dropped: "Dropped" };
   const DONE_SHOWN = 10;
 
   const lower = (v) => String(v == null ? "" : v).toLowerCase();
@@ -105,15 +102,7 @@
     const detail = c.summary ? `<p class="fb-text">${esc(c.summary)}</p>` : "";
     const notes = c.notes ? `<p class="fb-notes">${c.source === "item" ? `<b>${notesLabel}</b> ` : ""}${esc(c.notes)}</p>` : "";
     const when = c.status === "done" && c.date ? `<span class="fb-date">${esc(c.date)}</span>` : "";
-    let controls = "";
-    if (c.mine) {
-      if (c.picked) controls = `<p class="fb-picked">Picked up</p>`;
-      else {
-        const kinds = REQUEST_KINDS.map((k) => `<option value="${k}"${c.kind === k ? " selected" : ""}>${esc(KIND_LABELS[k])}</option>`).join("");
-        const statuses = Object.entries(STATUS_LABELS).map(([k, v]) => `<option value="${k}"${c.status === k ? " selected" : ""}>${v}</option>`).join("");
-        controls = `<div class="fb-controls"><select data-act="kind" aria-label="Kind of ${esc(c.title)}">${kinds}</select><select data-act="status" aria-label="Status of ${esc(c.title)}">${statuses}</select><button type="button" data-act="delete" aria-label="Delete request ${esc(c.title)}">Delete</button></div>`;
-      }
-    }
+    const controls = c.mine && c.picked ? `<p class="fb-picked">Picked up</p>` : "";
     return `<li class="fb-card${c.mine ? " fb-mine" : ""}" data-key="${esc(c.key)}" data-id="${esc(c.requestId || "")}"><div class="fb-card-head"><span class="fb-title">${esc(c.title)}</span>${when}</div><div class="fb-tags">${kind}<span class="fb-area">${esc(c.mine ? "Yours" : c.area)}</span></div>${detail}${notes}${controls}</li>`;
   }
 
@@ -138,7 +127,7 @@
       ? groupByKind(todo)
           .map((g) => `<section class="fb-group" aria-label="${esc(g.label)}"><h3>${esc(g.label)} <span class="fb-count">${g.cards.length}</span></h3><ul class="fb-list">${g.cards.map(cardHtml).join("")}</ul></section>`)
           .join("")
-      : '<p class="fb-empty">Nothing here. Add something with the form above.</p>';
+      : '<p class="fb-empty">Nothing here.</p>';
     $("features-parked-wrap").hidden = !parked.length;
     $("features-parked-count").textContent = String(parked.length);
     $("features-parked").innerHTML = parked.map(cardHtml).join("");
@@ -158,14 +147,16 @@
     more.textContent = showAllDone ? "Show only the latest" : `Show all ${done.length}`;
     more.setAttribute("aria-expanded", String(showAllDone));
 
-    $("features-updated").textContent = `Last updated ${data.updated}. Claude moves items between the sides; your own requests you can mark done or delete yourself.`;
+    $("features-updated").textContent = `Last updated ${data.updated}. Claude moves items between the sides.`;
     const area = $("features-area");
     area.innerHTML = '<option value="">All areas</option>' + areasOf(data).map((a) => `<option value="${esc(a)}"${a === filter.area ? " selected" : ""}>${esc(a)}</option>`).join("");
   }
 
   async function load() {
     try {
-      data = await window.adminApi("/features");
+      const res = await fetch("/api/admin/features");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Request failed");
+      data = await res.json();
       render();
       say("");
     } catch (err) {
@@ -212,47 +203,4 @@
       say("Couldn't copy from here. Select the text and copy it.");
     }
   });
-
-  $("features-request-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const title = $("features-request-title").value.trim();
-    if (!title) return say("Say what it is first.");
-    try {
-      await window.adminApi("/feature-requests", { method: "POST", body: JSON.stringify({ title, kind: $("features-request-kind").value, notes: $("features-request-notes").value }) });
-      $("features-request-title").value = "";
-      $("features-request-notes").value = "";
-      await load();
-      say("Added to To do.");
-    } catch (err) {
-      say(`Couldn't add that: ${err.message}`);
-    }
-  });
-
-  // The owner's own cards: change kind or status, or delete.
-  const requestLists = ["features-todo", "features-parked", "features-done", "features-doing", "features-dropped"].map($);
-  for (const list of requestLists) {
-    list.addEventListener("change", async (e) => {
-      const li = e.target.closest("li[data-id]");
-      const act = e.target.dataset.act;
-      if (!li || !li.dataset.id || (act !== "kind" && act !== "status")) return;
-      try {
-        await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "PATCH", body: JSON.stringify({ [act]: e.target.value }) });
-        await load();
-      } catch (err) {
-        say(`Couldn't update that: ${err.message}`);
-      }
-    });
-    list.addEventListener("click", async (e) => {
-      const btn = e.target.closest('button[data-act="delete"]');
-      const li = btn && btn.closest("li[data-id]");
-      if (!li || !li.dataset.id) return;
-      if (!confirm("Delete this request?")) return;
-      try {
-        await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "DELETE" });
-        await load();
-      } catch (err) {
-        say(`Couldn't delete that: ${err.message}`);
-      }
-    });
-  }
 })();

@@ -62,69 +62,6 @@ export function nowIso(env) {
 }
 
 
-// Page-specific CSS is admin-authored, but it is emitted inside a <style> element and the admin console can be
-// reached with a stolen session, so it is still checked: no way out of the element, no external stylesheets,
-// no script-bearing values. Returns { css } (trimmed) or { error } naming the first problem.
-export const PAGE_CSS_MAX = 20000;
-export function cleanPageCss(input) {
-  const css = String(input == null ? "" : input).trim();
-  if (css.length > PAGE_CSS_MAX) return { error: `Page CSS is limited to ${PAGE_CSS_MAX} characters.` };
-  // CSS ends a string at a raw CR, FF or newline, which a regex-based check can't mirror, so the only
-  // line break allowed is \n (a string never spans one) and other control characters are refused.
-  if (/[\u0000-\u0008\u000b-\u001f\u007f\u2028\u2029]/.test(css)) return { error: "It can't contain control characters (carriage returns and form feeds included)." };
-  // Tags and comment markers can end the <style> element, even inside a string.
-  if (/<\/?(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
-  if (/<!--|-->/.test(css)) return { error: "It can't contain HTML comment markers." };
-  // One pass over the text, the way a CSS parser reads it: comments are dropped and quoted strings are
-  // blanked for the pattern checks (their text is inert, and content: "\\201C" is a normal use of a
-  // backslash). A quote inside a comment is not a string, so comments must go before strings are paired;
-  // an unterminated string or comment is refused rather than guessed at.
-  let noComments = "";
-  let bare = "";
-  for (let i = 0; i < css.length; ) {
-    const ch = css[i];
-    if (ch === "/" && css[i + 1] === "*") {
-      const end = css.indexOf("*/", i + 2);
-      if (end === -1) return { error: "A comment is never closed." };
-      noComments += " ";
-      bare += " ";
-      i = end + 2;
-    } else if (ch === '"' || ch === "'") {
-      let j = i + 1;
-      for (;;) {
-        if (j >= css.length || css[j] === "\n") return { error: "A quoted string is never closed." };
-        if (css[j] === "\\") j += 2;
-        else if (css[j] === ch) break;
-        else j++;
-      }
-      noComments += css.slice(i, j + 1);
-      bare += '""';
-      i = j + 1;
-    } else {
-      noComments += ch;
-      bare += ch;
-      i++;
-    }
-  }
-  const banned = [
-    [/@import/i, "@import is not allowed; put the rules here instead."],
-    [/expression\s*\(/i, "expression() is not allowed."],
-    [/javascript\s*:/i, "javascript: values are not allowed."],
-    [/(-moz-binding|behavior\s*:)/i, "That property is not allowed."],
-    [/(^|[^a-z])(-[a-z]+-)?(image-set|src|cross-fade|element)\s*\(/i, "image-set(), src(), cross-fade() and element() are not allowed; use url()."],
-    [/\\/, "Backslash escapes are only allowed inside quoted text (they can hide forbidden patterns)."],
-  ];
-  for (const [re, msg] of banned) if (re.test(bare)) return { error: msg };
-  // Every url() must be one of the simple forms below and point at this site or an inline image.
-  const urlForm = /url\(\s*(?:"([^"\n\\]*)"|'([^'\n\\]*)'|([^)\s'"\\]*))\s*\)/gi;
-  const matches = [...noComments.matchAll(urlForm)];
-  if ((noComments.match(/url\s*\(/gi) || []).length !== matches.length) return { error: "A url() is written in a form that can't be checked; use url(/media/…) or url(\"/media/…\")." };
-  for (const m of matches) {
-    const target = (m[1] ?? m[2] ?? m[3] ?? "").trim();
-    if (!/^(\/(?!\/)|data:image\/(png|jpe?g|gif|webp|avif);base64,[A-Za-z0-9+\/=]*$)/i.test(target)) return { error: `url(${target.slice(0, 30)}) is not allowed; use a /media/ path or an inline PNG, JPEG, GIF, WebP or AVIF image.` };
-  }
-  return { css };
-}
 
 export function pageCssKey(pageId) {
   return `page_css_${Number(pageId)}`;

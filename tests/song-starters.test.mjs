@@ -3,7 +3,6 @@
 import fs from "node:fs";
 import vm from "node:vm";
 import { loadEngine, loadSongFiles } from "./fake-audio.mjs";
-import { songDataError } from "../worker/songs.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -22,7 +21,7 @@ ok(S.build("nope") === null && S.build("") === null && S.build("__proto__") === 
 
 for (const { id, name } of S.LIST) {
   const song = S.build(id);
-  ok(song && !songDataError(song), `${name}: the server accepts it`, song && songDataError(song));
+  ok(!!song, `${name}: it builds`);
   ok(JSON.stringify(F.cleanSong(song)) === JSON.stringify(song), `${name}: it is already clean (cleaning it again changes nothing)`);
   ok(JSON.stringify(song).length < 40000, `${name}: it is small`, JSON.stringify(song).length);
   const names = E.patternNames(song);

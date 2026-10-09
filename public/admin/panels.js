@@ -1,6 +1,6 @@
 // Desktop side panels: drag the edge of the menu, the block palette or the inspector to resize it (double-click or Home puts it back),
 // hide the menu and the inspector from the top bar (Ctrl/Cmd+B hides the menu). Sizes and choices are remembered in this browser.
-// The palette is hidden by the existing Focus button. Phones keep their slide-in drawers: none of this runs below 861px.
+// Phones keep their slide-in drawers: none of this runs below 861px.
 (function () {
   const KEY = "admin-panels:v2"; // v2: the admin opens on the page alone (menu and inspector tucked away) until a choice is made
   const PANELS = {

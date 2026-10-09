@@ -1,7 +1,7 @@
 // Runs the browser tests (tests/e2e/test_*.js) in parallel, each worker against its own throwaway copy of the site.
 //
 //   node tests/e2e/run.mjs                    every test, 3 workers
-//   node tests/e2e/run.mjs prepublish song    only tests whose name contains one of the words
+//   node tests/e2e/run.mjs palette studio    only tests whose name contains one of the words
 //   node tests/e2e/run.mjs --workers 4        more (or fewer) workers; --serial is --workers 1
 //   node tests/e2e/run.mjs --live test_foo    use the dev server already running on :8787 (no startup, but it changes that database)
 //   node tests/e2e/run.mjs --verbose         also show why the known-failing tests fail
@@ -17,11 +17,14 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 process.removeAllListeners("warning"); // node:sqlite is still flagged experimental; the notice is just noise here
 const { DatabaseSync } = await import("node:sqlite");
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+// Windows needs a shell to start npx and npm (their launchers are .cmd files).
+const IS_WIN = process.platform === "win32";
+const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -61,7 +64,7 @@ tests.sort((a, b) => (timings[b] || 20) - (timings[a] || 20));
 // ---- Playwright and the admin password (the password is only ever sent to the local server)
 const globalRoot = (() => {
   try {
-    return execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim();
+    return execFileSync("npm", ["root", "-g"], { encoding: "utf8", shell: IS_WIN, windowsHide: true }).trim();
   } catch {
     return "";
   }
@@ -161,7 +164,9 @@ async function startWorker(i) {
   const log = fs.openSync(path.join(dir, "wrangler.log"), "w");
   const child = spawn("npx", ["wrangler", "dev", "--port", String(port), "--inspector-port", String(inspector), "--persist-to", dir, "--log-level", "warn", "--show-interactive-dev-session=false"], {
     cwd: root,
-    detached: true,
+    detached: !IS_WIN,
+    shell: IS_WIN,
+    windowsHide: true,
     stdio: ["ignore", log, log],
   });
   children.push(child);
@@ -190,7 +195,7 @@ async function signIn(base, file) {
   await ctx.dispose();
   // The older song tests drive the classic editor; the Studio layout has its own test, which switches view itself.
   const state = JSON.parse(fs.readFileSync(file, "utf8"));
-  state.origins = [{ origin: base, localStorage: [{ name: "songView", value: "classic" }, { name: "admin-panels:v2", value: JSON.stringify({ w: {}, hidden: {} }) }] }];
+  state.origins = [{ origin: base, localStorage: [{ name: "admin-panels:v2", value: JSON.stringify({ w: {}, hidden: {} }) }] }];
   fs.writeFileSync(file, JSON.stringify(state));
 }
 
@@ -204,6 +209,7 @@ function runTest(name, worker) {
       env: { ...process.env, E2E_BASE: worker.base, ADMIN_STATE: worker.state, NODE_PATH: nodePath, NODE_OPTIONS: "--no-warnings", ...(live ? {} : { E2E_PERSIST: worker.dir }) },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
+      windowsHide: true,
     });
     const timer = setTimeout(() => {
       out += `\nFAIL — timed out after ${TEST_TIMEOUT_MS / 1000}s\n`;
@@ -235,7 +241,7 @@ try {
     console.log(`Using the server already running at ${base} (its database will change).`);
   } else {
     console.log(`Starting ${Math.min(workerCount, tests.length)} isolated server${Math.min(workerCount, tests.length) === 1 ? "" : "s"}…`);
-    execFileSync("npx", ["wrangler", "--version"], { cwd: root, stdio: "ignore" }); // warm the npx cache once, before the workers race for it
+    execFileSync("npx", ["wrangler", "--version"], { cwd: root, stdio: "ignore", shell: IS_WIN, windowsHide: true }); // warm the npx cache once, before the workers race for it
     workers = await Promise.all(Array.from({ length: Math.min(workerCount, tests.length) }, (_, i) => startWorker(i)));
   }
   for (const w of workers) {

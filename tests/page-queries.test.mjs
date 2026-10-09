@@ -46,13 +46,11 @@ const settingsQueries = (log) => log.filter((q) => /FROM settings/.test(q));
 
 // the home page
 {
-  const { env, log } = makeEnv({ theme_accent: "#ff7a3d", site_footer: "© me", maintenance_mode: "0", custom_head: "<!-- hi -->" });
+  const { env, log } = makeEnv({ site_footer: "© me", maintenance_mode: "0" });
   const res = await get(env, "/");
   assert.equal(res.status, 200);
   const html = await res.text();
-  assert.match(html, /--accent:#ff7a3d/, "the saved theme colour is still applied");
   assert.match(html, /© me/, "and the footer text");
-  assert.match(html, /<!-- hi -->/, "and the custom head");
   const sq = settingsQueries(log);
   console.log(`home: ${log.length} queries, ${sq.length} on settings`);
   assert.ok(sq.length <= 3, `settings queries: ${sq.length}\n${sq.map((q) => q.slice(0, 90)).join("\n")}`);
@@ -60,10 +58,10 @@ const settingsQueries = (log) => log.filter((q) => /FROM settings/.test(q));
 }
 // the Studio page (articles are off the cut-down site, worker/site-scope.js)
 {
-  const { env, log } = makeEnv({ theme_bg: "#101010", maintenance_mode: "0" });
+  const { env, log } = makeEnv({ maintenance_mode: "0" });
   const res = await get(env, "/studio");
   assert.equal(res.status, 200);
-  assert.match(await res.text(), /--bg:#101010/);
+  assert.match(await res.text(), /id="studio-mount"/);
   const sq = settingsQueries(log);
   console.log(`studio: ${log.length} queries, ${sq.length} on settings`);
   assert.ok(sq.length <= 3, `settings queries: ${sq.length}`);

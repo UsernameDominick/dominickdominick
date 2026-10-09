@@ -3,7 +3,6 @@
 // they have a note, are cleaned and validated like the bass line, go into a MIDI file on their own channels and come back from this
 // site's own file, and leave a song without them exactly as it was.
 import { makeCtx, count, loadEngine, loadSongFiles, lane } from "./fake-audio.mjs";
-import { songDataError } from "../worker/songs.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined && !c ? " " + JSON.stringify(extra) : ""}`); };
@@ -86,12 +85,6 @@ const hz = (name) => E.noteToFreq(name);
 
 // ---- what the server accepts ----
 {
-  ok(songDataError({ chords: { voice: "pad", volume: 0.5, notes: { C3: [true] }, ties: { C3: [false, true] } }, lead: {} }) === null, "chords and a lead are accepted");
-  ok(/chords must be an object/.test(songDataError({ chords: [] })) && /lead must be an object/.test(songDataError({ lead: "x" })), "a part that is not an object is refused");
-  ok(/chords's notes/.test(songDataError({ chords: { notes: { C3: "x" } } })) && /lead's held notes/.test(songDataError({ lead: { ties: { C4: 5 } } })), "notes and ties must be lists of steps");
-  ok(/chords's sound/.test(songDataError({ chords: { voice: 5 } })) && /lead's sound/.test(songDataError({ lead: { voice: "x".repeat(25) } })), "a sound must be a short name");
-  ok(songDataError({ patterns: { B: { chords: { notes: {} }, lead: { notes: {}, ties: {} } } } }) === null, "patterns may carry them");
-  ok(/Pattern B's chords must be an object/.test(songDataError({ patterns: { B: { chords: 1 } } })) && /Pattern B's lead notes must be lists of steps/.test(songDataError({ patterns: { B: { lead: { notes: { C4: 1 } } } } })), "and are checked inside patterns");
 }
 
 // ---- cleaning a song (a file, an import, a saved copy) ----

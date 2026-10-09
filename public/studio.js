@@ -1,5 +1,5 @@
-// The Studio (/studio): the song builder as a page of the site, for every visitor (built on public/app-kit.js, like PicEditor, Simulations
-// and Scans). The opening screen is a shelf of the visitor's own songs (kept in this browser, never sent to the site): New song and the
+// The Studio (/studio): the song builder as a page of the site, for every visitor (built on public/app-kit.js).
+// The opening screen is a shelf of the visitor's own songs (kept in this browser, never sent to the site): New song and the
 // starters, Open a song file or MIDI, and a card per song (a little picture of its five tracks, a Play button right on the card, open,
 // Copy, Delete). The editor is the owner's song builder, opening in place under the site's nav; its Songs button comes back to the shelf,
 // saving first. The kit does the rest: the admin markup and styles, the scripts, answering the editor's calls, and parking while another

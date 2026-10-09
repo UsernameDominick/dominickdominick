@@ -22,7 +22,7 @@ const fs = require("fs");
   try {
     await p.goto(E2E_BASE + "/admin/"); await p.waitForSelector("#app:not([hidden])");
     await p.selectOption("#page-picker", String(pg.id)); await p.waitForSelector("#canvas .admin-block"); await p.waitForTimeout(500);
-    ok(await p.evaluate(() => !!document.querySelector(".admin-header #page-picker") && !!document.querySelector(".admin-header #new-page-btn")), "the page chooser is in the top bar");
+    ok(await p.evaluate(() => !!document.querySelector(".admin-header #page-picker")), "the page chooser is in the top bar");
     ok(await vis("#add-block-btn") && await vis("#page-settings-btn"), "with Add and Page settings beside it");
     ok(!(await vis("#admin-sidebar")) && !(await vis("#inspector")) && !(await vis("#palette")), "the menu, the inspector and the palette are out of the way on a first visit");
     ok((await p.getAttribute("#sidebar-toggle-btn", "aria-pressed")) === "false" && /Tools/.test(await p.textContent("#sidebar-toggle-btn")), "the ☰ Tools button is how the menu comes back");
@@ -102,7 +102,7 @@ const fs = require("fs");
 
     // Tools brings the menu
     await p.click("#sidebar-toggle-btn");
-    ok(await vis("#admin-sidebar") && await vis("#articles-btn"), "☰ Tools brings the menu back, with every tool in it");
+    ok(await vis("#admin-sidebar") && await vis("#media-btn"), "☰ Tools brings the menu back, with every tool in it");
     ok(errs.length === 0, "no page errors", errs);
     await ctx.close();
 

@@ -1,6 +1,6 @@
 // The nav is a dial: the stop you are on sits under a needle in the middle and is the biggest, the others step down in size the farther
-// they are from it, every name is lowercase, and the Simulations stop is called Sim. Drag the dial on a phone and, as it settles on a stop,
-// that page comes in; click a stop on a screen with room and it turns to the middle and goes there. Search only opens when it is pressed.
+// they are from it, every name is lowercase. Drag the dial on a phone and, as it settles on a stop,
+// that page comes in; click a stop on a screen with room and it turns to the middle and goes there. Settings only opens when it is pressed.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium } = require("./_pw.cjs");
 
@@ -49,7 +49,7 @@ async function drag(cdp, y, from, to, steps = 12) {
       const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, isMobile: mobile, hasTouch: mobile });
       const p = await ctx.newPage();
       const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-      for (const path of ["/", "/studio", "/scans"]) {
+      for (const path of ["/", "/studio", "/studio"]) {
         await p.goto(E2E_BASE + path);
         await p.waitForSelector(".tab.is-centred");
         await still(p);
@@ -73,15 +73,6 @@ async function drag(cdp, y, from, to, steps = 12) {
       await ctx.close();
     }
 
-    // ---- the Simulations stop is called Sim ----
-    {
-      const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
-      await p.goto(E2E_BASE + "/simulations");
-      const txt = await p.evaluate(() => { const a = document.querySelector('.tabs a.tab[href="/simulations"]'); return a && [a.textContent.trim(), a.getAttribute("aria-current")]; });
-      ok(txt && txt[0] === "Sim" && txt[1] === "page", "the Simulations page's stop is called Sim and is the current one", txt);
-      await p.context().close();
-    }
-
     // ---- a computer: click the stop you want ----
     {
       const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
@@ -89,19 +80,19 @@ async function drag(cdp, y, from, to, steps = 12) {
       await p.waitForSelector(".tab.is-centred");
       await still(p);
       const needleBefore = (await p.evaluate(dial)).needle;
-      await p.click('.tabs a.tab[href="/scans"]');
-      await p.waitForFunction(() => location.pathname === "/scans" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
+      await p.click('.tabs a.tab[href="/studio"]');
+      await p.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
       await still(p);
       const s = await p.evaluate(dial);
       const cur = s.links.find((l) => l.active);
-      ok(cur && cur.href === "/scans" && Math.abs(cur.off) <= 1.5 && cur.centred && cur.s === 1, "clicking a stop turns the dial to it, makes it the big one and goes there", s.links.map((l) => [l.label, l.off, l.s]));
+      ok(cur && cur.href === "/studio" && Math.abs(cur.off) <= 1.5 && cur.centred && cur.s === 1, "clicking a stop turns the dial to it, makes it the big one and goes there", s.links.map((l) => [l.label, l.off, l.s]));
       ok(Math.abs(s.needle - needleBefore) < 0.5, "the needle stayed where it was; the ticks and stops moved under it");
       const home = s.links.find((l) => l.href === "/");
       ok(home && home.s === 1 && !home.centred, "and Home, no longer the middle one, is no longer lit (and not resized)", home);
       // pressing the stop you are already on does nothing
-      await p.click('.tabs a.tab[href="/scans"]');
+      await p.click('.tabs a.tab[href="/studio"]');
       await p.waitForTimeout(300);
-      ok((await p.evaluate(dial)).path === "/scans", "pressing the current stop again stays put");
+      ok((await p.evaluate(dial)).path === "/studio", "pressing the current stop again stays put");
       await p.context().close();
     }
 
@@ -184,12 +175,12 @@ async function drag(cdp, y, from, to, steps = 12) {
       cur = s.links.find((l) => l.active);
       ok(cur && cur.centred && Math.abs(cur.off) <= 1.5, "and closing it turns the dial back to the page's own stop");
       // a tap on a stop works as on a computer
-      await p.tap('.tabs a.tab[href="/scans"]');
-      await p.waitForFunction(() => location.pathname === "/scans" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
+      await p.tap('.tabs a.tab[href="/studio"]');
+      await p.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
       await still(p);
       s = await p.evaluate(dial);
       cur = s.links.find((l) => l.active);
-      ok(cur && cur.href === "/scans" && Math.abs(cur.off) <= 1.5, "tapping a stop turns the dial to it and goes there");
+      ok(cur && cur.href === "/studio" && Math.abs(cur.off) <= 1.5, "tapping a stop turns the dial to it and goes there");
       ok(errs.length === 0, "no page errors", errs);
       await ctx.close();
     }
@@ -262,7 +253,7 @@ async function drag(cdp, y, from, to, steps = 12) {
       // whatever the width); snapping is switched off here so the browser's own re-snap is not what is being tested.
       const ctx = await b.newContext({ viewport: { width: 600, height: 800 } });
       const p = await ctx.newPage();
-      await p.goto(E2E_BASE + "/scans");
+      await p.goto(E2E_BASE + "/studio");
       await p.waitForSelector(".tab.is-centred");
       await still(p);
       await p.addStyleTag({ content: ".tabs { scroll-snap-type: none !important; }" });
@@ -284,8 +275,8 @@ async function drag(cdp, y, from, to, steps = 12) {
       await p.goto(E2E_BASE + "/");
       await p.waitForSelector(".tab.is-centred");
       await still(p);
-      await p.evaluate(() => { document.querySelector('.tabs a.tab[href="/scans"]').click(); });
-      const quick = await p.evaluate(() => { const a = document.querySelector('.tabs a.tab[href="/scans"]'); const nav = document.querySelector(".site-nav").getBoundingClientRect(); const r = a.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - (nav.left + nav.width / 2)); });
+      await p.evaluate(() => { document.querySelector('.tabs a.tab[href="/studio"]').click(); });
+      const quick = await p.evaluate(() => { const a = document.querySelector('.tabs a.tab[href="/studio"]'); const nav = document.querySelector(".site-nav").getBoundingClientRect(); const r = a.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - (nav.left + nav.width / 2)); });
       ok(quick <= 1.5, "with reduced motion the dial is on the new stop straight away", quick);
       await ctx.close();
     }

@@ -60,7 +60,7 @@ const ctx = () => { const p = []; return { waitUntil: (x) => p.push(x), done: ()
 // API paths keep a plain-text answer a client can read, with the reference
 {
   const c = ctx();
-  const res = await worker.fetch(new Request("https://dominickdominick.com/api/track", { method: "POST", body: "{}" }), brokenEnv(), c);
+  const res = await worker.fetch(new Request("https://dominickdominick.com/api/study/unlock", { method: "POST", body: "{}" }), brokenEnv(), c);
   await c.done();
   const text = await res.text();
   ok(res.status === 500 && /text\/plain/.test(res.headers.get("Content-Type")) && /\(Reference: [a-z0-9]{8}\)$/.test(text) && !/secret-host/.test(text), "an API failure is plain text with the reference, and no internals", text);

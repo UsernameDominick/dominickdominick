@@ -6,9 +6,6 @@
 // as data (a stored key, a character to parse) carries the comment "no-emoji: data" and may use an escape, never the character.
 import fs from "node:fs";
 import path from "node:path";
-import { renderReactionsHtml, renderTtsBarHtml } from "../worker/render.js";
-import { uiIcon, UI_ICON_NAMES } from "../worker/ui-icons.js";
-import { REACTION_EMOJI } from "../worker/db.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined && !c ? " " + JSON.stringify(extra) : ""}`); };
@@ -54,15 +51,6 @@ walk("worker");
 for (const f of ["outline.md", "features.json"]) found.push(...emojiIn(fs.readFileSync(f, "utf8"), f, { escapes: false }));
 ok(found.length === 0, "no emoji in the site's files or the documents the admin shows", found.slice(0, 40));
 
-// What the reactions and the read-aloud bar draw
-const counts = Object.fromEntries(REACTION_EMOJI.map((k) => [k, 2]));
-const reactions = renderReactionsHtml("article", 1, counts);
-const shown = reactions.replace(/data-emoji="[^"]*"/g, "");
-ok(emojiIn(shown).length === 0 && (shown.match(/<svg /g) || []).length === REACTION_EMOJI.length, "reactions are drawn icons with names, the stored key only in data-emoji", shown);
-ok(/Like/.test(shown) && /Good idea/.test(shown) && /Love it/.test(shown), "and each reaction has a name for screen readers");
-const tts = renderTtsBarHtml("");
-ok(emojiIn(tts.replace(/data-label-\w+="[^"]*"/g, "")).length === 0 && /<svg /.test(tts) && /read-aloud-label/.test(tts), "Read aloud has a drawn speaker and its words", tts);
-ok(UI_ICON_NAMES.every((n) => /<path|<rect/.test(uiIcon(n))), "every drawn icon has a drawing");
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

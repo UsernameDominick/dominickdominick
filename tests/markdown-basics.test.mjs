@@ -15,7 +15,6 @@ ok(html("**bold `code` bold**").includes("<strong>bold <code>code</code> bold</s
 ok(html("```js\nconst a = `x`;\n```").includes('<pre><code class="language-js">') && !html("```js\nconst a = `x`;\n```").includes("<code>x</code>"), "fenced blocks are unchanged and not re-processed");
 ok(html("## Using `fetch`").includes("<code>fetch</code>"), "headings can hold code");
 ok(html("- first `a`\n- second").includes("<li>first <code>a</code></li>"), "list items can hold code");
-ok(html("| col | v |\n| --- | --- |\n| `x` | 1 |").includes("<td><code>x</code></td>"), "table cells can hold code");
 
 // dividers
 ok(html("Above\n\n---\n\nBelow").includes("<hr>"), "a --- paragraph is a divider");

@@ -1,4 +1,4 @@
-// The rules for backing up what a visitor keeps in this browser (songs, circuits, pictures, scans, trainer runs) to a file and putting it
+// The rules for backing up what a visitor keeps in this browser (the Studio's songs) to a file and putting it
 // back: the file's shape, how a restore is checked, and how restored items are merged with what is already here (never overwriting: a
 // restored item that is already here is skipped, any other is added under a new id). No page in it, so a node test can load it.
 // `window.BackupLogic`.
@@ -7,7 +7,7 @@
   const FORMAT = "dominick-backup";
   const VERSION = 1;
   const MAX_BYTES = 250 * 1024 * 1024;
-  const APPS = ["studio", "simulations", "piceditor", "scans", "trainer"];
+  const APPS = ["studio"];
 
   // The file: { format, version, app, made, parts: { name: anything JSON } }.
   function makeBundle(app, parts, made) {
@@ -30,7 +30,7 @@
     if (!data.parts || typeof data.parts !== "object" || Array.isArray(data.parts)) return { error: "That backup has nothing in it." };
     return { bundle: data };
   }
-  const NAMES = { studio: "the Studio", simulations: "Simulations", piceditor: "PicEditor", scans: "Scans", trainer: "the Trainer" };
+  const NAMES = { studio: "the Studio" };
   function label(app) {
     return NAMES[app] || app;
   }
@@ -60,10 +60,8 @@
     });
     return { list, added, skipped, full };
   }
-  // Two songs or circuits are the same when they have the same name and the same content.
+  // Two songs are the same when they have the same name and the same content.
   const dataSig = (x) => String(x.name) + "\u0000" + JSON.stringify(x.data === undefined ? null : x.data);
-  // Two pictures or scans are the same when they have the same name, size and time.
-  const fileSig = (x) => [x.name, x.size || (x.blob && x.blob.size) || 0, x.width || 0, x.updated_at].join("\u0000");
 
   // What to tell the person after a restore.
   function summary(r) {
@@ -74,5 +72,5 @@
     return bits.join(", ") + ".";
   }
 
-  window.BackupLogic = { FORMAT, VERSION, MAX_BYTES, APPS, makeBundle, parseBundle, fileName, mergeItems, dataSig, fileSig, summary, label };
+  window.BackupLogic = { FORMAT, VERSION, MAX_BYTES, APPS, makeBundle, parseBundle, fileName, mergeItems, dataSig, summary, label };
 })();

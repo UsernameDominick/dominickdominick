@@ -2,8 +2,6 @@
 // noise, drive, FM, tremolo, vibrato speed) and a drum sound's own tune, length and tone: that each plays without trouble, that the tweaks
 // reach the audio graph, that the ranges are the same in the engine, the file helper and the server, and that bad data stays out.
 import { makeCtx, count, loadEngine, loadSongFiles, lane, melodyOnly } from "./fake-audio.mjs";
-import { songDataError } from "../worker/songs.js";
-import { cleanSongDefault } from "../worker/song-defaults.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -70,16 +68,12 @@ const drum = (row, kit, meta = {}) => play({ tempo: 120, kit, master_volume: 1, 
   ok(a.res === 18 && a.vrate === 0.5 && a.sub === 0 && a.noise === 1 && a.trate === 14 && a.fmratio === 8 && a.sweep === -1 && a.unison === 4 && a.cutoff === 120 && a.attack === undefined && a.bogus === undefined, "ranges are enforced, whole numbers where they must be, strangers dropped", a);
   ok(E.cleanSynth({ ftype: "evil" }) === null && E.cleanSynth({ ftype: "highpass" }).ftype === "highpass", "a filter type must be one of the three");
   const keys = Object.keys(E.SYNTH_RANGES).concat(["wave", "ftype"]);
-  ok(songDataError({ melody: { synth: Object.fromEntries(keys.map((k) => [k, k === "wave" || k === "ftype" ? "x" : 1])) } }) === null, "the server accepts every tweak the engine knows");
-  ok(/unknown setting/.test(songDataError({ melody: { synth: { nope: 1 } } })), "and nothing else");
-  ok(/not valid/.test(songDataError({ bass: { synth: { res: "loud" } } })) && /not valid/.test(songDataError({ lead: { synth: { ftype: 7 } } })), "a wrong kind of value is refused");
 }
 
 // ---- the drum kits ----
 {
   ok(E.KITS.length === 15 && new Set(E.KITS).size === 15 && E.KITS.every((k) => E.KIT_LABELS[k]), "fifteen kits, each with a name", E.KITS);
   ok(JSON.stringify(F.KITS) === JSON.stringify(E.KITS), "the import cleaner lists the same kits in the same order");
-  ok(cleanSongDefault("song_default_kit", "909") === "909" && cleanSongDefault("song_default_kit", "bogus") === "", "Site Settings accept any of them");
   const bad = [];
   E.KITS.forEach((kit) => E.DRUM_VOICES.forEach((row) => {
     try {
@@ -115,7 +109,6 @@ const drum = (row, kit, meta = {}) => play({ tempo: 120, kit, master_volume: 1, 
   // saving and importing
   const meta = F.cleanSong({ tempo: 100, tracks: { kick: lane("x...............") }, trackMeta: { kick: { tune: 40, decay: 0.01, tone: 0.25, color: "#ff0000" }, snare: { tune: "x", decay: 2 } } }).trackMeta;
   ok(meta.kick.tune === 12 && meta.kick.decay === 0.3 && meta.kick.tone === 0.25 && meta.snare.tune === undefined && meta.snare.decay === 2 && meta.hihat.tune === undefined, "an imported song keeps them inside their ranges", meta);
-  ok(songDataError({ trackMeta: { kick: { tune: 3, decay: 1.2, tone: -0.4 } } }) === null && /tune/.test(songDataError({ trackMeta: { kick: { tune: "high" } } })) && /decay/.test(songDataError({ trackMeta: { snare: { decay: null } } })), "the server accepts numbers and refuses the rest");
 }
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");

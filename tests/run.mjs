@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { availableParallelism } from "node:os";
+import { fileURLToPath } from "node:url";
 
 const dir = new URL("./", import.meta.url);
 const args = process.argv.slice(2);
@@ -26,7 +27,7 @@ function runOne(f) {
   return new Promise((resolve) => {
     const started = Date.now();
     let out = "";
-    const child = spawn(process.execPath, [new URL(f, dir).pathname], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [fileURLToPath(new URL(f, dir))], { stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
     child.on("close", (status) => {

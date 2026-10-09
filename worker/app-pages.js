@@ -4,19 +4,6 @@
 
 export const APP_PAGES = [
   {
-    path: "/trainer",
-    slug: "trainer",
-    image: "/share/trainer.png", // a 1200 x 630 share card for links to this page
-    title: "Trainer: an aim trainer for FPS games · Dominick",
-    description: "Practise your aim in your browser: gridshot, tracking and flick drills with accuracy, reaction time and a score. Nothing to install.",
-    h1: "Trainer: an aim trainer for FPS games",
-    about: "Three aim drills for first-person shooters: gridshot (click targets on a grid), tracking (stay on a moving target) and flick (snap to a new target each time), with accuracy, reaction time, a score, target size, run length, sensitivity and a history of your runs. Your settings and runs are kept in your own browser and are never sent to the site.",
-    mountId: "trainer-mount",
-    script: "/trainer.js",
-    loading: "Loading the Trainer…",
-    noscript: "The Trainer needs JavaScript.",
-  },
-  {
     path: "/studio",
     slug: "studio",
     image: "/share/studio.png", // a 1200 x 630 share card for links to this page
@@ -28,42 +15,6 @@ export const APP_PAGES = [
     script: "/studio.js",
     loading: "Loading the Studio…",
     noscript: "The Studio needs JavaScript.",
-  },
-  {
-    path: "/piceditor",
-    slug: "piceditor",
-    image: "/share/piceditor.png", // a 1200 x 630 share card for links to this page
-    title: "PicEditor: edit pictures in your browser · Dominick",
-    description: "Edit pictures in your browser: layers, brushes, selections, filters, text, crop and more. Nothing to install, and your pictures never leave your device.",
-    h1: "PicEditor: edit pictures in your browser",
-    about: "A photo editor with layers and masks, brushes and a pencil, selections, filters and adjustments, text, crop, straighten and redaction. Pictures you edit here are kept in your own browser and are never sent to the site.",
-    mountId: "piceditor-mount",
-    script: "/piceditor.js",
-    loading: "Loading PicEditor…",
-  },
-  {
-    path: "/simulations",
-    slug: "simulations",
-    image: "/share/simulations.png", // a 1200 x 630 share card for links to this page
-    title: "Simulations: build circuits in your browser · Dominick",
-    description: "Build circuits on a breadboard in your browser: batteries, LEDs, switches, meters, transistors and logic gates. Nothing leaves your device.",
-    h1: "Simulations: build circuits in your browser",
-    about: "A circuit builder with a breadboard, power supplies, LEDs, lamps, buzzers, switches, resistors, capacitors, meters, diodes, transistors and logic gates, a schematic view, a build checklist and sweeps. Circuits you build here are kept in your own browser and are never sent to the site.",
-    mountId: "simulations-mount",
-    script: "/simulations.js",
-    loading: "Loading Simulations…",
-  },
-  {
-    path: "/scans",
-    slug: "scans",
-    image: "/share/scans.png", // a 1200 x 630 share card for links to this page
-    title: "Scans: look at 3D scans in your browser · Dominick",
-    description: "Open a 3D scan or model (.glb or .gltf) in your browser, turn it around, pick the view it opens on and keep it. Your files never leave your device.",
-    h1: "Scans: look at 3D scans in your browser",
-    about: "A 3D model viewer for scans from Polycam, a phone's LiDAR scanner or any 3D app: open a .glb or .gltf file (and a .usdz for iPhone AR), orbit and zoom, save the starting view, and keep your scans on a shelf. Files you open here are kept in your own browser and are never sent to the site.",
-    mountId: "scans-mount",
-    script: "/scans.js",
-    loading: "Loading Scans…",
   },
 ];
 

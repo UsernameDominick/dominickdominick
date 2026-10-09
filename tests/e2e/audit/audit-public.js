@@ -9,7 +9,6 @@ const { chromium, axeSource } = require("../_pw.cjs");
 
 const args = process.argv.slice(2);
 const jsonOut = args.includes("--json") ? args[args.indexOf("--json") + 1] : null;
-const skip = (u) => /\/deep-link-test-|\/simulation\/\d+$/.test(u) && !args.includes("--all");
 const findings = []; // { sev, area, page, vp, msg }
 const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page, vp, msg, extra });
 
@@ -17,8 +16,8 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
   const b = await chromium.launch();
   // ---- the page list
   const sm = await (await fetch(E2E_BASE + "/sitemap.xml")).text();
-  const urls = [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname).filter((u) => !skip(u));
-  for (const extra of ["/search?q=circuit", "/search?q=zzzznothing", "/does-not-exist", "/random/does-not-exist", "/projects/does-not-exist", "/topics/does-not-exist"]) urls.push(extra);
+  const urls = [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
+  for (const extra of ["/does-not-exist"]) urls.push(extra);
   const pages = [...new Set(urls)];
   console.log(`Auditing ${pages.length} pages on ${E2E_BASE}\n`);
 
@@ -212,12 +211,10 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
   // ---- sitewide files
   const robots = await (await fetch(E2E_BASE + "/robots.txt")).text();
   if (!/Sitemap:/i.test(robots)) add("med", "seo", "/robots.txt", "", "robots.txt does not name the sitemap");
-  const feed = await fetch(E2E_BASE + "/rss.xml");
-  if (feed.status !== 200) add("high", "seo", "/rss.xml", "", `feed answers ${feed.status}`);
   for (const f of ["/favicon.ico", "/style.css", "/nav.js"]) { const r = await fetch(E2E_BASE + f); if (r.status !== 200) add(f === "/favicon.ico" ? "low" : "high", "http", f, "", `${r.status}`); }
   const nf = await fetch(E2E_BASE + "/definitely-not-here");
   if (nf.status !== 404) add("high", "seo", "/definitely-not-here", "", `soft 404: answers ${nf.status}`);
-  for (const [loc, st] of [["/index.html", null], ["/Random", null], ["/random/", null], ["//random", null]]) { const r = await fetch(E2E_BASE + loc, { redirect: "manual" }).catch(() => ({ status: 0 })); if (r.status === 200 && loc !== "/random/") add("low", "seo", loc, "", `duplicate URL answers 200 (should redirect or 404): ${loc}`); void st; }
+  for (const [loc, st] of [["/index.html", null], ["/Studio", null]]) { const r = await fetch(E2E_BASE + loc, { redirect: "manual" }).catch(() => ({ status: 0 })); if (r.status === 200) add("low", "seo", loc, "", `duplicate URL answers 200 (should redirect or 404): ${loc}`); void st; }
 
   await b.close();
 

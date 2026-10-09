@@ -5,7 +5,7 @@
 // local one. Not a test (the runner only picks up test_*.js): run it by hand and read the report.
 //   node tests/e2e/audit/audit-admin.js                      against http://localhost:8787 (signs in with .dev.vars, never printed)
 //   ADMIN_STATE=state.json E2E_BASE=http://localhost:8800 node tests/e2e/audit/audit-admin.js
-//   node tests/e2e/audit/audit-admin.js --only articles-btn,media-btn      just those tools
+//   node tests/e2e/audit/audit-admin.js --only media-btn,site-settings-btn      just those tools
 //   node tests/e2e/audit/audit-admin.js --json out.json      also write the raw findings
 const fs = require("fs");
 const path = require("path");
@@ -21,12 +21,10 @@ const add = (sev, area, tool, vp, msg) => findings.push({ sev, area, tool, vp, m
 
 // Every tool in the sidebar and the top bar that opens a window.
 const TOOLS = [
-  "dashboard-btn", "articles-btn", "projects-btn", "media-btn", "redirects-btn", "simulations-btn", "scans-btn", "songs-btn",
-  "shared-blocks-btn", "layers-btn", "diagnostics-btn", "scripts-btn", "features-btn", "seo-dashboard-btn", "topic-pages-btn",
-  "analytics-btn", "trash-btn", "site-settings-btn", "preview-btn", "command-btn", "notifications-btn", "recent-items-btn",
+  "media-btn", "features-btn", "site-settings-btn", "command-btn",
 ].filter((id) => !only || only.includes(id));
-// Dropdown panels (not dialogs): the button, and the panel it opens. "Preview at a date" is a plain browser prompt, so it is left out.
-const PANELS = { "notifications-btn": "notifications-panel", "recent-items-btn": "recent-items-panel" };
+// Dropdown panels (not dialogs): the button, and the panel it opens. The slim admin has none.
+const PANELS = {};
 
 // Outside hosts the sandbox cannot reach (the 3D viewer script comes from a CDN) are not the admin's fault.
 const IGNORED_CONSOLE = /favicon|Failed to load resource.*(404|429)|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|status of 502/;
@@ -143,10 +141,7 @@ function readTopDialog() {
       const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
       const tabs = [...top.querySelectorAll('[role="tab"], .settings-tab, [data-panel]')].filter((e) => e.tagName === "BUTTON" && vis(e) && !e.classList.contains("is-active") && e.getAttribute("aria-selected") !== "true");
       const out = tabs.map((e, i) => ({ kind: "tab", index: i, label: (e.textContent || e.dataset.panel || "tab").trim().slice(0, 20) }));
-      if (/^(articles|projects)-btn$/.test(t)) out.push({ kind: "first-item", label: "editor" });
       if (t === "media-btn") out.push({ kind: "media-info", label: "details" });
-      const builders = { "simulations-btn": ["new-simulation-btn", "simulation builder"], "songs-btn": ["new-song-btn", "song builder"], "scans-btn": ["new-scan-btn", "scan viewer"] };
-      if (builders[t]) out.push({ kind: "click-id", id: builders[t][0], label: builders[t][1] });
       return out;
     }, tool);
     const enterState = (st) => p.evaluate((s) => {

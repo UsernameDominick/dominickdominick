@@ -1,33 +1,10 @@
-/* The app pages built on public/app-kit.js (PicEditor, Simulations, Scans): the page part. The admin's own stylesheet is added scoped to
+/* The Studio page built on public/app-kit.js: the page part. The admin's own stylesheet is added scoped to
    .app-native by app-kit.js, and this file right after it in the same <style>. The shelf look is the Studio's (its section is at the end). */
 .app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
 .app-native { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .app-native .app-shell { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: transparent; color: var(--text); }
 /* Things only the site's owner has a use for. */
 .app-native :is(.editor-help-btn, .usage-song, .bulk-bar) { display: none !important; }
-/* The editor's "×" reads "Pictures" (or the app's word) and goes back to the shelf. */
-.app-native .app-back { display: inline-flex; align-items: center; justify-content: center; width: auto !important; min-width: 0; min-height: 36px; padding: 0 14px !important; font-size: 0.85rem !important; font-weight: 600; }
-
-/* ---- PicEditor: the photo editor fills the page under the nav instead of floating; its small prompt still floats. ---- */
-.app-native #photo-editor-modal {
-  position: absolute; inset: 0; z-index: 1; display: flex; padding: 0; background: transparent; animation: none; backdrop-filter: none;
-}
-.app-native #photo-editor-modal[hidden] { display: none !important; }
-.app-native #photo-editor-modal > .modal-inner {
-  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important;
-  margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: none;
-}
-.app-native #photo-editor-prompt-modal { z-index: 1100; }
-.app-native .pic-drop-hint { margin: 10px 0 0; font-size: 0.82rem; color: var(--text-dim); }
-.app-native .pic-shelf.is-dropping { outline: 2px dashed var(--accent); outline-offset: -8px; border-radius: 16px; }
-.app-native .chip-size { margin-left: 4px; font-weight: 500; color: var(--text-dim); font-size: 0.78rem; }
-.app-native .pic-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-.app-native .pic-thumb {
-  display: block; aspect-ratio: 4 / 3; margin: 0 0 8px; border-radius: 10px; overflow: hidden;
-  background: repeating-conic-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
-}
-.app-native .pic-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.app-native .pic-card .shelf-name { padding-right: 0; }
 
 /* ---- the shelf: the visitor's songs ---- */
 .app-native .studio-shelf { flex: 1 1 auto; min-height: 0; overflow-y: auto; width: 100%; max-width: 1080px; margin: 0 auto; padding: 28px 24px 40px; }
@@ -124,49 +101,6 @@
   .app-native .shelf-new .btn-accent:active { transform: translateY(var(--btn-press, 4px)); box-shadow: 0 1px 0 var(--btn-ink, transparent); }
 }
 @media (max-width: 640px) { .app-native .shelf-new .btn-accent { width: 100%; } }
-
-/* ---- Simulations: the circuit builder fills the page under the nav; its smaller dialogs still float. ---- */
-.app-native #simulation-builder-modal {
-  position: absolute; inset: 0; z-index: 1; display: flex; padding: 0; background: transparent; animation: none; backdrop-filter: none;
-}
-.app-native #simulation-builder-modal[hidden], .app-native #simulations-modal { display: none !important; }
-.app-native #simulation-builder-modal > .modal-inner {
-  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important;
-  margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: none;
-}
-.app-native :is(#sim-checklist-modal, #sim-model-modal, #sim-warnings-modal, #sim-connect-modal, #sim-sweep-modal) { z-index: 1100; }
-/* A share image is for the site's own published circuits. */
-.app-native #sim-poster-row { display: none !important; }
-.app-native .sim-thumb {
-  display: block; aspect-ratio: 2 / 1; margin: 0 0 8px; border-radius: 10px; overflow: hidden; background: color-mix(in srgb, var(--text) 5%, transparent);
-}
-.app-native .sim-thumb svg { width: 100%; height: 100%; display: block; }
-.app-native .sim-card-wires line { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; opacity: 0.7; }
-.app-native .sim-card-parts rect { fill: color-mix(in srgb, var(--text) 18%, var(--bg-elevated)); stroke: color-mix(in srgb, var(--text) 45%, transparent); stroke-width: 3; }
-.app-native .sim-card-parts :is(.sim-card-led, .sim-card-lamp) { fill: color-mix(in srgb, var(--accent) 55%, var(--bg-elevated)); }
-.app-native .sim-card-parts :is(.sim-card-battery, .sim-card-power-supply, .sim-card-outlet) { fill: color-mix(in srgb, #3ecf8e 45%, var(--bg-elevated)); }
-.app-native .sim-card-parts .sim-card-breadboard { fill: color-mix(in srgb, var(--text) 8%, var(--bg-elevated)); }
-.app-native .sim-card-empty { fill: var(--text-dim); font: 600 16px system-ui, sans-serif; }
-.app-native .sim-card .shelf-name { padding-right: 0; }
-
-/* ---- Scans: the 3D scan editor fills the page under the nav. ---- */
-.app-native #scan-editor-modal {
-  position: absolute; inset: 0; z-index: 1; display: flex; padding: 0; background: transparent; animation: none; backdrop-filter: none;
-}
-.app-native #scan-editor-modal[hidden], .app-native #scans-modal { display: none !important; }
-.app-native #scan-editor-modal > .modal-inner {
-  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important;
-  margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: none;
-}
-/* Uploading a poster goes to the site's media library: a visitor can still paste a picture's address. */
-.app-native #scan-editor-modal .input-with-upload { display: none !important; }
-.app-native .scan-thumb {
-  display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; margin: 0 0 8px; border-radius: 10px; overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--text) 5%, transparent) 70%);
-}
-.app-native .scan-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.app-native .scan-thumb-blank svg { width: 56px; height: 56px; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linejoin: round; opacity: 0.8; }
-.app-native .scan-card .shelf-name { padding-right: 0; }
 
 /* ---- Studio: the song editor fills the page under the nav instead of floating; the audio export dialog still floats. ---- */
 .app-native #song-builder-modal, .app-native #songs-modal {
@@ -266,152 +200,8 @@
 /* More of what only the site's owner has a use for. */
 .app-native :is(#close-songs, #song-generate-cover-art, #studio-sheet-help, #song-view-toggle, #song-toolbar-publish, #studio-help) { display: none !important; }
 
-/* ---- Trainer (/trainer): drills and runs on the left, the practice area in the middle, settings on the right; either panel folds to a thin
-   handle (public/trainer.js). Under 1100px the panels stack around the stage and nothing folds. ---- */
-.app-native .trainer { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px 14px 20px; overflow-y: auto; }
-.app-native .trainer-panel { display: flex; flex-direction: column; min-width: 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-.app-native .trainer-panel .studio-panel-handle { display: none; }
-.app-native .trainer-panel .studio-panel-fold { display: none; }
-.app-native .trainer-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.app-native .trainer-left { order: 1; }
-.app-native .trainer-main { order: 0; }
-.app-native .trainer-right { order: 2; }
-.app-native .trainer-drills { display: flex; flex-direction: column; gap: 8px; }
-.app-native .trainer-drill {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
-  background: transparent; border: 2px solid var(--border); border-radius: 12px; box-shadow: none; transform: none;
-}
-.app-native .trainer-drill:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
-.app-native .trainer-drill[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.app-native .trainer-drill .drill-name { font-weight: 650; }
-.app-native .trainer-drill .drill-best { font-size: 0.8rem; color: var(--text-dim); }
-.app-native .trainer-drill[aria-checked="true"] .drill-best { color: var(--text); }
-.app-native .trainer-sub { margin: 18px 0 6px; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
-.app-native .trainer-history { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.app-native .trainer-history li { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-.app-native .trainer-history .h-score { font-weight: 700; text-align: right; }
-.app-native .trainer-history .h-meta { grid-column: 1 / -1; font-size: 0.76rem; color: var(--text-dim); }
-.app-native .trainer-history .trainer-empty { display: block; border: 0; color: var(--text-dim); }
-.app-native .trainer-clear { min-height: 36px; font-size: 0.82rem; }
-.app-native .trainer-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 20px; }
-.app-native .trainer-readout { display: flex; flex-direction: column; min-width: 0; }
-.app-native .trainer-name { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
-.app-native .trainer-about { font-size: 0.85rem; color: var(--text-dim); max-width: 60ch; }
-.app-native .trainer-live { display: flex; gap: 20px; margin: 0; }
-.app-native .trainer-live div { display: flex; flex-direction: column; align-items: flex-end; }
-.app-native .trainer-live dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
-.app-native .trainer-live dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.app-native .trainer-stage {
-  position: relative; flex: 1 1 auto; min-height: min(62vh, 520px); overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; outline: 0;
-  background: color-mix(in srgb, var(--text) 4%, var(--bg)); border: 2px solid var(--border); border-radius: 16px;
-  background-image: linear-gradient(color-mix(in srgb, var(--text) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 6%, transparent) 1px, transparent 1px);
-  background-size: 48px 48px;
-}
-.app-native .trainer.is-running .trainer-stage { cursor: crosshair; border-color: var(--accent); }
-.app-native .trainer-field { position: absolute; inset: 0; }
-.app-native .trainer-target {
-  position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; will-change: transform;
-  background: radial-gradient(circle, var(--bg) 0 14%, var(--accent) 15% 45%, var(--bg) 46% 62%, var(--accent) 63% 100%);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-.app-native .trainer-target.is-on { box-shadow: 0 0 0 4px var(--success, #3ecf8e); }
-.app-native .trainer-miss { position: absolute; left: 0; top: 0; width: 16px; height: 16px; pointer-events: none; border: 2px solid var(--error-text, #ff6b6b); border-radius: 50%; opacity: 0.8; }
-.app-native .trainer-aim { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 2; }
-.app-native .trainer-aim::before { content: ""; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--success, #3ecf8e); box-shadow: 0 0 0 2px var(--bg); }
-.app-native .trainer-aim.is-cross::before { left: -10px; top: -1px; width: 20px; height: 2px; border-radius: 0; box-shadow: none; }
-.app-native .trainer-aim.is-cross::after { content: ""; position: absolute; left: -1px; top: -10px; width: 2px; height: 20px; background: var(--success, #3ecf8e); }
-.app-native .trainer-aim.is-circle::before { left: -12px; top: -12px; width: 24px; height: 24px; background: transparent; border: 2px solid var(--success, #3ecf8e); box-shadow: none; }
-.app-native .trainer-overlay { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 16px; }
-.app-native .trainer-overlay[hidden] { display: none; }
-.app-native .trainer-card { max-width: 420px; width: 100%; padding: 22px; text-align: center; background: var(--bg-elevated); border: 2px solid var(--border); border-radius: 16px; }
-.app-native .trainer-card[hidden], .app-native .trainer-count[hidden] { display: none; }
-.app-native .trainer-card h2 { margin: 0 0 8px; font-size: 1.4rem; }
-.app-native .trainer-card p { margin: 0 0 14px; color: var(--text-dim); }
-.app-native .trainer-card .result-record { color: var(--success, #3ecf8e); font-weight: 650; }
-.app-native .trainer-go, .app-native .trainer-again { min-height: 48px; padding: 0 28px; font-size: 1rem; }
-.app-native .trainer-card .intro-hint { margin: 14px 0 0; font-size: 0.8rem; }
-.app-native .result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0 0 16px; }
-.app-native .result-grid div { padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
-.app-native .result-grid dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
-.app-native .result-grid dd { margin: 2px 0 0; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.app-native .result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.app-native .trainer-count { font-size: clamp(4rem, 14vw, 8rem); font-weight: 800; color: var(--accent); }
-.app-native .trainer-settings { display: flex; flex-direction: column; gap: 14px; }
-.app-native .trainer-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; min-width: 0; }
-.app-native .trainer-row[hidden] { display: none; }
-.app-native .trainer-row .field-label { grid-column: 1; font-size: 0.85rem; font-weight: 600; }
-.app-native .trainer-row output { grid-column: 2; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--text-dim); }
-.app-native .trainer-row input[type="range"] { grid-column: 1 / -1; width: 100%; min-height: 24px; }
-.app-native .trainer-select select { grid-column: 1 / -1; width: 100%; min-height: 40px; }
-.app-native .trainer-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; cursor: pointer; }
-.app-native .trainer-check input { width: 24px; height: 24px; flex: 0 0 auto; }
-.app-native .trainer-note { margin: 0; font-size: 0.8rem; color: var(--text-dim); }
-.app-native .trainer-intro .btn[disabled] { opacity: 0.5; }
-
-@media (min-width: 1100px) {
-  .app-native .trainer {
-    --left-w: clamp(210px, 16vw, 280px); --right-w: clamp(250px, 19vw, 330px);
-    display: grid; grid-template-columns: var(--left-w) minmax(0, 1fr) var(--right-w); grid-template-areas: "left main right"; align-items: stretch; overflow: hidden; padding: 12px 16px;
-  }
-  .app-native .trainer.is-left-folded { --left-w: 44px; }
-  .app-native .trainer.is-right-folded { --right-w: 44px; }
-  .app-native .trainer-left { grid-area: left; order: 0; min-height: 0; }
-  .app-native .trainer-main { grid-area: main; order: 0; }
-  .app-native .trainer-right { grid-area: right; order: 0; min-height: 0; }
-  .app-native .trainer-panel .studio-panel-fold { display: inline-flex; align-items: center; justify-content: center; }
-  .app-native .trainer-stage { min-height: 0; }
-  .app-native .trainer.is-left-folded .trainer-left > :not(.studio-panel-handle),
-  .app-native .trainer.is-right-folded .trainer-right > :not(.studio-panel-handle) { display: none; }
-  .app-native .trainer.is-left-folded .trainer-left .studio-panel-handle,
-  .app-native .trainer.is-right-folded .trainer-right .studio-panel-handle { display: flex; }
-}
-
-/* ---- The Library panel of PicEditor, Simulations and Scans (public/app-kit.js `library`): the visitor's saved things on the left of the
-   editor, with what new ones start from. A screen 1100px wide and up; below that the shelf behind the editor's back button is the library. ---- */
-.app-native .app-library { display: none; }
-.app-native .shelf-start[hidden], .app-native .app-library .lib-start[hidden] { display: none; }
-.app-native .shelf-start { display: inline-flex; max-width: 320px; margin: 10px 0 0; }
-@media (min-width: 1100px) {
-  .app-native .app-shell.has-library { --lib-w: clamp(220px, 16vw, 290px); }
-  .app-native .app-shell.has-library.lib-folded { --lib-w: 56px; }
-  .app-native .app-library {
-    display: flex; flex-direction: column; position: absolute; z-index: 2; left: 12px; top: 12px; bottom: 12px; width: calc(var(--lib-w) - 12px); min-width: 0;
-    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
-  }
-  .app-native .has-library :is(#photo-editor-modal, #simulation-builder-modal, #scan-editor-modal) { left: var(--lib-w); }
-  .app-native .has-library :is(#close-photo-editor, #close-simulation-builder, #close-scan-editor).app-back { display: none !important; }
-  .app-native .has-library .studio-shelf { display: none; }
-  .app-native .has-library.lib-folded .app-library > :not(.studio-panel-handle) { display: none; }
-  .app-native .has-library.lib-folded .app-library .studio-panel-handle { display: flex; }
-}
-.app-native .app-library .lib-new { width: 100%; min-height: 40px; margin: 0 0 10px; }
-.app-native .app-library .lib-start { display: flex; width: 100%; margin: 0 0 12px; }
-.app-native .app-library .lib-start select { width: 100%; min-height: 36px; }
-.app-native .lib-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.app-native .lib-item { display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.app-native .lib-item.is-open { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
-.app-native .lib-open {
-  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px 4px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
-  background: transparent; border: 0; border-radius: 0; box-shadow: none; filter: none; transform: none; min-height: 0;
-}
-.app-native .lib-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.app-native .lib-open :is(.pic-thumb, .sim-thumb, .scan-thumb) { margin: 0 0 6px; }
-.app-native .lib-name { font-weight: 650; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app-native .lib-meta { font-size: 0.75rem; color: var(--text-dim); }
-.app-native .lib-item.is-open .lib-meta { color: var(--text); }
-.app-native .lib-actions { display: flex; gap: 2px; padding: 0 6px 6px; }
-.app-native .lib-actions button {
-  min-height: 28px; padding: 0 8px; font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-dim); cursor: pointer;
-  background: transparent; border: 0; border-radius: 6px; box-shadow: none; transform: none;
-}
-.app-native .lib-actions button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
-.app-native .lib-empty { padding: 4px 2px; font-size: 0.85rem; color: var(--text-dim); }
 /* With the Songs panel beside the editor (1280px and up) the "Songs" button has nothing to go back to. */
 @media (min-width: 1280px) { .app-native #studio-close { display: none; } }
-/* PicEditor's adjustment sliders: a finger needs more than a 16 px strip (the editor's own rule is for a mouse). */
-@media (pointer: coarse), (max-width: 640px) {
-  .app-native #photo-editor-modal input[type="range"] { min-height: 24px; }
-}
 
 /* ---- Phones: calmer tool pages. The desktop layouts stay as they are; under 641px the helper text that
    repeats what a control already says goes, rows get room to breathe, and the thing you are working on gets the screen. ---- */
@@ -423,33 +213,9 @@
   .app-native .studio-pad { min-height: 56px; }
   .app-native .studio-top { gap: 8px; }
   .app-native .studio-controls { padding: 8px 10px; }
-  /* Simulations: the name and Circuits, then one row of actions; the status chips scroll in that row's width instead of making a third row */
-  .app-native .simulation-builder-inner header.sim-toolbar { padding: 10px 14px 8px; gap: 8px; }
-  .app-native .sim-quick, .app-native .sim-toolbar-more, .app-native #close-simulation-builder { min-height: 40px; }
-  .app-native #sim-preview-power, .app-native #sim-warnings-btn { font-size: 0.82rem; }
-  /* PicEditor: the page title and the editor's hint repeat what the tab and the toolbar say */
-  .app-native #photo-editor-modal-title { font-size: 1.05rem; }
-  .app-native #pe-hint { display: none; }
-  /* Scans: a little air round the file fields */
-  .app-native #scan-editor-modal .modal-inner { gap: 4px; }
-  /* Trainer: the drill's description is on its Start card already */
-  .app-native .trainer { gap: 14px; padding: 14px 16px 24px; }
-  .app-native .trainer-about { display: none; }
-  .app-native .trainer-main, .app-native .trainer-panel { flex: 0 0 auto; } /* stacked on a phone: each takes its own height and the page scrolls, nothing overlaps */
-  .app-native .trainer-name { font-size: 1.2rem; }
-  .app-native .trainer-card { padding: 20px 18px; }
-  .app-native .trainer-panel .studio-panel-body { padding: 14px; }
-  /* the three drills sit in one row under the stage instead of three tall cards */
-  .app-native .trainer-left .studio-panel-head { display: none; }
-  .app-native .trainer-drills { flex-direction: row; gap: 8px; }
-  .app-native .trainer-drill { flex: 1 1 0; min-width: 0; align-items: center; text-align: center; padding: 8px 6px; }
-  .app-native .trainer-drill .drill-best { font-size: 0.7rem; }
-  .app-native .trainer-left { order: -1; }
-  .app-native .trainer-left .trainer-sub, .app-native .trainer-left .trainer-history, .app-native .trainer-left .trainer-clear { display: none; } /* each drill's best is on its chip; the full list is on a bigger screen */
-  .app-native .trainer-stage { min-height: min(54vh, 440px); }
 }
 
-/* ---- Back up and restore (public/app-kit.js `backup`): two quiet buttons at the foot of the Library panel, the shelf and the Trainer's settings ---- */
+/* ---- Back up and restore (public/app-kit.js `backup`): two quiet buttons at the foot of the Songs panel and the shelf ---- */
 .app-native .app-backup { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
 .app-native .app-backup-row { display: flex; gap: 8px; }
 .app-native .app-backup-row button {
@@ -461,45 +227,17 @@
 .app-native .app-backup-status:empty { display: none; }
 .app-native .studio-shelf .app-backup { max-width: 320px; }
 
-/* ---- Trainer: progress chart, the reaction cue, sharing, the sensitivity converter ---- */
-.app-native .trainer-chart { margin-top: 4px; }
-.app-native .trainer-spark { display: block; width: 100%; height: auto; }
-.app-native .trainer-spark path { stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.app-native .trainer-spark circle { fill: var(--accent); }
-.app-native .trainer-spark circle.is-best { fill: var(--success, #3ecf8e); }
-.app-native .trainer-chart-cap, .app-native .trainer-chart-empty { margin: 4px 0 0; font-size: 0.78rem; color: var(--text-dim); }
-.app-native .result-chart { margin: 0 0 14px; }
-.app-native .result-chart .trainer-spark { max-width: 320px; margin: 0 auto; }
-.app-native .result-share-status { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-dim); }
-.app-native .result-share-status:empty { display: none; }
-.app-native .trainer-cue { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; font-size: clamp(1.6rem, 6vw, 3rem); font-weight: 800; pointer-events: none; }
-.app-native .trainer-cue.is-wait { background: color-mix(in srgb, #c0392b 55%, var(--bg)); color: #fff; }
-.app-native .trainer-cue.is-go { background: #1faa5b; color: #fff; }
-.app-native .trainer-cue.is-early { background: color-mix(in srgb, #c0392b 80%, var(--bg)); color: #fff; }
-.app-native .trainer-cue.is-result { background: color-mix(in srgb, var(--accent) 60%, var(--bg)); color: #fff; }
-.app-native .trainer-convert { border-top: 1px solid var(--border); padding-top: 10px; }
-.app-native .trainer-convert summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; min-height: 28px; }
-.app-native .trainer-convert .trainer-row { margin-top: 10px; }
-.app-native .trainer-convert input[type="number"] { grid-column: 1 / -1; width: 100%; min-height: 40px; }
-.app-native .trainer-convert-out { margin: 10px 0 0; font-size: 0.85rem; font-weight: 600; }
-@media (max-width: 640px) {
-  .app-native .trainer-drills { flex-wrap: wrap; }
-  .app-native .trainer-drill { flex: 1 1 calc(33% - 8px); }
-  .app-native .trainer-left .trainer-chart { display: none; }
-}
-
 /* ---- The aggregate look on the tool pages: flat panels and cards with 4px corners, small uppercase panel titles like the aggregate's
    module headers, and the Sound panel's edge thinned to 2px. Colours, font and buttons come from the tokens on body in style.css. ---- */
-.app-native :is(.studio-panel, .trainer-panel, .trainer-card, .trainer-stage, .trainer-drill, .studio-song, .lib-item, .app-library, .shelf-empty, .shelf-picture, .shelf-chip, .result-grid div, .studio-pick-tabs) { border-radius: 4px; }
-.app-native :is(.trainer-drill, .trainer-stage, .trainer-card) { border-width: 1px; }
-.app-native .pic-shelf.is-dropping { border-radius: 4px; }
+.app-native :is(.studio-panel, .studio-song, .shelf-empty, .shelf-picture, .shelf-chip, .studio-pick-tabs) { border-radius: 4px; }
+
 .app-native .studio-pick-tabs > * { border-radius: 2px; }
 .app-native .studio-pick { border-radius: 4px; }
 .app-native .studio-sound-panel { border-top-width: 2px; }
-.app-native :is(.studio-panel-head, .trainer-panel-head) h2 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.app-native .studio-panel-head h2 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 
 /* ==== Studio: Bit bento (begin) ==== */
-/* ---- Studio: Bit bento (the tool pages): windows for the panels, the shelf and the library. The Studio's own windows are in the admin stylesheet's block of the same name. ---- */
+/* ---- Studio: Bit bento (the tool pages): windows for the panels and the shelf. The Studio's own windows are in the admin stylesheet's block of the same name. ---- */
 .app-native {
   --bb-ink: var(--text);
   --bb-paper: var(--bg);
@@ -511,7 +249,7 @@
   --bb-px: var(--font-pixel, "Silkscreen", monospace);
   --bb-vt: var(--font-family, "VT323", monospace);
 }
-.app-native .studio-panel, .app-native .trainer-panel, .app-native .app-library {
+.app-native .studio-panel {
   position: relative; padding: 28px 2px 2px; margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; color: var(--bb-ink);
   background:
     var(--bb-lit, linear-gradient(transparent, transparent) 0 0 / 0 0 no-repeat),
@@ -536,16 +274,13 @@
     linear-gradient(var(--bb-paper), var(--bb-paper)) content-box,
     linear-gradient(var(--bb-ring), var(--bb-ring));
 }
-.app-native .studio-panel::after, .app-native .trainer-panel::after, .app-native .app-library::after {
+.app-native .studio-panel::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transform: translate(6px, 6px);
   background: repeating-conic-gradient(var(--bb-ring) 0 25%, var(--bb-ground) 0 50%) 0 0 / 2px 2px; clip-path: polygon(var(--bb-o));
 }
 .app-native .studio-sound-panel { --bb-lit: linear-gradient(var(--bb-orange), var(--bb-orange)) 18px 11px / 6px 6px no-repeat; }
 /* a panel folded to its handle has no title bar */
-.app-native .song-studio.studio-songs-folded .studio-songs-panel,
-.app-native .song-studio.studio-sounds-folded .studio-sound-panel,
-.app-native .trainer.is-left-folded .trainer-left, .app-native .trainer.is-right-folded .trainer-right,
-.app-native .has-library.lib-folded .app-library {
+.app-native .song-studio.studio-songs-folded .studio-songs-panel, .app-native .song-studio.studio-sounds-folded .studio-sound-panel {
   padding: 2px;
   background:
     linear-gradient(var(--bb-ground), var(--bb-ground)) left top / 2px 4px no-repeat, linear-gradient(var(--bb-ground), var(--bb-ground)) 2px 0 / 2px 2px no-repeat,
@@ -609,16 +344,16 @@
 .app-native .studio-song-actions button:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 1px; }
 .app-native .studio-song.is-draft .studio-song-open { grid-template-areas: "name" "when"; padding-bottom: 8px; }
 .app-native .studio-songs-empty { font: 400 20px/1.1 var(--bb-vt); color: var(--text-dim); margin: 6px 0 0; }
-.app-native .studio-songs-starters h3, .app-native .trainer-sub { font: 400 12px/14px var(--bb-px); letter-spacing: 0; text-transform: uppercase; color: var(--text); margin: 16px 0 6px; }
+.app-native .studio-songs-starters h3 { font: 400 12px/14px var(--bb-px); letter-spacing: 0; text-transform: uppercase; color: var(--text); margin: 16px 0 6px; }
 .app-native .studio-songs-chips { gap: 6px; }
-.app-native .studio-songs-starters .shelf-chip, .app-native .studio-songs-new, .app-native .app-backup-row button, .app-native .lib-new, .app-native .studio-songs-backup button {
+.app-native .studio-songs-starters .shelf-chip, .app-native .studio-songs-new, .app-native .app-backup-row button, .app-native .studio-songs-backup button {
   min-height: 36px; padding: 0 12px; font: 400 22px/1 var(--bb-vt); letter-spacing: 0; color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); filter: none; transform: none; cursor: pointer;
 }
 .app-native .studio-songs-chips .shelf-chip { flex: 1 1 100%; justify-content: center; }
-.app-native .studio-songs-starters .shelf-chip:hover, .app-native .studio-songs-new:hover, .app-native .app-backup-row button:hover, .app-native .lib-new:hover, .app-native .studio-songs-backup button:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+.app-native .studio-songs-starters .shelf-chip:hover, .app-native .studio-songs-new:hover, .app-native .app-backup-row button:hover, .app-native .studio-songs-backup button:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
 .app-native .studio-songs-new { background: var(--text); color: var(--bg); box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--bg); min-height: 40px; }
 .app-native .studio-songs-new:hover { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 4px var(--text); }
-.app-native .studio-songs-starters .shelf-chip:focus-visible, .app-native .studio-songs-new:focus-visible, .app-native .app-backup-row button:focus-visible, .app-native .lib-new:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .studio-songs-starters .shelf-chip:focus-visible, .app-native .studio-songs-new:focus-visible, .app-native .app-backup-row button:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
 .app-native .studio-songs-starters .field { display: block; position: relative; margin: 14px 0 0; }
 .app-native .studio-songs-starters .field-label { position: absolute; left: 10px; top: -9px; z-index: 1; margin: 0; padding: 0 6px; background: var(--bg); color: var(--text); }
 .app-native .studio-songs-starters .field select { width: 100%; height: 42px; font: 400 21px/1 var(--bb-vt); padding: 0 34px 0 12px; border: 2px solid var(--text); border-radius: 0; background-color: var(--bg); color: var(--text); }
@@ -684,15 +419,15 @@
 .app-native .shelf-actions { gap: 6px; padding: 0 8px 8px; }
 .app-native .shelf-actions button { min-height: 32px; padding: 0 10px; font: 400 20px/1 var(--bb-vt); color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); }
 .app-native .shelf-actions button:hover, .app-native .shelf-actions .shelf-delete:hover { background: var(--text); color: var(--bg); }
-.app-native .shelf-start .field-label { font: 400 12px/16px var(--bb-px); }
+
 .app-native .studio-shelf .song-file-status { font: 400 20px/1.1 var(--bb-vt); }
 .app-native .studio-shelf select { font: 400 22px/1 var(--bb-vt); color: var(--text); background-color: var(--bg); border: 2px solid var(--text); border-radius: 0; min-height: 42px; padding: 0 34px 0 12px; }
-.app-native .studio-shelf .field, .app-native .app-library .field { position: relative; display: block; margin-top: 9px; }
-.app-native .studio-shelf .field-label, .app-native .app-library .field-label { position: absolute; left: 10px; top: -9px; z-index: 1; background: var(--bg); color: var(--text); padding: 0 6px; font: 400 12px/16px var(--bb-px); text-transform: uppercase; letter-spacing: 0; }
-.app-native .studio-shelf .field:focus-within .field-label, .app-native .app-library .field:focus-within .field-label { background: var(--text); color: var(--bg); }
-.app-native .studio-shelf select, .app-native .app-library select { appearance: none; -webkit-appearance: none; background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px;
+.app-native .studio-shelf .field { position: relative; display: block; margin-top: 9px; }
+.app-native .studio-shelf .field-label { position: absolute; left: 10px; top: -9px; z-index: 1; background: var(--bg); color: var(--text); padding: 0 6px; font: 400 12px/16px var(--bb-px); text-transform: uppercase; letter-spacing: 0; }
+.app-native .studio-shelf .field:focus-within .field-label { background: var(--text); color: var(--bg); }
+.app-native .studio-shelf select { appearance: none; -webkit-appearance: none; background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h12v2H0zM2 2h8v2H2zM4 4h4v2H4zM5 6h2v2H5z'/%3E%3C/svg%3E"); }
-:root:not([data-theme="light"]) .app-native .studio-shelf select, :root:not([data-theme="light"]) .app-native .app-library select {
+:root:not([data-theme="light"]) .app-native .studio-shelf select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%23fff' d='M0 0h12v2H0zM2 2h8v2H2zM4 4h4v2H4zM5 6h2v2H5z'/%3E%3C/svg%3E"); }
 .app-native .shelf-starters { scroll-snap-type: x proximity; }
 .app-native .app-backup-row button, .app-native .studio-songs-backup button { white-space: nowrap; padding: 0 4px; font-size: 20px; }
@@ -702,7 +437,7 @@
   .app-native .song-studio { grid-template-rows: auto auto minmax(var(--pl-min), auto) minmax(var(--detail-min), 1fr) auto; }
   .app-native .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) auto auto; }
 }
-.app-native .studio-shelf .field-label, .app-native .app-library .field-label, .app-native .studio-songs-starters .field-label {
+.app-native .studio-shelf .field-label, .app-native .studio-songs-starters .field-label {
   right: auto; margin: 0; width: max-content; max-width: calc(100% - 16px); left: 8px; padding: 0 4px; white-space: nowrap; overflow: hidden; font-size: 11px; line-height: 16px;
 }
 

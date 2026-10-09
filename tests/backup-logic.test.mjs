@@ -15,13 +15,13 @@ ok(B.parseBundle(text, "studio").bundle.parts.songs.length === 1, "a good file r
 ok(B.parseBundle(text).bundle.app === "studio", "and so does one with no page named");
 ok(/not.*backup/i.test(B.parseBundle("{nope", "studio").error), "a file that is not JSON is turned away in plain words");
 ok(/not one of this site/i.test(B.parseBundle(JSON.stringify({ hello: 1 }), "studio").error), "so is JSON that is not a backup");
-ok(/Simulations, not the Studio/.test(B.parseBundle(JSON.stringify(B.makeBundle("simulations", {})), "studio").error), "a backup for another page says which page it belongs to");
+ok(/something this site does not have/.test(B.parseBundle(JSON.stringify(B.makeBundle("simulations", {})), "studio").error), "a backup for a page this site no longer has is refused");
 ok(/newer version/.test(B.parseBundle(JSON.stringify(Object.assign({}, bundle, { version: 9 })), "studio").error), "a backup from a newer version is not guessed at");
 ok(/something this site does not have/.test(B.parseBundle(JSON.stringify(Object.assign({}, bundle, { app: "other" })), "studio").error), "an unknown page is refused");
 ok(B.parseBundle("", "studio").error && B.parseBundle(null, "studio").error, "an empty file or nothing is refused");
 ok(/nothing in it/.test(B.parseBundle(JSON.stringify(Object.assign({}, bundle, { parts: [] })), "studio").error), "a backup with no parts is refused");
 ok(B.parseBundle("x".repeat(B.MAX_BYTES + 1), "studio").error.includes("too big"), "a huge file is refused before it is read");
-ok(B.fileName("scans", new Date(2026, 0, 5)) === "dominick-scans-backup-2026-01-05.json", "the file name has the page and the date");
+ok(B.fileName("studio", new Date(2026, 0, 5)) === "dominick-studio-backup-2026-01-05.json", "the file name has the page and the date");
 
 // merging
 const have = [{ id: 1, name: "Beat", data: { a: 1 } }, { id: 7, name: "Tune", data: { b: 2 } }];
@@ -34,7 +34,6 @@ ok(B.mergeItems(undefined, [{ id: 3, name: "x", data: 1 }], B.dataSig).list[0].i
 ok(B.mergeItems(have, [null, 5, "x"], B.dataSig).added === 0, "junk entries are ignored");
 const cap = B.mergeItems([], [{ name: "a", data: 1 }, { name: "b", data: 2 }, { name: "c", data: 3 }], B.dataSig, 2);
 ok(cap.list.length === 2 && cap.full === 1, "a browser's cap on how many it keeps is respected, and the rest are counted", cap);
-ok(B.fileSig({ name: "p", size: 10, width: 4, updated_at: "t" }) !== B.fileSig({ name: "p", size: 11, width: 4, updated_at: "t" }), "two pictures of different sizes are different things");
 
 // what to say
 ok(B.summary({ added: 3, skipped: 1, full: 0 }) === "Restored 3 items, 1 already here.", "the summary says how many came back and how many were already here");

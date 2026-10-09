@@ -1,9 +1,7 @@
-// The four app pages (Studio, PicEditor, Simulations, Scans) as a visitor uses them, on a phone and on a computer, in dark and light: each
-// one on its shelf and again with its editor open. Checks sideways overflow, anything drawn past the screen's edge, the editor sitting
-// under the nav, axe accessibility, controls under 24 px, and console or page errors.
+// The app page (the Studio) as a visitor uses it, on a phone and on a computer, in dark and light: on its shelf and again with its editor open.
+// Checks sideways overflow, anything drawn past the screen's edge, the editor sitting under the nav, axe accessibility, controls under 24 px, and console or page errors.
 // Not a test (the runner only picks up test_*.js): run it by hand and read the report.
 //   node tests/e2e/audit/audit-apps.js                 against http://localhost:8787
-//   node tests/e2e/audit/audit-apps.js --only Scans    one app
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("../_pw.cjs");
 
@@ -11,9 +9,6 @@ const args = process.argv.slice(2);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1].toLowerCase() : null;
 const APPS = [
   { name: "Studio", path: "/studio", shelf: ".studio-shelf:not([hidden])", opened: "#song-builder-modal:not([hidden]) #studio-stack .studio-card", open: (p) => p.click("#new-song-btn"), editor: "#song-builder-modal > .modal-inner", close: "#studio-close" },
-  { name: "PicEditor", path: "/piceditor", shelf: ".pic-shelf:not([hidden])", opened: "#photo-editor-modal:not([hidden])", open: (p) => p.click('.pic-shelf .shelf-chip[data-w="1200"]'), editor: "#photo-editor-modal > .modal-inner", close: "#close-photo-editor" },
-  { name: "Simulations", path: "/simulations", shelf: ".sim-shelf:not([hidden])", opened: "#simulation-builder-modal:not([hidden])", open: (p) => p.click("#sim-shelf-new"), editor: "#simulation-builder-modal > .modal-inner", close: "#close-simulation-builder" },
-  { name: "Scans", path: "/scans", shelf: ".scan-shelf:not([hidden])", opened: "#scan-editor-modal:not([hidden])", open: (p) => p.evaluate(() => document.getElementById("new-scan-btn").click()), editor: "#scan-editor-modal > .modal-inner", close: "#close-scan-editor" },
 ].filter((a) => !only || a.name.toLowerCase() === only);
 const VIEWPORTS = [
   { name: "phone", viewport: { width: 390, height: 800 }, touch: true },
@@ -57,7 +52,7 @@ function measure() {
         p.on("pageerror", (e) => errs.push("pageerror: " + String(e).slice(0, 140)));
         p.on("console", (m) => { if (m.type() === "error" && !/ERR_TUNNEL|ERR_CONNECTION|jsdelivr|google|Failed to load resource/.test(m.text())) errs.push(m.text().slice(0, 140)); });
         await p.addInitScript((s) => { try { localStorage.setItem("theme", s); } catch (e) {} }, scheme);
-        // The pages open on an empty project, so the editor is first; the shelf is behind the back button on a phone (a wide screen has the Library panel beside the editor instead).
+        // The pages open on an empty project, so the editor is first; the shelf is behind the back button on a phone (a wide screen has the Songs panel beside the editor instead).
         for (const state of vp.touch ? ["editor", "shelf"] : ["editor"]) {
           const where = `${app.name} ${vp.name} ${scheme} ${state}`;
           try {

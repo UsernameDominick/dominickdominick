@@ -27,7 +27,7 @@ async function main() {
   const sitemap = await fetch(`${BASE}/sitemap.xml`);
   check("sitemap.xml 200", sitemap.status === 200);
   const rss = await fetch(`${BASE}/rss.xml`);
-  check("rss.xml 200", rss.status === 200);
+  check("rss.xml is gone", rss.status === 404);
 
   check("homepage has no javascript: URIs", !/href=["']javascript:/i.test(homeText));
 

@@ -27,7 +27,7 @@
   --accent: #ff7a45;
   --accent-secondary: #c9a5ff;
   --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-  /* Used as a text color (article/changelog date labels), not a background —
+  /* Used as a text color (date labels), not a background —
      a muted version of the new --accent, verified 9.07:1 against --bg. */
   --accent-dim: #e0a37e;
   /* Text color for things drawn ON TOP of an --accent-colored background
@@ -65,7 +65,7 @@
   --error-bg: #c62828;
   /* Success/warning/info below fill in a gap the palette never had: every
      consumer of "green means ok," "amber means caution," "blue means info"
-     (callouts, the build journal, contrast/link-check indicators, save-
+     (callouts, contrast/link-check indicators, save-
      conflict warnings) picked its own one-off shade with no light-theme
      variant at all — on the light theme, three of the four callout colors
      measured under WCAG's 3:1 minimum for non-text contrast, making a
@@ -119,7 +119,6 @@
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
-
 
 * {
   box-sizing: border-box;
@@ -200,7 +199,7 @@ h2, h3 {
    its own look (nav tabs, buttons, the brand mark) already sets its own
    color/text-decoration on a class, which wins over this bare-element
    rule. Without this, any link with no specific class (body content,
-   related-article titles) fell back to the browser's default blue,
+   related-link titles) fell back to the browser's default blue,
    clashing with the accent color used everywhere else on the site. */
 a {
   color: var(--accent);
@@ -357,10 +356,10 @@ body {
   outline-offset: -5px;
 }
 
-/* The shortcut shown beside Search, where there is a keyboard. */
+/* The shortcut shown beside Settings, where there is a keyboard (Ctrl or Cmd with K). */
 @media (hover: hover) and (min-width: 721px) {
   .tab-finder .tab-label::after {
-    content: "/";
+    content: "^K";
     display: inline-block;
     margin: 0 0 0 8px;
     padding: 0 4px;
@@ -477,77 +476,9 @@ body {
   outline-offset: -3px;
 }
 
-.topbar-tools {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.site-search input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--control-radius);
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  width: 150px;
-  max-width: 40vw;
-}
-
-.site-search input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.site-search {
-  position: relative;
-}
-
-.search-suggest {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 260px;
-  max-width: 80vw;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  overflow: hidden;
-  z-index: 70;
-}
-
-.search-suggest-item {
-  display: block;
-  padding: 10px 14px;
-  text-decoration: none;
-  color: var(--text);
-  font-size: 0.85rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.search-suggest-item:last-child {
-  border-bottom: none;
-}
-
-.search-suggest-item:hover, .search-suggest-item.active {
-  background: var(--bg);
-}
-
-.search-suggest-item .search-suggest-type {
-  display: block;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
 #theme-toggle,
 #motion-toggle,
-#font-size-toggle,
-.icon-link-btn {
+#font-size-toggle {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   color: var(--text);
@@ -568,7 +499,6 @@ body {
   flex-shrink: 0;
 }
 
-.icon-link-btn,
 #theme-toggle,
 #motion-toggle,
 #font-size-toggle {
@@ -602,8 +532,7 @@ body {
 
 #theme-toggle:hover,
 #motion-toggle:hover,
-#font-size-toggle:hover,
-.icon-link-btn:hover {
+#font-size-toggle:hover {
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -632,81 +561,10 @@ body {
   min-width: 0;
 }
 
-/* Parallax background — a block's own background-image scrolls at a
-   different rate than the page around it, giving it depth instead of
-   scrolling as one flat plane. Uses the classic background-attachment:
-   fixed technique (the image is pinned to the viewport instead of the
-   block, so scrolling the page past it reveals more of the same image
-   rather than moving it) — real depth with zero JavaScript, at the cost
-   of only working with a plain CSS background-image (not the <video>
-   background-video case, which isn't a CSS background at all). Desktop/
-   tablet only: background-attachment: fixed has known repaint/scroll-
-   jank problems on mobile Safari specifically, and touch scrolling
-   doesn't read as "depth" the same way a mouse-wheel scroll does anyway.
-   Also off entirely under prefers-reduced-motion, matching every other
-   scroll-triggered effect on the site. */
-@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-  .block-parallax {
-    background-attachment: fixed;
-  }
-}
-
-/* Article/project pages: normal top-to-bottom flow instead of the 24-column
-   grid used for admin-editable Pages — those blocks get explicit col/row
-   positions the admin drags into place, but an article's sections (header,
-   body, reactions, related-articles, etc.) have no fixed length to plan a
-   grid-row span around, and a wrong guess there let long content overlap
-   whatever came after it. Flow layout can't overlap: each section just
-   takes the height its content needs. */
-.article-canvas {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  /* ~70 characters per line. Body text ran the full 1,036px canvas width
-     (about 150 characters a line) -- roughly double a comfortable reading
-     measure, which makes long posts noticeably harder to follow. */
-  max-width: 760px;
-}
-
-/* /random and /projects: cards, not running text, so they get a wider
-   column than the reading measure -- three across on desktop. */
-.article-canvas.index-canvas {
-  max-width: 1080px;
-}
-
-.index-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.index-header h1 {
-  margin: 0;
-}
-
-.index-count {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.article-canvas #readable-content {
-  font-size: 1.0625rem;
-  line-height: 1.75;
-}
-
-.article-canvas #readable-content ul,
-.article-canvas #readable-content ol,
 .block ul,
 .block ol {
   padding-left: 1.3em;
   line-height: 1.7;
-}
-
-.article-canvas #readable-content li + li {
-  margin-top: 0.35em;
 }
 
 .md-quote {
@@ -720,84 +578,6 @@ body {
 
 .md-quote p {
   margin: 0;
-}
-
-.page-lede {
-  font-size: 1.15rem;
-  color: var(--text-dim);
-  line-height: 1.6;
-  margin: 0 0 18px;
-}
-
-.article-actions {
-  margin-top: 14px;
-}
-
-.article-cover {
-  display: block;
-  width: 100%;
-  margin-top: 28px;
-  border-radius: var(--card-radius);
-  border: 1px solid var(--border);
-}
-
-.project-link-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 4px 0 18px;
-}
-
-.tech-stack {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.tech-stack-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  margin-right: 4px;
-}
-
-.tech-chip {
-  padding: 3px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  font-size: 0.8rem;
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.block-has-bg-layer {
-  position: relative;
-  overflow: hidden;
-}
-
-.block-bg-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 0;
-}
-
-.block-bg-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.block-content-over-bg {
-  position: relative;
-  z-index: 2;
 }
 
 /* Entrance animations — deliberately scoped inside prefers-reduced-motion:
@@ -904,21 +684,6 @@ body {
   filter: none;
 }
 
-/* The parallax/smooth-motion pass shipped after this toggle only ever
-   checked the OS-level prefers-reduced-motion media query, not this
-   manual override — so a visitor who clicked "Turn off animations" still
-   got the fixed-background parallax and the header's scroll-timeline
-   animation. Both need an explicit override here since they're not
-   driven by [data-animate]/transition properties the rules above
-   already catch. */
-:root[data-motion="reduce"] .block-parallax {
-  background-attachment: scroll;
-}
-
-:root[data-motion="reduce"] .page-header {
-  animation: none;
-}
-
 /* The Button block used to be styled as a plain accent-colored text link
    -- on the live homepage the two primary calls to action (GitHub, Email)
    read as ordinary links floating in empty space. A real button: filled
@@ -1011,29 +776,6 @@ body {
   transition: none;
 }
 
-/* "Clear history"/"Clear all" on /history and /saved — real <button>
-   elements (there's nothing to navigate to), which otherwise render with
-   the browser's own default button chrome since nothing here resets it.
-   Shares .btn's visual language (an inline accent-colored text action)
-   rather than introducing a second button style for one-off page controls. */
-#clear-history-btn,
-#clear-saved-btn {
-  background: none;
-  border: none;
-  border-bottom: 1px solid transparent;
-  padding: 0;
-  font-family: inherit;
-  font-size: 0.95rem;
-  color: var(--accent);
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-#clear-history-btn:hover,
-#clear-saved-btn:hover {
-  border-color: var(--accent);
-}
-
 .empty-hint {
   color: var(--text-dim);
   font-style: italic;
@@ -1062,330 +804,8 @@ body {
   letter-spacing: 0.05em;
 }
 
-.block-links {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.block-links a {
-  /* inline-block + padding so the actual clickable/tappable area reaches
-     WCAG 2.5.8's 24x24px minimum target size — a bare inline text link at
-     normal font size measured 50x17px, under the minimum on the vertical
-     axis regardless of how long the link text itself is. */
-  display: inline-block;
-  padding: 4px 2px;
-  margin: -4px -2px;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.block-links a:hover {
-  text-decoration: underline;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-/* Article extras: reading progress bar, reading time + copy-link row */
-.reading-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 3px;
-  width: 0%;
-  background: var(--accent);
-  z-index: 200;}
-
-.article-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  margin-bottom: 8px;
-}
-
-/* Article/project header depth effect — as the page is scrolled away from
-   the top, the header (title/meta/tags) recedes and fades slightly slower
-   than the reading content beneath it, instead of both scrolling off as
-   one flat plane. Scroll-driven CSS animation, not JS: @supports means a
-   browser without it (Firefox/Safari as of this writing) just shows the
-   header at rest, no broken/half-applied state. animation-range caps the
-   effect to the first 300px of scroll, so it's a brief "leaving the top
-   of the page" cue rather than something that keeps changing the whole
-   time you're reading. */
-@keyframes page-header-parallax {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(-24px);
-    opacity: 0.5;
-  }
-}
-
-@supports (animation-timeline: scroll()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .page-header {
-      animation: page-header-parallax linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 300px;
-    }
-  }
-}
-
-.article-meta-sep {
-  opacity: 0.6;
-}
-
-.byline {
-  white-space: nowrap;
-}
-
-.series-nav {
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 14px 16px;
-  background: var(--bg-elevated);
-}
-
-.series-nav-label {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  margin-bottom: 8px;
-}
-
-/* "#" permalink beside a heading in article and project bodies: quiet until the heading is hovered or the link is focused. */
-.heading-anchor {
-  margin-left: 0.4em;
-  font-weight: 400;
-  text-decoration: none;
-  color: var(--text-dim);
-  opacity: 0;
-}
-:is(h2, h3):hover > .heading-anchor,
-.heading-anchor:focus-visible {
-  opacity: 1;
-}
-.heading-anchor:hover {
-  color: var(--accent);
-}
-@media (hover: none) {
-  .heading-anchor {
-    opacity: 0.45;
-  }
-}
 h2[id], h3[id] {
   scroll-margin-top: 80px;
-}
-
-/* Older / newer links closing an article or project. */
-.prev-next {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 8px;
-}
-.prev-next-link {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius, 12px);
-  color: var(--text);
-  text-decoration: none;
-}
-.prev-next-newer {
-  text-align: right;
-  grid-column: 2;
-}
-.prev-next-older {
-  grid-column: 1;
-}
-.prev-next-link:hover,
-.prev-next-link:focus-visible {
-  border-color: var(--accent);
-}
-.prev-next-label {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
-.prev-next-title {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 520px) {
-  .prev-next {
-    grid-template-columns: 1fr;
-  }
-  .prev-next > span:empty {
-    display: none;
-  }
-  .prev-next-newer,
-  .prev-next-older {
-    grid-column: 1;
-    text-align: left;
-  }
-}
-@media print {
-  .heading-anchor,
-  .prev-next {
-    display: none;
-  }
-}
-
-.series-nav-links {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 0.9rem;
-}
-
-.series-nav-links a {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.series-nav-links a:hover {
-  color: var(--accent);
-}
-
-.series-next {
-  margin-left: auto;
-  text-align: right;
-}
-
-.share-links {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.copy-link-btn,
-.share-link,
-.save-for-later-btn,
-.print-pdf-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  font-family: inherit;
-  text-decoration: none;
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.copy-link-btn:hover,
-.share-link:hover,
-.save-for-later-btn:hover,
-.print-pdf-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.save-for-later-btn.is-saved {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.remove-saved-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: none;
-  cursor: pointer;
-  font-size: 0.8rem;
-  text-decoration: underline;
-}
-
-.remove-saved-btn:hover {
-  color: var(--text);
-}
-
-.reactions {
-  display: flex;
-  gap: 8px;
-}
-
-.reaction-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 6px 14px;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.reaction-btn:hover {
-  border-color: var(--accent);
-}
-
-.reaction-btn.is-reacted {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, var(--bg-elevated));
-}
-
-.reaction-count {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.table-of-contents {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 16px 20px;
-}
-
-.table-of-contents strong {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 10px;
-}
-
-.table-of-contents ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.table-of-contents a {
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.92rem;
-}
-
-.table-of-contents a:hover {
-  color: var(--accent);
-}
-
-.toc-level-3 {
-  margin-left: 18px;
-  font-size: 0.88rem;
 }
 
 .tag {
@@ -1423,171 +843,6 @@ h3 { font-size: 1.3rem; }
 h4 { font-size: 1.1rem; }
 h5 { font-size: 1rem; }
 h6 { font-size: 0.9rem; }
-
-.lede {
-  color: var(--text-dim);
-  font-size: 1.05rem;
-  line-height: 1.6;
-  margin: 0 0 32px;
-}
-
-.links {
-  display: flex;
-  gap: 20px;
-}
-
-.links a {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.95rem;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s ease;
-}
-
-.links a:hover {
-  border-color: var(--accent);
-}
-
-.project-list, .thought-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.project-card {
-  position: relative;
-  height: 100%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 20px 24px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .project-card {
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-smooth);
-  }
-}
-
-/* The whole card is the click target (the link's ::after stretches over
-   it), not just the small text link at the bottom. */
-.project-card-link {
-  display: inline-block;
-  margin-top: 14px;
-  /* Nudged toward the text colour so the small link stays readable (4.5:1) on the card surface whatever accent is chosen. */
-  color: color-mix(in srgb, var(--accent) 84%, var(--text));
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.project-card-link::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.project-card-linked:hover {
-  border-color: var(--accent);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .project-card-linked:hover {
-    transform: translateY(-2px);
-  }
-}
-
-.project-card-link:focus-visible {
-  outline: none;
-}
-
-.project-card-linked:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-:root[data-motion="reduce"] .project-card-linked:hover {
-  transform: none;
-}
-
-.project-card h2 {
-  margin: 0 0 8px;
-  font-size: 1.1rem;
-}
-
-/* Index/related cards link their title; same treatment as article-list
-   titles -- text color at rest, accent on hover -- and the whole card is
-   the click target via the stretched ::after. */
-.project-card h2 a {
-  color: var(--text);
-  text-decoration: none;
-}
-
-.project-card h2 a::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
-
-.project-card:has(h2 a):hover {
-  border-color: var(--accent);
-}
-
-.project-card:has(h2 a):hover h2 a {
-  color: var(--accent);
-}
-
-.project-card .tags {
-  position: relative;
-  z-index: 1;
-}
-
-.project-card p {
-  margin: 0;
-  color: var(--text-dim);
-  line-height: 1.6;
-}
-
-.project-card .index-card-date {
-  margin: 0 0 6px;
-  font-size: 0.8rem;
-}
-
-/* Only the /articles and /projects index pages opt into this (not the
-   narrower "related content" call-outs elsewhere, which read better
-   staying single-column in a body-width column) -- lets the primary
-   content-discovery pages actually use desktop width instead of staying
-   single-column all the way up. */
-@media (min-width: 700px) {
-  .index-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-  }
-}
-
-.video-embed {
-  position: relative;
-  width: 100%;
-  height: 0;
-  padding-bottom: 56.25%;
-  border-radius: var(--card-radius);
-  overflow: hidden;
-  background: var(--bg-elevated);
-}
-
-.video-embed iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-}
 
 .block-quote {
   margin: 0;
@@ -1662,23 +917,6 @@ h6 { font-size: 0.9rem; }
   content: "— ";
 }
 
-/* A simulation, song or 3D scan placed into text with ::sim 148:: (and ::song / ::scan). */
-.body-embed {
-  margin: 1.6em 0;
-}
-
-/* A picture written into an article or project body with ![alt](address "caption"). */
-.body-figure {
-  margin: 1.6em 0;
-}
-
-.body-figure img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border-radius: 12px;
-}
-
 .gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1692,22 +930,12 @@ h6 { font-size: 0.9rem; }
   border-radius: 10px;
 }
 
-/* Simulations — a wiring-accurate diagram, not an electrically accurate
-   model: whether a part lights up is computed from whether it's on a
-   genuinely closed loop back to a source (see simulation-render.js /
-   sim-components.js), not from a manual flag. The <defs> gradients
-   referenced below (url(#sim-grad-...)) are emitted once per rendered
-   simulation, inline in the SVG itself. */
+/* The song player card. The Studio's preview pane (the song builder's Share tab) is the only place it is drawn now. */
 .song-embed {
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
   padding: 16px;
   background: var(--bg-elevated);
-}
-
-/* Several tracks under one project stack with a gap between the cards. */
-.related-posts .song-embed + .song-embed {
-  margin-top: 12px;
 }
 
 .song-embed-header {
@@ -1757,142 +985,6 @@ h6 { font-size: 0.9rem; }
 
 .song-embed-position-strip > .is-now {
   background: var(--accent);
-}
-
-/* Embed controls -- the song Play/Stop button, the simulation Power button and
-   the 3D scan AR button -- share the site's primary button treatment (see
-   .btn): filled with the accent, a glow (and, unless motion is reduced, a
-   slight lift) on hover, and the outlined look while their toggle is active
-   (playing / powered on). Their labels name the action ("Play"/"Stop",
-   "Power on"/"Power off"), so state is never carried by colour alone. */
-.song-embed-play-btn,
-.sim-power-btn,
-.scan-ar-btn {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: var(--control-border-width) solid var(--accent);
-  border-radius: var(--control-radius);
-  padding: var(--control-pad-y) var(--control-pad-x);
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .song-embed-play-btn,
-  .sim-power-btn,
-  .scan-ar-btn {
-    transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
-  }
-}
-
-/* The site's manual reduce-motion switch also drops the fade (the media
-   query above only knows about the OS setting). */
-:root[data-motion="reduce"] .song-embed-play-btn,
-:root[data-motion="reduce"] .sim-power-btn,
-:root[data-motion="reduce"] .scan-ar-btn {
-  transition: none;
-}
-
-@media (hover: hover) {
-  .song-embed-play-btn:hover,
-  .sim-power-btn:hover,
-  .scan-ar-btn:hover {
-    box-shadow: 0 6px 20px -8px var(--accent);
-  }
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) .song-embed-play-btn:hover,
-  :root:not([data-motion="reduce"]) .sim-power-btn:hover,
-  :root:not([data-motion="reduce"]) .scan-ar-btn:hover {
-    transform: translateY(-1px);
-  }
-  :root:not([data-motion="reduce"]) .song-embed-play-btn:active,
-  :root:not([data-motion="reduce"]) .sim-power-btn:active,
-  :root:not([data-motion="reduce"]) .scan-ar-btn:active {
-    transform: translateY(0);
-  }
-}
-
-.song-embed-play-btn:focus-visible,
-.sim-power-btn:focus-visible,
-.scan-ar-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.song-embed-play-btn.is-active,
-.sim-power-btn.is-active {
-  background: transparent;
-  color: var(--text);
-}
-
-/* Windows high-contrast mode drops the fills, so give the active state a
-   shape cue as well as its label. The padding gives back what the thicker
-   border takes, so the button (and the visualization under it) doesn't
-   change size when it toggles. */
-@media (forced-colors: active) {
-  .song-embed-play-btn.is-active,
-  .sim-power-btn.is-active {
-    border-style: dashed;
-    border-width: 2px;
-    padding: max(0px, calc(var(--control-pad-y) + var(--control-border-width) - 2px)) max(0px, calc(var(--control-pad-x) + var(--control-border-width) - 2px));
-  }
-}
-
-/* Comfortable touch targets. */
-@media (pointer: coarse) {
-  .song-embed-play-btn,
-  .sim-power-btn,
-  .scan-ar-btn {
-    min-height: 44px;
-  }
-}
-
-.sim-power-btn {
-  margin-top: 10px;
-}
-
-/* Power on and Schematic view sit side by side; the schematic switch is the quieter, outlined button and fills in when pressed. */
-.sim-block-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  align-self: flex-start;
-  margin-top: 10px;
-}
-.sim-block-actions .sim-power-btn {
-  margin-top: 0;
-}
-@media not print {
-  .sim-view-btn {
-    background: transparent;
-    color: var(--text);
-    border-color: var(--border-strong, var(--border));
-  }
-  .sim-view-btn[aria-pressed="true"] {
-    background: var(--accent);
-    color: var(--on-accent);
-    border-color: var(--accent);
-  }
-}
-/* A printed page cannot press it, so it is not printed. */
-@media print {
-  .sim-view-btn {
-    display: none;
-  }
-}
-@media (forced-colors: active) {
-  /* Fills are dropped in high-contrast mode, so the pressed state gets a shape cue like Power off's dashed outline. */
-  .sim-view-btn[aria-pressed="true"] {
-    border-style: dashed;
-    border-width: 2px;
-  }
 }
 
 .song-embed-bars {
@@ -2026,765 +1118,12 @@ h6 { font-size: 0.9rem; }
   transition: opacity 0.02s ease-in;
 }
 
-.sim-block-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.sim-svg {
-  width: 100%;
-  height: auto;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-}
-
-/* Deep-link target pulse -- a component's <g> has no fixed fill/stroke of
-   its own to swap (each part type draws itself very differently), so a
-   glow via drop-shadow (which wraps the whole rendered shape regardless
-   of what it looks like) is the one highlight technique that works
-   uniformly across every component type without per-type CSS. Scoped out
-   of prefers-reduced-motion the same way every other animation on this
-   site already is -- a reduced-motion visitor still gets the scroll (an
-   instant jump, not a smooth animated one, same as any anchor-link
-   scroll) but skips the pulsing glow itself. */
-@media (prefers-reduced-motion: no-preference) {
-  .sim-deep-link-highlight {
-    animation: sim-deep-link-pulse 1.8s ease-out 2;
-  }
-}
-@keyframes sim-deep-link-pulse {
-  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
-  50% { filter: drop-shadow(0 0 10px var(--accent)); }
-}
-/* The site's own manual "reduce motion" toggle (independent of the OS
-   preference above) needs the identical override -- a critic pass on an
-   EARLIER animation feature this same session found the site's manual
-   toggle doesn't automatically inherit coverage from the OS-preference
-   media query the way one might assume; each animation needs its own
-   explicit opt-out under the manual toggle too. */
-:root[data-motion="reduce"] .sim-deep-link-highlight {
-  animation: none;
-}
-
-/* Outlet */
-.sim-comp .outlet-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #8a8574;
-  stroke-width: 2;
-}
-.sim-comp .outlet-plate {
-  fill: none;
-  stroke: #b8b0a0;
-  stroke-width: 1;
-}
-.sim-comp .outlet-slot {
-  fill: url(#sim-grad-hole);
-}
-.sim-comp .outlet-ground {
-  fill: #2a2a2a;
-}
-
-/* Power supply */
-.sim-comp .ps-body {
-  fill: #3a3a3a;
-  stroke: #1a1a1a;
-  stroke-width: 1.5;
-}
-.sim-comp .ps-vent {
-  fill: #1a1a1a;
-}
-.sim-comp .ps-indicator {
-  fill: #555;
-  transition: fill 0.3s, filter 0.3s;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .ps-indicator {
-  fill: #6dff6d;
-  filter: drop-shadow(0 0 4px #6dff6d);
-}
-.sim-comp .ps-label {
-  fill: #ccc;
-  font-family: sans-serif;
-}
-
-/* Breadboard — real topology: the rail lines are one continuous strip
-   each (a genuine bus), the terminal holes below the gutter are each
-   their own independent connection point (see simulation-render.js). */
-.sim-comp .bb-body {
-  fill: url(#sim-grad-board);
-  stroke: #b8ab7a;
-  stroke-width: 2;
-}
-.sim-comp .bb-channel {
-  fill: #c8bc94;
-  opacity: 0.5;
-}
-.sim-comp .bb-sheen {
-  fill: #ffffff;
-  opacity: 0.15;
-}
-.sim-comp .bb-hole {
-  fill: url(#sim-grad-hole);
-}
-.sim-comp .bb-hole-rail {
-  fill: #2a2a2a;
-}
-.sim-comp .bb-rail-line {
-  opacity: 0.85;
-}
-.sim-comp .bb-rail-pos {
-  fill: #c23a3a;
-}
-.sim-comp .bb-rail-neg {
-  fill: #3a5ec2;
-}
-.sim-comp .bb-rail-label {
-  font-family: sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-}
-.sim-comp .bb-rail-label-pos {
-  fill: #c23a3a;
-}
-.sim-comp .bb-rail-label-neg {
-  fill: #3a5ec2;
-}
-
-/* LED */
-.sim-comp .led-bulb {
-  fill: url(#sim-grad-led-off);
-  stroke: #2a2a2a;
-  stroke-width: 1;
-  transition: fill 0.3s, filter 0.3s;
-}
-.sim-comp .led-shine {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-.sim-comp .led-flange {
-  fill: #1a1a1a;
-  opacity: 0.6;
-}
-.sim-comp .led-lead {
-  stroke: url(#sim-grad-metal);
-  stroke-width: 2;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .led-bulb {
-  fill: var(--led-on-color, url(#sim-grad-led-on));
-  filter: url(#sim-glow);
-}
-/* A burnt-out or dangerously-overdriven LED reads as a scorched husk
-   instead of glowing, however "powered" it technically still is. */
-.sim-svg.is-on .sim-comp.sim-damaged[data-powered="true"] .led-bulb {
-  fill: #1a1a1a !important;
-  filter: none !important;
-}
-
-/* Diode -- a plain rectifier; the bar marks the cathode. */
-.sim-comp .diode-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.sim-comp .diode-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #444;
-  stroke-width: 1.2;
-  stroke-linejoin: round;
-}
-.sim-comp .diode-bar {
-  stroke: var(--text);
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-/* Schematic view. Every part with a symbol draws both its picture and its symbol (see sim-schematic.js); the .is-schematic
-   class on the circuit picks which one shows. Symbols are plain line art; powered parts take the accent colour. */
-.sim-svg .sim-art-schem { display: none; }
-.sim-svg.is-schematic .sim-art-real { display: none; }
-.sim-svg.is-schematic .sim-art-schem { display: inline; }
-/* The saved choice is applied by a one-line script in <head> (html.sim-schematic-pref), so the right view paints first. */
-html.sim-schematic-pref .sim-svg .sim-art-real { display: none; }
-html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
-.sim-comp .sch-line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.sim-comp .sch-plate { stroke-width: 3; }
-.sim-comp .sch-fill { fill: var(--text); stroke: none; }
-.sim-comp .sch-dot { fill: var(--text); stroke: none; }
-.sim-comp .sch-text { fill: var(--text-dim); font-family: inherit; pointer-events: none; }
-.sim-comp .sch-meter-letter { fill: var(--text); font-weight: 600; }
-.sim-svg.is-on .sim-comp[data-powered="true"] .sch-line { stroke: var(--accent); }
-.sim-svg.is-on .sim-comp[data-powered="true"] .sch-fill,
-.sim-svg.is-on .sim-comp[data-powered="true"] .sch-dot { fill: var(--accent); }
-.sim-svg.is-on .sim-comp[data-powered="true"] .sch-led-body { fill: var(--led-on-color, var(--accent)); }
-/* Damage must show even while powered (a burnt part is always on a live loop), so these outrank the powered colours. */
-.sim-svg .sim-comp.sim-damaged .sch-line { stroke: #b4452d !important; }
-.sim-svg .sim-comp.sim-damaged .sch-fill,
-.sim-svg .sim-comp.sim-damaged .sch-dot { fill: #b4452d !important; }
-.sim-svg .sim-comp.sim-damaged .sch-led-body,
-.sim-svg .sim-comp.sim-damaged .sch-diode-body { fill: #2a1810 !important; }
-
-/* Lamp -- a glass bulb with a filament. It glows warm while current flows, as bright as the --lamp-level set on the part (its power
-   against its rating), and goes dark and scorched when it is driven far past that. */
-.sim-comp .lamp-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.sim-comp .lamp-glass {
-  fill: rgba(190, 210, 230, 0.22);
-  stroke: #6b7580;
-  stroke-width: 1.2;
-  transition: fill 0.3s, filter 0.3s, opacity 0.3s;
-}
-.sim-comp .lamp-filament {
-  stroke: #555;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.sim-comp .lamp-base {
-  fill: #8a8f96;
-  stroke: #444;
-  stroke-width: 1;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .lamp-glass {
-  fill: #ffd34e;
-  opacity: var(--lamp-level, 1);
-  filter: url(#sim-glow);
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .lamp-filament {
-  stroke: #fff6cf;
-}
-.sim-svg .sim-comp.sim-damaged[data-powered="true"] .lamp-glass {
-  fill: #2a1810 !important;
-  opacity: 1 !important;
-  filter: none !important;
-}
-.sim-svg .sim-comp.sim-damaged .lamp-filament {
-  stroke: #b4452d !important;
-  stroke-dasharray: 3 4;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .sch-lamp-body {
-  fill: #ffd34e;
-  fill-opacity: var(--lamp-level, 1);
-}
-.sim-svg .sim-comp.sim-damaged .sch-lamp-body {
-  fill: #2a1810 !important;
-  fill-opacity: 1 !important;
-}
-
-/* Buzzer -- a black round sounder. While it is being driven hard enough to sound, two arcs beside it pulse; under reduced motion they
-   just stay on. The sound itself only plays when someone clicks the part. */
-.sim-comp .buzzer-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.sim-comp .buzzer-body {
-  fill: #2b2d31;
-  stroke: #111;
-  stroke-width: 1.2;
-}
-.sim-comp .buzzer-hole {
-  fill: #0d0e10;
-  stroke: #555;
-  stroke-width: 0.8;
-}
-.sim-comp .buzzer-wave {
-  stroke: var(--accent);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  opacity: 0;
-}
-.sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave {
-  opacity: 0.85;
-}
-@keyframes sim-buzzer-pulse {
-  from { opacity: 0.25; }
-  to { opacity: 0.95; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  html:not([data-motion="reduce"]) .sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave {
-    animation: sim-buzzer-pulse 0.5s ease-in-out infinite alternate;
-  }
-  html:not([data-motion="reduce"]) .sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave-2 {
-    animation-delay: 0.25s;
-  }
-}
-.sim-svg .sim-comp.sim-damaged .buzzer-body { fill: #2a1810; }
-.sim-svg .sim-comp.sim-damaged .buzzer-wave { opacity: 0 !important; animation: none !important; }
-.sim-comp[data-sounding="true"] { cursor: pointer; }
-
-/* Transistor -- the arrow on the emitter leg points out of an NPN and into a PNP. */
-.sim-comp .transistor-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.sim-comp .transistor-bar {
-  stroke: var(--text-dim);
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-.sim-comp .transistor-arrow {
-  fill: var(--text-dim);
-}
-.sim-comp .transistor-label {
-  fill: var(--text-dim);
-  font-family: inherit;
-  pointer-events: none;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-lead,
-.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-bar {
-  stroke: var(--accent);
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-arrow {
-  fill: var(--accent);
-}
-.sim-comp.sim-damaged .transistor-bar,
-.sim-comp.sim-damaged .transistor-lead {
-  stroke: #5a2a1a !important;
-}
-.sim-comp.sim-damaged .transistor-arrow {
-  fill: #5a2a1a !important;
-}
-
-/* Resistor — band colors are set inline per-instance from its actual
-   resistance value (see resistorBandHexes()), so only opacity/stroke
-   are shared here. */
-.sim-comp .resistor-body {
-  fill: url(#sim-grad-resistor);
-  stroke: #7a6a3a;
-  stroke-width: 1.5;
-  transition: fill 0.3s;
-}
-.sim-comp .resistor-band {
-  opacity: 0.85;
-  stroke: rgba(0, 0, 0, 0.25);
-  stroke-width: 0.5;
-}
-.sim-comp .resistor-lead {
-  stroke: url(#sim-grad-metal);
-  stroke-width: 2;
-}
-.sim-comp.sim-damaged .resistor-body {
-  fill: #2a1810 !important;
-}
-
-/* Potentiometer — reuses the resistor-body/resistor-lead gradient classes
-   (see sim-components.js), just adds the wiper arrow + computed-ohms label. */
-.sim-comp .pot-wiper {
-  stroke: #444;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.sim-comp .pot-wiper-arrow {
-  fill: #444;
-}
-.sim-comp .pot-label {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
-}
-
-/* Capacitor and inductor -- two-terminal passives; the label prints the value. */
-.sim-comp .capacitor-lead,
-.sim-comp .inductor-lead {
-  /* Solid: a bounding-box gradient paints nothing on a zero-height line.
-     Theme ink rather than a fixed grey, so it keeps its contrast on both themes. */
-  stroke: var(--text-dim);
-  stroke-width: 2;
-}
-.sim-comp .capacitor-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #7a6a3a;
-  stroke-width: 1.2;
-}
-.sim-comp .capacitor-plate {
-  stroke: #333;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-.sim-comp .inductor-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1;
-}
-.sim-comp .inductor-coil {
-  fill: none;
-  stroke: #b87333;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-.sim-comp .capacitor-label,
-.sim-comp .inductor-label {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
-}
-.sim-comp.sim-damaged .inductor-body {
-  fill: #2a1810 !important;
-}
-
-/* Logic gates -- static diagram symbols. */
-.sim-comp .gate-body,
-.sim-comp .gate-bubble {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-.sim-comp .gate-extra {
-  fill: none;
-  stroke: var(--text-dim);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-.sim-comp .gate-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-}
-/* A custom truth table: a dashed, accent-coloured, slightly heavier outline
-   (the default #555 outline is faint against the dark theme's canvas). */
-.sim-comp .gate-body-custom {
-  stroke: var(--accent);
-  stroke-width: 2;
-  stroke-dasharray: 4 2.5;
-}
-
-/* Switch */
-.sim-comp .switch-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1;
-}
-.sim-comp .switch-lead {
-  stroke: url(#sim-grad-metal);
-  stroke-width: 2;
-}
-.sim-comp .switch-lever {
-  stroke: #444;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  transition: fill 0.2s, stroke 0.2s;
-}
-.sim-comp .switch-pivot {
-  fill: #333;
-}
-/* SPDT changeover switch: solid theme-ink leads (a bounding-box gradient paints nothing on a horizontal line). */
-.sim-comp .spdt-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-}
-/* Only the builder's switches toggle on click; the public embed is view-only. */
-#sim-builder-svg .sim-comp-switch,
-#sim-builder-svg .sim-comp-switch_spdt {
-  cursor: pointer;
-}
-
-/* Ammeter -- idealized zero-resistance current meter, in-series like a
-   switch/resistor. */
-.sim-comp .ammeter-lead {
-  stroke: url(#sim-grad-metal);
-  stroke-width: 2;
-}
-.sim-comp .ammeter-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1;
-}
-.sim-comp .ammeter-label {
-  fill: #333;
-  text-anchor: middle;
-  font-weight: 700;
-  pointer-events: none;
-}
-.sim-comp .ammeter-reading {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
-}
-
-/* Voltmeter -- idealized infinite-resistance voltage meter, in parallel. Solid
-   leads: a bounding-box gradient paints nothing on a horizontal line. */
-.sim-comp .voltmeter-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-}
-.sim-comp .voltmeter-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1;
-}
-.sim-comp .voltmeter-label {
-  fill: #333;
-  text-anchor: middle;
-  font-weight: 700;
-  pointer-events: none;
-}
-.sim-comp .voltmeter-sign {
-  fill: var(--error-text);
-  text-anchor: middle;
-  font-weight: 700;
-  pointer-events: none;
-}
-.sim-comp .voltmeter-sign-neg {
-  fill: var(--text-dim);
-}
-.sim-comp .voltmeter-reading {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
-}
-/* Ohmmeter -- measures resistance between its probes of an unpowered circuit. */
-.sim-comp .ohmmeter-lead {
-  stroke: var(--text-dim);
-  stroke-width: 2;
-}
-.sim-comp .ohmmeter-body {
-  fill: url(#sim-grad-plastic);
-  stroke: #555;
-  stroke-width: 1;
-}
-.sim-comp .ohmmeter-label {
-  fill: #333;
-  text-anchor: middle;
-  font-weight: 700;
-  pointer-events: none;
-}
-.sim-comp .ohmmeter-reading {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
-}
-/* A halo in the canvas colour keeps a meter reading and its +/- marks legible
-   over wires and the cream breadboard, in either theme. */
-.sim-comp .ammeter-reading,
-.sim-comp .ohmmeter-reading,
-.sim-comp .voltmeter-reading,
-.sim-comp .voltmeter-sign {
-  paint-order: stroke;
-  stroke: var(--bg-elevated);
-  stroke-width: 2.5px;
-  stroke-linejoin: round;
-}
-
-/* Battery */
-.sim-comp .battery-body {
-  fill: url(#sim-grad-battery);
-  stroke: #111;
-  stroke-width: 1.5;
-}
-.sim-comp .battery-cap {
-  fill: url(#sim-grad-metal);
-}
-.sim-comp .battery-label {
-  fill: #ddd;
-  font-family: sans-serif;
-}
-
-/* Microcontroller */
-.sim-comp .mcu-body {
-  fill: url(#sim-grad-pcb);
-  stroke: #0a1f30;
-  stroke-width: 2;
-}
-.sim-comp .mcu-chip {
-  fill: #111;
-  stroke: #000;
-  stroke-width: 1;
-}
-.sim-comp .mcu-pin {
-  fill: url(#sim-grad-metal);
-}
-.sim-comp .mcu-power-pin {
-  fill: #7a1010;
-  transition: fill 0.3s, filter 0.3s;
-}
-.sim-comp .mcu-gnd-pin {
-  fill: #333;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .mcu-power-pin {
-  fill: #ff4d4d;
-  filter: url(#sim-glow);
-}
-.sim-comp .mcu-label {
-  fill: #cfe8ff;
-  font-family: sans-serif;
-}
-
-/* TV / Display */
-.sim-comp .tv-body {
-  fill: url(#sim-grad-tv-bezel);
-  stroke: #000;
-  stroke-width: 3;
-}
-.sim-comp .tv-screen {
-  fill: #1a2230;
-  transition: fill 0.3s;
-}
-.sim-comp .tv-glare {
-  fill: rgba(255, 255, 255, 0.06);
-}
-.sim-comp .tv-led {
-  fill: #333;
-  transition: fill 0.3s, filter 0.3s;
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .tv-screen {
-  fill: url(#sim-grad-screen-on);
-}
-.sim-svg.is-on .sim-comp[data-powered="true"] .tv-led {
-  fill: #6dff6d;
-  filter: url(#sim-glow);
-}
-
-/* Wires — a wide dull base stroke plus a thin bright offset highlight
-   (the "-shine" sibling path, same d) reads as a rounded, insulated
-   cable instead of a flat line. The shine never intercepts clicks; the
-   base path underneath still owns wire selection/animation. */
-.sim-wire {
-  stroke: #6b5f4a;
-  stroke-width: 4;
-  stroke-linecap: round;
-  fill: none;
-}
-.sim-wire-shine {
-  stroke: #c4a876;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  fill: none;
-  opacity: 0.7;
-  pointer-events: none;
-}
-.sim-wire-label {
-  font-size: 11px;
-  fill: var(--text-dim);
-  pointer-events: none;
-  user-select: none;
-}
-.sim-wire-hdmi {
-  stroke: #7a2424;
-  stroke-width: 5;
-}
-.sim-wire-shine-hdmi {
-  stroke: #e05a5a;
-  stroke-width: 1.5;
-}
-.sim-wire[data-animated="true"] {
-  stroke-dasharray: 8 5;
-}
-.sim-svg.is-on .sim-wire[data-animated="true"] {}
-@keyframes sim-flow {
-  to {
-    stroke-dashoffset: -26;
-  }
-}
 /* The Divider block rendered a bare <hr> -- the browser default, a
    bright bevelled line far louder than anything else on the page. */
 hr {
   border: 0;
   border-top: 1px solid var(--border);
   margin: 8px 0;
-}
-
-/* 3D scan block — <model-viewer> has no intrinsic size, so it needs an
-   explicit height (a custom element can't be styled with aspect-ratio the
-   way an <img> can here, since its content is a canvas it manages itself). */
-.scan-block-wrap {
-  position: relative;
-}
-
-/* Until the viewer script has loaded (offline, blocked, slow) its AR button would float over whatever is near it. */
-.scan-block-wrap model-viewer:not(:defined) .scan-ar-btn {
-  display: none;
-}
-
-.scan-block-wrap model-viewer {
-  width: 100%;
-  height: 420px;
-  background: var(--bg-elevated);
-  border-radius: var(--card-radius);
-  --poster-color: transparent;
-}
-
-.scan-ar-btn {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-}
-
-.thought {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
-}
-
-/* In a wide page block the excerpt stops at a reading measure, so the
-   divider under it should too -- otherwise each entry is a short column
-   of text above a line running the full width of the page. */
-.canvas:not(.article-canvas) .thought {
-  max-width: 72ch;
-}
-
-.thought-pinned {
-  border-left: 2px solid var(--accent);
-  padding-left: 12px;
-}
-
-.featured-badge {
-  display: inline-block;
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  margin-bottom: 4px;
-}
-
-.thought time {
-  display: block;
-  color: var(--accent-dim);
-  font-size: 0.8rem;
-  margin-bottom: 6px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.thought p {
-  margin: 0;
-  color: var(--text);
-  line-height: 1.6;
-}
-
-/* Titles in a listing were rendered with the global link style -- big,
-   accent-colored, underlined -- so a list of five posts read as five
-   shouting links. Text color at rest, accent on hover, like a normal
-   index. */
-.thought h2 {
-  margin: 0 0 6px;
-  font-size: 1.25rem;
-  line-height: 1.3;
-}
-
-.thought h2 a {
-  color: var(--text);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.thought h2 a:hover,
-.thought h2 a:focus-visible {
-  color: var(--accent);
-}
-
-.thought .thought-excerpt {
-  color: var(--text-dim);
-  margin-bottom: 10px;
-  max-width: 68ch;
 }
 
 .site-footer {
@@ -2839,36 +1178,10 @@ hr {
     order: 1;
   }
 
-  .topbar-tools {
-    order: 2;
-    margin-left: auto;
-  }
-
   .topbar .site-nav {
     order: 3;
     flex: 1 1 100%;
     justify-content: center;
-  }
-
-  .topbar .topbar-tools {
-    /* Basis = the smallest useful width (76px search + two 34px icons +
-       gaps). Fits beside the brand on common phones and grows from there;
-       on very narrow screens it wraps to its own row instead of
-       overlapping the brand. */
-    flex: 1 1 164px;
-    min-width: 0;
-    justify-content: flex-end;
-  }
-
-  .topbar .site-search {
-    flex: 1 1 auto;
-    min-width: 76px;
-    max-width: 150px;
-  }
-
-  .topbar .site-search input {
-    width: 100%;
-    min-width: 0;
   }
 
   /* Only the essentials fit beside the brand on one row. Motion and text
@@ -2877,31 +1190,6 @@ hr {
   #motion-toggle,
   #font-size-toggle {
     display: none;
-  }
-
-  .topbar-tools {
-    gap: 8px;
-  }
-
-  /* .search-suggest is `position: absolute` relative to .site-search,
-     which on mobile is only ~110px wide (measured: x 20-130 of a 390px
-     viewport) — anchoring the 260px-wide dropdown to that box's right edge
-     (the desktop layout, where .site-search sits flush against the
-     viewport's right side) ran it off the left edge of the screen instead.
-     Repointing the positioning context to .topbar-tools (the search box
-     plus the icon buttons after it, x 20-306 in that same measurement)
-     keeps the dropdown within that wider, still on-screen span. */
-  .topbar-tools {
-    position: relative;
-  }
-  .site-search {
-    position: static;
-  }
-  .search-suggest {
-    left: 0;
-    right: 0;
-    min-width: 0;
-    max-width: none;
   }
 
   .canvas {
@@ -2942,100 +1230,6 @@ hr {
   .site-footer {
     padding: 20px;
   }
-
-  .site-search input {
-    width: 110px;
-  }
-}
-
-.search-result-count {
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
-
-.search-truncation-hint {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  font-style: italic;
-}
-
-.search-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 20px;
-  font-size: 0.85rem;
-}
-
-/* Two segmented pills (type / sort) rather than loose text links. */
-.search-filter-group {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: var(--control-border-width) solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--bg-elevated);
-}
-
-.search-filter-group a {
-  padding: 5px 12px;
-  border-radius: var(--control-radius);
-  color: var(--text-dim);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-.search-filter-group a:hover {
-  color: var(--text);
-}
-
-.search-filter-group a.is-active {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
-}
-
-.search-filter-group a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.search-pagination {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 20px;
-  font-size: 0.9rem;
-  color: var(--text-dim);
-}
-
-.search-pagination a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.search-pagination a:hover {
-  text-decoration: underline;
-}
-
-.topic-intro {
-  font-size: 1.05rem;
-  color: var(--text-dim);
-  max-width: 60ch;
-  margin-bottom: 20px;
-}
-
-/* Group labels in search/topic results: small caps labels like "More to
-   read", so the results -- not the section names -- carry the weight. */
-.results-heading {
-  margin: 28px 0 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
 }
 
 .block .search-results,
@@ -3048,11 +1242,6 @@ hr {
   gap: 14px;
 }
 
-.not-found-suggest {
-  font-size: 1.05rem;
-  margin: 0 0 20px;
-}
-
 .not-found-heading {
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -3061,35 +1250,6 @@ hr {
   text-transform: uppercase;
   color: var(--text-dim);
   margin: 24px 0 12px;
-}
-
-.not-found-search {
-  display: flex;
-  gap: 8px;
-  max-width: 420px;
-  margin: 20px 0;
-}
-
-.not-found-search input {
-  flex: 1;
-  background: var(--bg-elevated);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--field-radius);
-  padding: 8px 12px;
-  font-family: inherit;
-  font-size: 0.95rem;
-}
-
-.not-found-search button {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  border-radius: var(--control-radius);
-  padding: 8px 16px;
-  font-family: inherit;
-  font-size: 0.95rem;
-  cursor: pointer;
 }
 
 .search-results li a {
@@ -3106,37 +1266,6 @@ hr {
   margin: 4px 0 0;
   color: var(--text-dim);
   font-size: 0.9rem;
-}
-
-.topics-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.topics-list li {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 14px;
-}
-
-.topics-list a {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.topics-list a:hover {
-  color: var(--accent);
-}
-
-.topic-count {
-  color: var(--text-dim);
-  font-size: 0.85rem;
 }
 
 .device-frame {
@@ -3193,576 +1322,7 @@ hr {
   background: #000;
 }
 
-.before-after {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  min-height: 240px;
-  border-radius: var(--card-radius);
-  user-select: none;
-}
-
-.before-after-base,
-.before-after-overlay {
-  position: absolute;
-  inset: 0;
-}
-
-.before-after-base img,
-.before-after-overlay img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.before-after-overlay {
-  clip-path: inset(0 calc(100% - var(--pos)) 0 0);
-}
-
-/* In the top corners, clear of the slider along the bottom edge; never in the way of a press either. */
-.before-after-tag {
-  position: absolute;
-  top: 12px;
-  max-width: calc(50% - 20px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 0.8rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.before-after-tag-left {
-  left: 12px;
-}
-
-.before-after-tag-right {
-  right: 12px;
-}
-
-.before-after-slider {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  right: 8px;
-  width: calc(100% - 16px);
-  z-index: 2;
-  accent-color: var(--accent);
-}
-
-.archive-list {
-  list-style: none;
-  margin: 0 0 24px;
-  padding: 0;
-}
-
-.archive-list li {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-}
-
-.archive-list time {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-.archive-list a {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.archive-list a:hover {
-  color: var(--accent);
-}
-
-.related-posts {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
-.journal {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
-.tts-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 10px;
-  padding: 2px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: var(--control-radius);
-  color: var(--text);
-  font-size: 0.75rem;
-  text-transform: capitalize;
-}
-
-.status-badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.tts-bar audio {
-  height: 32px;
-  max-width: 100%;
-}
-
-.read-aloud-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-
-.read-aloud-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.correction-note {
-  background: var(--bg-elevated);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 12px 16px;
-  font-size: 0.9rem;
-}
-
-.correction-note strong {
-  color: var(--accent);
-}
-
-/* Placed as though it were an admin-positioned block, but it's the only
-   thing on the page — full-width and tall enough that it isn't squeezed
-   into a single 1/24-column auto-placed grid cell (the ~35px-wide box a
-   bare .block with no grid-column/grid-row falls back to). */
-.password-gate {
-  grid-column: 1 / -1;
-  grid-row: 1 / span 16;
-}
-
-.password-gate-form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 16px;
-  max-width: 320px;
-}
-
-.password-gate-form label {
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.password-gate-form .password-gate-input-row {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-
-.password-gate-form input {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: var(--field-radius);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-family: inherit;
-}
-
-.password-gate-form button {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  border-radius: var(--control-radius);
-  padding: 8px 16px;
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.password-gate-error {
-  color: var(--error-text);
-}
-
-.breadcrumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  margin-bottom: 12px;
-}
-
-.breadcrumbs a {
-  color: var(--text-dim);
-}
-
-.breadcrumbs a:hover {
-  color: var(--text);
-}
-
-.breadcrumbs [aria-current="page"] {
-  color: var(--text);
-}
-
-.breadcrumb-sep {
-  color: var(--text-dim);
-  opacity: 0.5;
-}
-
-.preview-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: var(--bg-elevated);
-  border: 1px dashed var(--accent);
-  border-radius: 8px;
-  padding: 10px 16px;
-  margin-bottom: 20px;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.preview-banner #preview-mode-off-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  font-family: inherit;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.preview-banner #preview-mode-off-btn:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-.project-hero-video {
-  display: block;
-  width: 100%;
-  max-height: 480px;
-  object-fit: cover;
-  border-radius: var(--card-radius);
-  background: #1a1a1c;
-}
-
-.bom,
-.downloads {
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
-.downloads > strong {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-}
-
-.downloads-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.downloads-list li {
-  padding: 6px 0;
-}
-
-.bom > strong {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-}
-
-.bom-sub {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
-
-.bom-grand-total {
-  font-weight: 600;
-  text-align: right;
-}
-
-.journal > strong {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-}
-
-.journal-timeline {
-  position: relative;
-  padding-left: 8px;
-}
-
-.journal-timeline::before {
-  content: "";
-  position: absolute;
-  left: 8px;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  background: var(--border);
-}
-
-.journal-entry {
-  position: relative;
-  padding-left: 24px;
-  margin-bottom: 20px;
-}
-
-.journal-entry::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 5px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--border);
-  border: 2px solid var(--bg);
-}
-
-.journal-entry[data-entry-type="decision"]::before {
-  background: var(--accent);
-}
-
-.journal-entry[data-entry-type="test"]::before {
-  background: var(--success);
-}
-
-.journal-entry[data-entry-type="failed"]::before {
-  background: var(--error-text);
-}
-
-.journal-entry-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  font-size: 0.8rem;
-  color: var(--accent-dim);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.journal-entry-type {
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-.journal-entry h3 {
-  margin: 0 0 6px;
-}
-
-.changelog-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.changelog-item {
-  border-left: 2px solid var(--border);
-  padding-left: 16px;
-}
-
-.changelog-item time {
-  display: block;
-  color: var(--accent-dim);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.changelog-item h3 {
-  margin: 0 0 4px;
-}
-
-.changelog-item p {
-  margin: 0;
-  color: var(--text-dim);
-}
-
-.accordion {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.accordion-item {
-  border: 1px solid var(--border);
-  border-radius: var(--card-radius);
-  padding: 4px 16px;
-}
-
-.accordion-item summary {
-  cursor: pointer;
-  font-weight: 600;
-  padding: 12px 0;
-  list-style: none;
-}
-
-.accordion-item summary::-webkit-details-marker {
-  display: none;
-}
-
-.accordion-item summary::before {
-  content: "+";
-  display: inline-block;
-  width: 1.2em;
-  color: var(--accent);
-}
-
-.accordion-item[open] summary::before {
-  content: "\2212";
-}
-
-.accordion-body {
-  padding: 0 0 16px;
-  color: var(--text-dim);
-}
-
-.tabs-block {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tab-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.tab-strip-btn {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 16px;
-  margin-bottom: -1px;
-  font: inherit;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.tab-strip-btn.is-active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
-}
-
-.tab-panel {
-  color: var(--text-dim);
-}
-
-.tab-panel[hidden] {
-  display: none;
-}
-
-.related-posts > strong {
-  display: block;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 14px;
-}
-
-.table-wrap {
-  overflow-x: auto;
-  margin: 16px 0;
-}
-
-.table-wrap table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.9rem;
-}
-
-.table-wrap th,
-.table-wrap td {
-  border: 1px solid var(--border);
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.table-wrap th {
-  background: var(--bg-elevated);
-  font-weight: 600;
-}
-
-.footnotes {
-  margin-top: 32px;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.footnotes hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin-bottom: 16px;
-}
-
-.footnotes ol {
-  padding-left: 20px;
-}
-
-.footnote-back {
-  text-decoration: none;
-  margin-left: 4px;
-}
-
-sup a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-/* Base code-block styling lives on `pre` itself, not `pre code.hljs` — the
-   .hljs class is only added once highlight.js's CDN script finishes
-   running client-side, so a code block rendered without it (slow network,
-   blocked CDN, or just before that JS executes) still looks like a code
-   block instead of plain unstyled text. */
+/* Code blocks are styled on `pre` itself. */
 pre {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -3788,122 +1348,6 @@ pre code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-pre {
-  position: relative;
-}
-
-.code-copy-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 4px 10px;
-  font-size: 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-muted, var(--text));
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-pre:hover .code-copy-btn,
-.code-copy-btn:focus-visible {
-  opacity: 1;
-}
-
-pre.has-line-numbers {
-  padding-left: 3.6em;
-}
-
-.code-line-numbers {
-  position: absolute;
-  left: 16px;
-  top: 16px;
-  width: 2.4em;
-  text-align: right;
-  color: var(--text-muted, var(--border));
-  opacity: 0.6;
-  user-select: none;
-  white-space: pre;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-.callout {
-  margin: 20px 0;
-  padding: 14px 16px;
-  border-radius: var(--card-radius);
-  border: 1px solid var(--border);
-  border-left-width: 4px;
-  background: var(--bg-elevated);
-}
-
-.callout-label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.callout p:last-child {
-  margin-bottom: 0;
-}
-
-.callout-note {
-  border-left-color: var(--info);
-}
-
-.callout-tip {
-  border-left-color: var(--success);
-}
-
-.callout-warning {
-  border-left-color: var(--warning);
-}
-
-.callout-danger {
-  border-left-color: var(--error-text);
-}
-
-.mermaid {
-  display: flex;
-  justify-content: center;
-  margin: 20px 0;
-  overflow-x: auto;
-}
-
-.mermaid svg {
-  max-width: 100%;
-}
-
-.katex-block {
-  margin: 20px 0;
-  padding: 8px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  text-align: center;
-}
-
-.generic-embed {
-  margin: 16px 0;
-}
-
-.generic-embed iframe {
-  width: 100%;
-  border: 0;
-  border-radius: 8px;
-  display: block;
-}
-
-.generic-embed .embed-fallback {
-  margin-top: 6px;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
 @media print {
   /* !important: the colours set in Site Settings (and the light theme) are defined on :root too, in a <style> that comes after this
      stylesheet, so without it they would win at equal weight and a dark-themed site printed dark cards with black text. */
@@ -3917,39 +1361,11 @@ pre.has-line-numbers {
     --on-accent: #fff !important;
   }
 
-  /* Set on the buttons themselves so nothing further up can turn the pill
-     pale or the label dark: themed songs bring a bright --accent, the light
-     theme and the Site Settings <style> both redefine --accent/--on-accent/
-     --text on :root with more weight than the block above. `exact` keeps the
-     fill when the print dialog's "background graphics" option is off. */
-  .song-embed-play-btn,
-  .sim-power-btn {
-    --accent: #000;
-    --on-accent: #fff;
-    --text: #000;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Nothing to press on paper. */
-  .scan-ar-btn {
-    display: none !important;
-  }
-
   .topbar,
-  .site-footer,
-  .reading-progress,
-  .copy-link-btn,
-  .save-for-later-btn,
-  .print-pdf-btn,
-  .table-of-contents,
-  .site-search,
-  .share-links,
-  .reactions,
-  .preview-banner,
-  #theme-toggle,
-  #motion-toggle,
-  #font-size-toggle {
+.site-footer,
+#theme-toggle,
+#motion-toggle,
+#font-size-toggle {
     display: none !important;
   }
 
@@ -3970,11 +1386,6 @@ pre.has-line-numbers {
 }
 
 /* ---- Subtle voice pass: mono metadata, token-based surfaces ---- */
-.index-card-date,
-.index-count,
-.archive-list time,
-.topic-count,
-.article-meta time,
 .tag,
 .site-footer .footer-mono {
   font-family: var(--font-mono);
@@ -3984,93 +1395,14 @@ pre.has-line-numbers {
 .site-footer .footer-mono {
   font-size: 0.8rem;
 }
-.project-card {
-  box-shadow: var(--shadow-sm);
-}
-@media (hover: hover) {
-  .project-card-linked:hover,
-  .project-card:has(h2 a):hover {
-    box-shadow: var(--shadow-md);
-  }
-}
-/* ".block ul" (0,1,1) would indent these list-reset lists; the class-level
-   rule here is later in the file and more specific. */
-.block .topics-list,
-.block .archive-list {
-  padding-left: 0;
-}
 
-/* ---- Subtle signature pieces: status LED and the building strip ---- */
-.status-led {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
-  vertical-align: middle;
-}
-.status-led-quiet {
-  background: var(--text-dim);
-  box-shadow: none;
-}
-.card-status {
-  margin: 0 0 var(--space-2);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.building-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-4);
-  margin: 0 0 var(--space-5);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--card-radius);
-  color: var(--text);
-  text-decoration: none;
-  transition: border-color 0.2s ease;
-}
-.building-strip:hover {
-  border-color: var(--accent);
-}
-.building-strip-label {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.building-strip-text {
-  flex: 1 1 14em;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.building-strip time {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
+
 .block > .empty-hint:not(.empty-hint-admin) {
   font-style: normal;
   padding: var(--space-5) var(--space-4);
   border: 1px dashed var(--border);
   border-radius: var(--card-radius);
   text-align: center;
-}
-.project-card h2 a {
-  overflow-wrap: anywhere;
-}
-.building-strip:focus-visible {
-  border-color: var(--accent);
 }
 
 /* ---- 404: a trace with a gap ---- */
@@ -4091,143 +1423,6 @@ pre.has-line-numbers {
 /* Inside the admin's live preview pane the owner's edit pencil would load a second admin inside the frame. */
 .in-frame .edit-this-btn {
   display: none;
-}
-
-/* Embedded circuits, songs and scans stay in one piece on a printed page, and their buttons (which do nothing on paper) are left out. */
-@media print {
-  .body-embed {
-    break-inside: avoid;
-  }
-  .body-embed .song-embed-play-btn {
-    display: none;
-  }
-}
-
-/* The searched words in a result's title and snippet. */
-.search-results mark {
-  background: color-mix(in srgb, var(--accent) 26%, transparent);
-  color: inherit;
-  border-radius: 3px;
-  padding: 0 2px;
-}
-
-/* Asking a circuit's parts for their readings (see sim-player.js). */
-.sim-comp[data-readout-name] {
-  cursor: pointer;
-}
-.sim-comp[data-readout-name]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.sim-comp.is-selected {
-  filter: drop-shadow(0 0 4px var(--accent));
-}
-.sim-readout {
-  margin: 8px 0 0;
-  min-height: 1.5em;
-  font-size: 0.9rem;
-  color: var(--text-dim);
-}
-.sim-about {
-  margin-top: 20px;
-}
-.sim-about h2 {
-  font-size: 1.05rem;
-  margin: 0 0 6px;
-}
-.sim-about ul {
-  margin: 8px 0 0;
-  padding-left: 1.2em;
-  columns: 2 220px;
-}
-@media (forced-colors: active) {
-  .sim-comp.is-selected {
-    outline: 2px solid Highlight;
-  }
-}
-@media print {
-  .sim-readout {
-    display: none;
-  }
-}
-
-.sim-about-part {
-  background: none;
-  border: none;
-  padding: 2px 0;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.sim-about-part:hover {
-  color: var(--accent);
-}
-
-/* Logic gate truth tables under a circuit: a heading section on the circuit's own page, a folded list under an embedded one. */
-.sim-truth {
-  margin-top: 20px;
-}
-.sim-truth h2 {
-  font-size: 1.05rem;
-  margin: 0 0 6px;
-}
-.sim-truth-fold > summary {
-  cursor: pointer;
-  font-size: 0.95rem;
-  color: var(--text-dim);
-}
-.sim-truth-note,
-.sim-truth-more {
-  margin: 6px 0 10px;
-  font-size: 0.88rem;
-  color: var(--text-dim);
-}
-.sim-truth-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.sim-truth-table {
-  border-collapse: collapse;
-  min-width: 9.5em;
-  font-variant-numeric: tabular-nums;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.sim-truth-table caption {
-  caption-side: top;
-  text-align: left;
-  max-width: 22em;
-  padding: 0 0 4px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.sim-truth-table th,
-.sim-truth-table td {
-  padding: 4px 12px;
-  text-align: center;
-  border-bottom: 1px solid var(--border);
-}
-.sim-truth-table thead th {
-  font-size: 0.8rem;
-  color: var(--text);
-  background: color-mix(in srgb, var(--text-dim) 10%, var(--bg-elevated));
-}
-.sim-truth-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.sim-truth-out {
-  font-weight: 700;
-  border-left: 1px solid var(--border);
-}
-.sim-truth-out-1 {
-  color: var(--success);
 }
 
 /* Image viewer (public/lightbox.js): a picture opened larger. */
@@ -4272,12 +1467,7 @@ html.lightbox-open { overflow: hidden; }
   .skip-link {
     transition: top 0.15s ease;
   }
-  .reading-progress {
-    transition: width 0.1s linear;
-  }
-  .reaction-btn {
-    transition: border-color 0.2s ease, transform 0.15s ease;
-  }
+
   .song-embed-bar {
     transition: height 0.05s ease, background 0.05s ease;
   }
@@ -4286,12 +1476,6 @@ html.lightbox-open { overflow: hidden; }
   }
   .song-embed-pulse-hit .song-embed-pulse-core {
     animation: song-pulse-hit 0.3s ease-out;
-  }
-  .sim-comp .switch-lever {
-    transition: all 0.2s;
-  }
-  .sim-svg.is-on .sim-wire[data-animated="true"] {
-    animation: sim-flow 0.7s linear infinite;
   }
 }
 
@@ -4323,52 +1507,34 @@ html.lightbox-open { overflow: hidden; }
 /* In-place page change (page-slide.js): the old and new content sit in one clipped stage and slide together. */
 .page-stage { position: relative; overflow-x: clip; }
 
-/* Footer: the feed link and the Share button. */
+/* Footer: the Share button. */
 .site-footer .footer-extras { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--space-2, 8px) var(--space-4, 16px); margin: var(--space-3, 12px) 0 0; font-size: 0.85rem; }
 .site-footer .footer-share { font: inherit; color: var(--accent); background: none; border: none; padding: 0; margin: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .site-footer .footer-share[hidden] { display: none; }
 .site-footer .footer-share:hover { text-decoration-thickness: 2px; }
-.site-footer .footer-share:focus-visible, .site-footer .footer-rss:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.site-footer .footer-share:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 .site-footer .footer-share-note { min-height: 1em; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem; }
 .site-footer .footer-share-note:empty { display: none; }
 
 /* ---------- Quality pass: contrast, focus, touch targets, small screens ---------- */
-/* Search highlights keep full-contrast text whatever colour the snippet around them is. */
-.search-results mark { color: var(--text); }
-/* The "page not found" search box shrinks with the screen instead of pushing the page wider than a 320px phone. */
-.not-found-search input { min-width: 0; }
-/* A text box shows it has focus with a ring, not only a changed border colour. */
-.site-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Links and buttons that stand on their own are at least 24px tall (WCAG 2.5.8). */
 .site-footer .footer-extras a, .site-footer .footer-share { display: inline-flex; align-items: center; min-height: 24px; }
-.breadcrumbs a { display: inline-flex; align-items: center; min-height: 24px; }
+
 main h2 > a:only-child { display: inline-block; padding-block: 2px; }
-.heading-anchor { display: inline-block; min-width: 24px; text-align: center; }
-/* The dot between the date, update and reading time would be left hanging at the end of a line once they wrap, so small screens go without. */
-@media (max-width: 560px) {
-  .article-meta { column-gap: 14px; }
-  .article-meta-sep { display: none; }
-}
 
 /* Long unbroken text (a pasted address, an enormous word) wraps inside its box. Without this it widened the whole page on a phone,
    so the layout zoomed out and everything else shrank. Code blocks keep scrolling sideways: they do not wrap at all. */
 .canvas { overflow-wrap: break-word; }
-/* Flex items do not shrink below their longest word, so a long title in the trail has to be allowed to break anywhere. */
-.breadcrumbs > * { min-width: 0; overflow-wrap: anywhere; }
-/* Tags and topic chips are flex items too: a very long tag wraps inside the chip instead of stretching it past the screen. */
-.tags .tag, .topics-list > li, .topics-list a { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+
 /* Titles in lists wrap anywhere too: an inline-block link or a flex row cannot shrink below its longest word otherwise. */
-main h2 > a:only-child, .thought h2 a { max-width: 100%; overflow-wrap: anywhere; }
-.archive-list li > a { min-width: 0; overflow-wrap: anywhere; }
-.archive-list li > .topic-count { flex: none; }
+main h2 > a:only-child { max-width: 100%; overflow-wrap: anywhere; }
 
 /* A block is exactly its content, wherever it sits and however it is resized. The outer margin of whatever starts or ends a block (a paragraph's
    16px, a heading's 12px, a rule's 8px) is zero, so the space between two blocks is only the grid's gap and the block's own padding, the same
    for every kind of block. Margins between things inside a block (paragraph to paragraph) stay. */
-.canvas:not(.article-canvas) > .block > :first-child,
-.canvas:not(.article-canvas) > .block > .block-content-over-bg > :first-child { margin-top: 0; }
-.canvas:not(.article-canvas) > .block > :last-child,
-.canvas:not(.article-canvas) > .block > .block-content-over-bg > :last-child { margin-bottom: 0; }
+.canvas:not(.article-canvas) > .block > :first-child { margin-top: 0; }
+.canvas:not(.article-canvas) > .block > :last-child { margin-bottom: 0; }
 /* Whatever a block holds stays inside its box when the box is narrow. */
 .canvas:not(.article-canvas) > .block img,
 .canvas:not(.article-canvas) > .block video,
@@ -4438,62 +1604,25 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .dial { position: relative; display: inline-block; width: 56px; height: 56px; flex: 0 0 auto; vertical-align: middle; }
 .dial-input { position: absolute; inset: 0; width: 100% !important; max-width: 100% !important; min-width: 0 !important; height: 100% !important; margin: 0 !important; padding: 0 !important; opacity: 0; pointer-events: none; }.dial-face { position: absolute; inset: 0; border-radius: 50%; cursor: ns-resize; touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; }
 .dial-face svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.dial-halo { fill: var(--dial-ring); stroke: color-mix(in srgb, var(--btn-ink, #fff) 14%, transparent); stroke-width: 1; }
-.dial-track { fill: none; stroke: color-mix(in srgb, var(--dial-glow) 22%, transparent); stroke-width: 2.4; stroke-linecap: round; }
-.dial-glow { fill: none; stroke: var(--dial-glow); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--dial-glow)); }
-.dial-cap { fill: var(--dial-cap); stroke: rgba(255, 255, 255, 0.07); stroke-width: 1; }
-.dial-hand line { stroke: var(--dial-hand, #ff7ac2); stroke-width: 3; stroke-linecap: round; }
+
 .dial-input:focus-visible + .dial-face { outline: 2px solid var(--accent); outline-offset: 3px; }
 .dial.is-disabled { opacity: 0.4; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
-.dial.is-turning .dial-cap { fill: var(--dial-cap-on, #232b36); }
 
 /* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
-.copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; line-height: 1.3; font-size: 0.8rem; font-weight: 600;
-  color: var(--text); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink)); border-radius: var(--btn-radius);
-  box-shadow: var(--btn-shadow-sm); text-decoration: none;
-}
-.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { color: var(--text); border-color: var(--btn-line, var(--btn-ink)); filter: brightness(1.06); }
-.song-embed-play-btn, .sim-power-btn, .scan-ar-btn { border-color: var(--btn-line, var(--btn-ink)); box-shadow: var(--btn-shadow-sm); }
-@media (prefers-reduced-motion: no-preference) {
-  .copy-link-btn:active, .share-link:active, .save-for-later-btn:active, .print-pdf-btn:active, .read-aloud-btn:active, .reaction-btn:active,
-  .song-embed-play-btn:active, .sim-power-btn:active, .scan-ar-btn:active { transform: translateY(var(--btn-press-sm, 2px)); box-shadow: var(--btn-shadow-press, 0 1px 0 var(--btn-ink)); }
-}
-/* Search fields: the field outline, and a placeholder in the site's own dim colour. */
-.site-search input, .search-page-form input, .not-found-search input {
-  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-line, var(--btn-ink)) 55%, transparent); border-radius: var(--field-radius, 12px);
-}
-.site-search input::placeholder, .search-page-form input::placeholder { color: var(--text-dim); opacity: 1; }
-.search-page-form { display: flex; gap: 8px; margin: 0 0 16px; max-width: 640px; }
-.search-page-form input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 8px 14px; font: inherit; font-size: 16px; color: var(--text); background: var(--bg-elevated); }
-/* The share row now sits under the text; a cover never takes the whole first screen. */
-.article-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.article-actions .share-links { margin-left: 0; }
-.article-cover { max-height: min(56vh, 460px); width: 100%; object-fit: cover; }
-/* On a phone the page title stays bigger than the section headings. */
-@media (max-width: 640px) {
-  .article-canvas h2, #readable-content h2 { font-size: 1.3rem; }
-  .article-canvas h3, #readable-content h3 { font-size: 1.15rem; }
-}
-/* An empty list has nothing to clear. */
-#clear-saved-btn, #clear-history-btn { min-height: 28px; }
 
 .tab-finder { cursor: pointer; }
 
 /* After a slide the new page takes the focus (so a screen reader starts there); it is not something to press, so no focus ring. */
 #main-content:focus, #main-content:focus-visible { outline: none; }
-/* The app pages (Studio, PicEditor…) while their script builds them, and the mount they fill. */
+/* The Studio page while its script builds it, and the mount it fills. */
 .app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
 .app-mount > .studio-loading { margin: auto; padding: 32px; color: var(--text-dim); font-size: 0.95rem; text-align: center; }
 .app-mount > .studio-loading .btn { margin-top: 12px; }
 /* Drawn icons (worker/ui-icons.js): the site never shows emoji or symbol characters a phone would turn into emoji. */
 .ui-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.14em; flex: none; }
-.read-aloud-btn { display: inline-flex; align-items: center; gap: 6px; }
-.reaction-emoji { display: inline-flex; align-items: center; }
-.reaction-emoji .ui-icon { width: 1.15em; height: 1.15em; }
+
 .btn-external-icon .ui-icon { margin-left: 4px; }
-.footnote-back .ui-icon { width: 0.9em; height: 0.9em; }
 
 /* A mouse drag across the page (page-slide.js): no text gets selected and the cursor says it is a drag. */
 html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
@@ -4507,30 +1636,29 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 @font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/silkscreen-700.woff2") format("woff2"); }
 @font-face { font-family: "VT323"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/vt323-400.woff2") format("woff2"); }
 
-
 /* The look is "Bit bento" (the owner's pick): black, white and dither only, Mac-style windows, VT323 for text and Silkscreen for labels, and ONE tiny orange accent
    (--orange) that marks function (the playhead, the current stop, the active window, the lit controls) and is never used for text. Light is black ink on white; dark is the
    same screen inverted. Everything that used --accent as ink or as a button fill keeps working: --accent is the ink colour, --on-accent the paper colour. Set on body, so it wins
    over the palette :root holds (and whatever Site Settings saves there). Tokens built from other tokens are repeated where they are used. */
 body {
-  --ink: #000000;
-  --paper: #ffffff;
+  --ink: #2a2622;
+  --paper: #f5f0e6;
   --orange: #ff6a1a;
-  --orange-ink: #000000;
-  --bg: #ffffff;
-  --bg-elevated: #ffffff;
-  --border: #000000;
-  --text: #000000;
-  --text-dim: #555555;
-  --accent: #000000;
-  --accent-secondary: #000000;
-  --accent-gradient: linear-gradient(#000000, #000000);
-  --accent-dim: #555555;
-  --on-accent: #ffffff;
+  --orange-ink: #2a2622;
+  --bg: #f5f0e6;
+  --bg-elevated: #f5f0e6;
+  --border: #2a2622;
+  --text: #2a2622;
+  --text-dim: #675f55;
+  --accent: #2a2622;
+  --accent-secondary: #2a2622;
+  --accent-gradient: linear-gradient(#2a2622, #2a2622);
+  --accent-dim: #675f55;
+  --on-accent: #f5f0e6;
   --error-text: #b3261e;
-  --success: #000000;
-  --warning: #000000;
-  --info: #000000;
+  --success: #2a2622;
+  --warning: #2a2622;
+  --info: #2a2622;
   --font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --heading-font-family: var(--font-family);
   --font-pixel: "Silkscreen", "VT323", ui-monospace, monospace;
@@ -4540,9 +1668,9 @@ body {
   --card-radius: 0;
   --field-radius: 0;
   --field-border-width: 2px;
-  --btn-ink: #000000;
-  --btn-line: #000000;
-  --btn-fill: #ffffff;
+  --btn-ink: #2a2622;
+  --btn-line: #2a2622;
+  --btn-fill: #f5f0e6;
   --btn-radius: 0;
   --btn-border-width: 2px;
   --btn-shadow: none;
@@ -4554,47 +1682,47 @@ body {
   --shadow-md: none;
   --shadow-lg: none;
   --dial-glow: var(--orange);
-  --dial-cap: #ffffff;
-  --dial-ring: #000000;
-  --dial-hand: #000000;
-  --dial-cap-on: #ffffff;
-  --menu-bg: #ffffff;
-  --menu-line: #000000;
-  --menu-hover: #000000;
-  --menu-shadow: 4px 4px 0 #000000;
+  --dial-cap: #f5f0e6;
+  --dial-ring: #2a2622;
+  --dial-hand: #2a2622;
+  --dial-cap-on: #f5f0e6;
+  --menu-bg: #f5f0e6;
+  --menu-line: #2a2622;
+  --menu-hover: #2a2622;
+  --menu-shadow: 4px 4px 0 #2a2622;
   font-family: var(--font-family);
-  scrollbar-color: #000000 #ffffff;
+  scrollbar-color: #2a2622 #f5f0e6;
 }
 :root:not([data-theme="light"]) body {
-  --bg: #000000;
-  --bg-elevated: #000000;
-  --border: #ffffff;
-  --text: #ffffff;
-  --text-dim: #b3b3b3;
-  --accent: #ffffff;
-  --accent-secondary: #ffffff;
-  --accent-gradient: linear-gradient(#ffffff, #ffffff);
-  --accent-dim: #b3b3b3;
-  --on-accent: #000000;
+  --bg: #18161b;
+  --bg-elevated: #18161b;
+  --border: #e3ded2;
+  --text: #e3ded2;
+  --text-dim: #a39d91;
+  --accent: #e3ded2;
+  --accent-secondary: #e3ded2;
+  --accent-gradient: linear-gradient(#e3ded2, #e3ded2);
+  --accent-dim: #a39d91;
+  --on-accent: #18161b;
   --error-text: #ff7a70;
-  --success: #ffffff;
-  --warning: #ffffff;
-  --info: #ffffff;
-  --btn-ink: #ffffff;
-  --btn-line: #ffffff;
-  --btn-fill: #000000;
-  --dial-cap: #000000;
-  --dial-ring: #ffffff;
-  --dial-hand: #ffffff;
-  --dial-cap-on: #000000;
-  --menu-bg: #000000;
-  --menu-line: #ffffff;
-  --menu-hover: #ffffff;
-  --menu-shadow: 4px 4px 0 #ffffff;
-  scrollbar-color: #ffffff #000000;
+  --success: #e3ded2;
+  --warning: #e3ded2;
+  --info: #e3ded2;
+  --btn-ink: #e3ded2;
+  --btn-line: #e3ded2;
+  --btn-fill: #18161b;
+  --dial-cap: #18161b;
+  --dial-ring: #e3ded2;
+  --dial-hand: #e3ded2;
+  --dial-cap-on: #18161b;
+  --menu-bg: #18161b;
+  --menu-line: #e3ded2;
+  --menu-hover: #e3ded2;
+  --menu-shadow: 4px 4px 0 #e3ded2;
+  scrollbar-color: #e3ded2 #18161b;
 }
-html { background: #000000; }
-:root[data-theme="light"] { background: #ffffff; }
+html { background: #18161b; }
+:root[data-theme="light"] { background: #f5f0e6; }
 
 /* Flat buttons: the outline brightens on hover instead of lifting, a press dims a little. Zero specificity (all inside :where), so a
    component that styles its own buttons keeps its look, and the header and finder are left out. */
@@ -4606,11 +1734,6 @@ html { background: #000000; }
 }
 :where(input, textarea, select):where(:not(.topbar *, #site-finder *)):focus-visible { border-color: var(--accent); }
 :where(:not(.topbar, .topbar *, #site-finder, #site-finder *))::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
-
-/* The header and the finder take the same colours as the rest of the site (the owner's call). */
-/* Plex Mono is wider than the old face: on a narrow phone the search filter pills wrap inside their outline instead of running off the screen. */
-.search-filter-group { flex-wrap: wrap; max-width: 100%; }
-
 
 /* =====================================================================================================================================
    Bit bento: the components. Windows (a striped title bar, a close box, pixel-stepped corners and a dithered shadow), the menu bar, the
@@ -4628,13 +1751,13 @@ body {
   --tone-50: repeating-conic-gradient(var(--border) 0 25%, var(--bg) 0 50%) 0 0 / 2px 2px;
   --tone-hatch: repeating-linear-gradient(45deg, var(--border) 0 1px, var(--bg) 1px 4px);
   --tone-stripes: repeating-linear-gradient(var(--border) 0 1px, var(--bg) 1px 2px);
-  --text-dim: #555555;
+  --text-dim: #675f55;
 }
-:root:not([data-theme="light"]) body { --text-dim: #b3b3b3; }
+:root:not([data-theme="light"]) body { --text-dim: #a39d91; }
 
-/* The page ground is a grid of single dots; the menu bar and the footer are plain paper. The Studio page has its own ground. */
+/* The page ground is a faint grid of single dots (a tint of the ink, not the ink itself, so it does not shimmer); the menu bar and the footer are plain paper. The Studio page has its own ground. */
 body:not(:has(.studio-canvas)) .page {
-  background-color: var(--border);
+  background-color: color-mix(in srgb, var(--border) 16%, var(--bg));
   background-image: linear-gradient(90deg, transparent 1px, var(--bg) 0), linear-gradient(180deg, transparent 1px, var(--bg) 0);
   background-size: 4px 4px;
 }
@@ -4784,21 +1907,21 @@ hr, .block hr {
 .canvas > .block { padding: 12px 18px 18px; font-size: 1.2rem; line-height: 1.2; min-height: 0; }
 .canvas > .block p { margin: 0 0 0.6em; }
 .canvas > .block p:last-child { margin-bottom: 0; }
-.canvas > .block > .block-content-over-bg { color: inherit; }
-.block-has-bg-layer { overflow: clip; overflow-clip-margin: 40px; }
+
 .canvas > .block ul, .canvas > .block ol { line-height: 1.2; }
 .canvas > .block li + li { margin-top: 0.25em; }
-.article-canvas { max-width: 760px; }
-.article-canvas > .block { padding: 18px 24px 24px; }
+
 @media (max-width: 640px) {
   .canvas:not(.article-canvas, .studio-canvas) { padding: 18px 14px 28px; gap: 16px 8px; }
   .canvas > .block { padding: 10px 14px 16px; }
-  .article-canvas > .block { padding: 14px 16px 20px; }
-  .article-canvas { padding: 18px 14px 28px; }
 }
 
 /* Whatever a block holds is ink on paper. */
-.block-image, .image-figure img, .body-figure img, .gallery img, .before-after, .before-after-tag, .video-embed, .project-hero-video, .generic-embed iframe, .device-frame, .device-frame img {
+.block-image,
+.image-figure img,
+.gallery img,
+.device-frame,
+.device-frame img {
   border-radius: 0 !important;
 }
 .block-image { border: 2px solid var(--border); }
@@ -4819,11 +1942,8 @@ figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-tr
 .block-quote footer::before { content: "- "; }
 .block-quote-large { font-size: 2.1rem; padding-left: 22px; }
 .block-quote-large::before { content: none; }
-.block .block-links { gap: 0; margin: 0; padding: 0; }
-.block-links li { border-bottom: 2px dotted var(--border); }
-.block-links a { display: block; padding: 10px 2px; margin: 0; color: var(--text); text-decoration: none; }
-.block-links a:hover { background: var(--text); color: var(--bg); text-decoration: none; }
-.tag, .tech-chip {
+
+.tag {
   display: inline-block;
   padding: 0 8px;
   border: 2px solid var(--border);
@@ -4833,41 +1953,22 @@ figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-tr
   color: var(--text);
   background: var(--bg);
 }
-/* A callout: a 2px box with a bar of tone down its left side; the kind of callout is the tone (checker, dots, hatch, solid). */
-.callout {
-  position: relative;
-  border: 2px solid var(--border);
-  border-radius: 0;
-  padding: 12px 16px 12px 28px;
-  background: var(--bg);
-}
-.callout::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12px; border-right: 2px solid var(--border); background: var(--bg) var(--tone-50); }
-.callout-tip::before { background: conic-gradient(var(--border) 25%, var(--bg) 0) 0 0 / 4px 4px; }
-.callout-warning::before { background: var(--bg) var(--tone-hatch); }
-.callout-danger::before { background: var(--border); }
-.callout-label { display: block; margin-bottom: 4px; font: 12px/14px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; }
+
 .md-quote { border-left: 6px solid var(--border); font-style: normal; font-size: 1.4rem; }
 
-/* Tables, code, details */
-.table-wrap table { border: 2px solid var(--border); font-size: 1.2rem; }
-.table-wrap th, .table-wrap td { border: 0; border-bottom: 2px dotted var(--border); padding: 6px 12px; }
-.table-wrap th { background: var(--text); color: var(--bg); font: 12px/18px var(--font-pixel); text-transform: uppercase; font-weight: 400; border-bottom: 2px solid var(--border); }
 pre { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-size: 1.1rem; line-height: 1.15; }
-pre code, pre code.hljs, .hljs { font-family: var(--font-family); background: transparent !important; color: var(--text) !important; padding: 0; }
-.hljs-comment, .hljs-quote { color: var(--text-dim) !important; }
-.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-title, .hljs-section { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+pre code { font-family: var(--font-family); background: transparent !important; color: var(--text) !important; padding: 0; }
+
 :not(pre) > code { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-family: var(--font-family); font-size: 1em; padding: 0 0.3em; }
 kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
-.code-copy-btn { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); }
-.accordion-item { border: 2px solid var(--border); border-radius: 0; }
-.status-badge, .featured-badge, .admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); text-transform: uppercase; }
-.project-card { border: 2px solid var(--border); border-radius: 0; box-shadow: none; background: var(--bg); }
-.project-card-linked:hover, .project-card:has(h2 a):hover { background: var(--bg); }
+
+.admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); text-transform: uppercase; }
+
 .empty-hint-admin, .canvas > .block > .empty-hint:not(.empty-hint-admin) { border: 2px dashed var(--border); border-radius: 0; font-style: normal; font-size: 1.1rem; padding: 10px 14px; }
 
 /* ---- Buttons ---- */
 :where(button, input[type="submit"], input[type="button"], input[type="reset"]) { font-weight: 400; }
-.btn, .not-found-search button {
+.btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -4886,7 +1987,8 @@ kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-
   cursor: pointer;
   clip-path: polygon(var(--i));
 }
-.btn:hover, .btn:active, .not-found-search button:hover {
+.btn:hover,
+.btn:active {
   background: var(--text);
   color: var(--bg);
   box-shadow: none;
@@ -4894,14 +1996,15 @@ kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-
   transform: none;
   text-decoration: none;
 }
-.btn:focus-visible, .not-found-search button:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
-.btn-accent, .btn-primary {
+.btn:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
+.btn-accent {
   background: var(--text);
   color: var(--bg);
   border-color: var(--text);
   box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--bg);
 }
-.btn-accent:hover, .btn-accent:active, .btn-primary:hover {
+.btn-accent:hover,
+.btn-accent:active {
   background: var(--bg);
   color: var(--text);
   box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 4px var(--text);
@@ -4919,16 +2022,7 @@ kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-
 }
 .btn-link:hover { background: var(--text); color: var(--bg); text-decoration: none; }
 .btn-external-icon { opacity: 1; }
-.copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
-  border: 2px solid var(--border);
-  border-radius: 0;
-  box-shadow: none;
-  background: var(--bg);
-  color: var(--text);
-  font: 400 1.1rem/1 var(--font-family);
-  min-height: 34px;
-}
-.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { background: var(--text); color: var(--bg); filter: none; border-color: var(--border); }
+
 button:disabled, .btn[aria-disabled="true"] { border-style: dashed; opacity: 1; color: var(--text-dim); cursor: not-allowed; }
 
 /* ---- Fields ---- */
@@ -4936,22 +2030,14 @@ button:disabled, .btn[aria-disabled="true"] { border-style: dashed; opacity: 1; 
   border-radius: 0;
   font-size: 1.2rem;
 }
-.search-page-form input, .not-found-search input, .password-gate-form input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 2px solid var(--border);
-  border-radius: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 400 1.5rem/1 var(--font-family);
-}
-.search-page-form input::placeholder, .not-found-search input::placeholder, #finder-input::placeholder { color: var(--text-dim); opacity: 1; }
+
+#finder-input::placeholder { color: var(--text-dim); opacity: 1; }
 .field > .field-label { font: 12px/1.3 var(--font-pixel); text-transform: uppercase; font-weight: 400; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 20px; height: 20px; }
 
-/* ---- The page furniture: search, 404, footer ---- */
-.search-result-count { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin: 8px 0 16px; }
-.results-heading, .not-found-heading {
+/* ---- The page furniture: 404, footer ---- */
+
+.not-found-heading {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4961,23 +2047,18 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 
   text-transform: uppercase;
   color: var(--text);
 }
-.results-heading::after, .not-found-heading::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
+.not-found-heading::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
 .search-results { list-style: none; margin: 0; padding: 0; }
 .search-results li { padding: 10px 0; border-bottom: 2px dotted var(--border); }
 .search-results li a { font-weight: 400; font-size: 1.6rem; color: var(--text); text-decoration-line: underline; text-decoration-color: var(--orange); text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .search-results li p { color: var(--text-dim); font-size: 1.2rem; margin: 4px 0 0; line-height: 1.15; }
-mark, .search-results mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radius: 0; }
-.search-filter-group { border: 2px solid var(--border); border-radius: 0; background: var(--bg); gap: 0; padding: 0; }
-.search-filter-group a { border: 0; border-radius: 0; padding: 0 12px; min-height: 32px; display: inline-flex; align-items: center; font: 12px/1 var(--font-pixel); text-transform: uppercase; color: var(--text); text-decoration: none; background: var(--bg); }
-.search-filter-group a + a { border-left: 2px solid var(--border); }
-.search-filter-group a:hover { background: var(--text); color: var(--bg); }
-.search-filter-group a.is-active { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--orange); }
+mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radius: 0; }
+
 .not-found-code { font: 12px/14px var(--font-pixel); letter-spacing: 0; color: var(--text); }
 .not-found-trace { color: var(--text); shape-rendering: crispEdges; }
 .not-found-trace path { stroke-linecap: butt; stroke-width: 3; }
 .not-found-trace path[stroke="var(--accent)"] { stroke: var(--text); }
 .not-found-trace circle { fill: var(--bg); }
-.not-found-suggest { font-size: 1.2rem; }
 
 .site-footer {
   background: var(--bg);
@@ -5094,21 +2175,9 @@ html.finder-on { overflow: hidden; }
   #site-finder .finder-item { min-height: 48px; }
 }
 
-/* ---- Embeds: a song's player, a circuit's power switch, a scan's AR button ---- */
+/* ---- Embeds: a song's player ---- */
 .song-embed { border: 2px solid var(--border); border-radius: 0; background: var(--bg); box-shadow: none; }
-.song-embed-play-btn, .sim-power-btn, .scan-ar-btn {
-  min-height: 40px;
-  padding: 0 18px;
-  border-color: var(--border);
-  background: var(--text);
-  color: var(--bg);
-  font: 400 1.2rem/1 var(--font-family);
-  clip-path: polygon(var(--i));
-}
-.song-embed-play-btn:hover, .sim-power-btn:hover, .scan-ar-btn:hover { box-shadow: none; background: var(--bg); color: var(--text); }
-.song-embed-play-btn.is-active, .sim-power-btn.is-active, .sim-view-btn[aria-pressed="true"] { background: var(--bg); color: var(--text); border-color: var(--border); box-shadow: inset 0 -4px 0 var(--orange); }
-.song-embed-play-btn:focus-visible, .sim-power-btn:focus-visible, .scan-ar-btn:focus-visible, .sim-view-btn:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
-.sim-view-btn { border-color: var(--border); }
+
 .song-embed-bar { border-radius: 0; }
 .song-embed-pulse-core { border-radius: 0; }
 .song-embed-position { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); }
@@ -5117,8 +2186,10 @@ html.finder-on { overflow: hidden; }
 .song-embed-position-strip > .is-now { background: var(--orange); }
 
 /* Everything else that was soft is square. */
-.lightbox-img, .lightbox-close, .lightbox-nav, .preview-banner, .preview-banner #preview-mode-off-btn, .correction-note, .password-gate-form input, .password-gate-form button,
-.table-of-contents, .series-nav, .prev-next-link, .topics-list li, .journal-entry-type, .generic-embed iframe, .building-strip, .before-after-tag, .article-cover, .gallery img {
+.lightbox-img,
+.lightbox-close,
+.lightbox-nav,
+.gallery img {
   border-radius: 0;
   box-shadow: none;
 }

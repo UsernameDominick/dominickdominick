@@ -35,7 +35,7 @@ const ok = (c, m, e) => { if (!c) f++; console.log(`${c ? "PASS" : "FAIL"}  ${m}
   ok(after.sidebarTotal < before.sidebarTotal, "whole sidebar list is shorter", [before.sidebarTotal, after.sidebarTotal]);
   ok(after.footer < before.footer, "footer is tighter", [before.footer, after.footer]);
   ok(after.logout !== null && after.logout === before.logout || after.logout >= 24, "Log out still one line, >= 24px", [before.logout, after.logout]);
-  // modals: settings + articles
+  // modals: settings
   const modalCheck = async (btn, modal, sels) => {
     const read = async () => { await page.click(btn); await page.waitForSelector(`${modal}:not([hidden])`); await page.waitForTimeout(600); const r = {}; for (const [k, s] of Object.entries(sels)) r[k] = await H(s); await page.keyboard.press("Escape"); await page.waitForTimeout(300); if (await page.$(`${modal}:not([hidden])`)) { await page.click(`${modal} header button`).catch(() => {}); } await page.waitForTimeout(300); return r; };
     return read;
@@ -53,16 +53,6 @@ const ok = (c, m, e) => { if (!c) f++; console.log(`${c ? "PASS" : "FAIL"}  ${m}
     ok(sAfter.header < sBefore.header, "settings dialog header is tighter", [sBefore.header, sAfter.header]);
     ok(sAfter.field !== null && sAfter.field < sBefore.field && sAfter.field >= 24, "settings fields are shorter but >= 24px", [sBefore.field, sAfter.field]);
     ok(sAfter.scroll < sBefore.scroll, "settings tab content is shorter overall", [sBefore.scroll, sAfter.scroll]);
-  }
-  // Articles list rows
-  {
-    const readArticles = async () => { await page.click("#articles-btn"); await page.waitForSelector("#articles-modal:not([hidden])"); await page.waitForTimeout(800); const r = { row: await H(".article-list-item") }; await page.keyboard.press("Escape"); await page.waitForTimeout(300); if (await page.$("#articles-modal:not([hidden])")) await page.click("#close-articles").catch(() => {}); await page.waitForTimeout(300); return r; };
-    const aAfter = await readArticles();
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    const aBefore = await readArticles();
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    if (aBefore.row && aAfter.row) ok(aAfter.row < aBefore.row, "article list rows are shorter", [aBefore.row, aAfter.row]);
-    else console.log("note: no articles in local DB, row check skipped", aBefore, aAfter);
   }
   // Inspector: open the QQ page and select its block
   {
@@ -103,46 +93,6 @@ const ok = (c, m, e) => { if (!c) f++; console.log(`${c ? "PASS" : "FAIL"}  ${m}
     ok(dC[0] >= 34 && dC[0] === tC[0], "compact: the density toggle is as wide as the theme toggle", [tC, dC]);
     ok(dF[0] === tF[0], "comfortable: the two toggles are the same width", [tF, dF]);
     ok(cOn !== cOff, "the pressed state is visibly different (accent colour)", [cOn, cOff]);
-  }
-  // Builders and the photo editor keep their fixed sizing
-  {
-    const read = async (openFn, closeSel, sels) => { await openFn(); await page.waitForTimeout(800); const r = {}; for (const [k, s] of Object.entries(sels)) r[k] = await page.evaluate((q) => { const e = document.querySelector(q); return e && e.offsetParent ? Math.round(e.getBoundingClientRect().height * 10) / 10 : null; }, s); await page.click(closeSel).catch(() => {}); await page.waitForTimeout(300); return r; };
-    const songOpen = async () => { await page.click("#songs-btn"); await page.waitForSelector("#songs-modal:not([hidden])"); await page.waitForTimeout(600); const edit = page.locator("#songs-modal button", { hasText: /^Edit$/ }).first(); if (await edit.count()) await edit.click(); await page.waitForSelector("#song-builder-modal:not([hidden])", { timeout: 5000 }).catch(() => {}); };
-    const songSels = { header: "#song-builder-modal .modal-inner > header", select: "#song-builder-modal select", number: "#song-builder-modal input[type=number]", summary: "#song-builder-modal .panel-section > summary", section: "#song-builder-modal .panel-section" };
-    const sc = await read(songOpen, "#song-builder-modal .modal-inner > header button", songSels);
-    if (await page.$("#song-builder-modal:not([hidden])")) await page.keyboard.press("Escape");
-    await page.waitForTimeout(300); if (await page.$("#songs-modal:not([hidden])")) await page.click("#close-songs").catch(() => {});
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    await page.click("#songs-btn"); await page.waitForTimeout(300).catch(() => {});
-    await page.keyboard.press("Escape").catch(() => {});
-    const sf = await read(songOpen, "#song-builder-modal .modal-inner > header button", songSels);
-    if (await page.$("#song-builder-modal:not([hidden])")) await page.keyboard.press("Escape");
-    await page.waitForTimeout(300); if (await page.$("#songs-modal:not([hidden])")) await page.click("#close-songs").catch(() => {});
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    if (sc.select && sf.select) ok(JSON.stringify(sc) === JSON.stringify(sf), "Song builder: header, select and number input are the same height in both densities", [sf, sc]);
-    else console.log("note: song builder did not open, skipped", sc, sf);
-  }
-  // Photo editor keeps its own sizing too
-  {
-    const measurePE = async () => {
-      await page.click("#media-btn"); await page.waitForSelector("#media-modal:not([hidden])"); await page.waitForTimeout(900);
-      const edit = page.locator("#media-grid .media-edit").first();
-      if (!(await edit.count())) return null;
-      await edit.click({ force: true }); await page.waitForSelector("#photo-editor-modal:not([hidden])", { timeout: 6000 }).catch(() => {}); await page.waitForTimeout(900);
-      const r = await page.evaluate(() => { const h = (q) => { const e = document.querySelector(q); return e && e.offsetParent ? Math.round(e.getBoundingClientRect().height * 10) / 10 : null; }; return { header: h("#photo-editor-modal .modal-inner > header"), number: h("#photo-editor-modal input[type=number]"), select: h("#photo-editor-modal select") }; });
-      await page.click("#close-photo-editor").catch(() => {}); await page.waitForTimeout(400);
-      if (await page.$("#pe-discard-modal:not([hidden])")) await page.keyboard.press("Escape");
-      await page.waitForTimeout(300);
-      if (await page.$("#media-modal:not([hidden])")) await page.click("#close-media").catch(() => {});
-      await page.waitForTimeout(300);
-      return r;
-    };
-    const peC = await measurePE();
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    const peF = await measurePE();
-    await page.click("#admin-density-toggle"); await page.waitForTimeout(200);
-    if (peC && peC.header) ok(JSON.stringify(peC) === JSON.stringify(peF), "Photo editor: header, number inputs and selects are the same in both densities", [peF, peC]);
-    else console.log("note: photo editor did not open, skipped", peC);
   }
   // Persistence across reload, no flash (state here: compact)
   await page.reload({ waitUntil: "domcontentloaded" });

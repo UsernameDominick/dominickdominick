@@ -1,11 +1,11 @@
-// The kit the site's app pages are built on (the Studio, PicEditor, Simulations, Scans): an admin tool, taken from the admin page, built into a
-// page of the site instead of a dialog over the admin. It gives each app:
+// The kit the site's app page is built on (the Studio): an admin tool, taken from the admin page, built into a page of the site
+// instead of a dialog over the admin. It gives each app:
 // - the admin's stylesheet once, scoped under .app-native so it cannot touch the rest of the site, plus the app's own (app-kit.css);
 // - the admin markup (/admin/index.html, fetched once and shared) to take the tool's dialogs from;
 // - script loading in order, each script once;
 // - answers for the tool's calls to the admin API (window.adminApi and fetch("/api/admin/…")) from handlers the app registers, which keep
 //   everything in this browser: nothing a visitor makes is sent to the site;
-// - a small store (localStorage lists for small things, IndexedDB for files);
+// - a small store (localStorage lists);
 // - the page life: build once, park hidden when another tab slides in (page-slide.js), come back as it was.
 (function () {
   "use strict";
@@ -91,14 +91,6 @@
       await wait(400 * (i + 1));
     }
   };
-  let own = null;
-  function ownCss() {
-    if (!own) {
-      own = text("/app-kit.css");
-      own.catch(() => { own = null; });
-    }
-    return own;
-  }
   function adminParts() {
     if (!parts) {
       parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/app-kit.css")]).then(([page, css, own]) => ({
@@ -166,7 +158,7 @@
 
   // ---------- the admin API, answered here ----------
   // Handlers are asked in turn and return undefined when a path is not theirs; anything left over goes to whatever answered before (the
-  // Studio sets its own), and then is "not available here". The same for fetch("/api/admin/…") (a tool that sends a file itself).
+  // Studio sets its own), and then is "not available here".
   const fail = (message, status) => {
     const err = new Error(message);
     err.status = status || 400;
@@ -199,62 +191,6 @@
       throw fail("That is not available here.", 404);
     };
   }
-  const fetchers = [];
-  const mediaFetchers = [];
-  let fetchInstalled = false;
-  function addMediaFetch(fn) {
-    mediaFetchers.push(fn);
-    addFetch(() => undefined);
-  }
-  function addFetch(fn) {
-    if (!fetchInstalled) {
-      fetchInstalled = true;
-      const real = window.fetch.bind(window);
-      window.fetch = function (input, init) {
-        const url = typeof input === "string" ? input : input && input.url;
-        const u = url ? new URL(url, location.href) : null;
-        if (u && u.origin === location.origin && u.pathname.indexOf("/api/admin/") === 0) {
-          for (const fn of fetchers) {
-            const out = fn(u.pathname.slice("/api/admin".length), ((init && init.method) || "GET").toUpperCase(), init || {}, u.searchParams);
-            if (out) return Promise.resolve(out);
-          }
-        }
-        // A file kept in this browser that a tool asks for by its site address (/media/local-…): a 3D viewer loading a model.
-        if (u && u.origin === location.origin && u.pathname.indexOf("/media/local-") === 0) {
-          for (const fn of mediaFetchers) {
-            const out = fn(decodeURIComponent(u.pathname.slice("/media/".length)));
-            if (out) return Promise.resolve(out);
-          }
-        }
-        return real(input, init);
-      };
-    }
-    fetchers.push(fn);
-  }
-  // A JSON answer in the shape fetch gives back.
-  const jsonResponse = (data, status) => new Response(JSON.stringify(data), { status: status || 200, headers: { "Content-Type": "application/json" } });
-
-  // ---------- small dialogs inside an app ----------
-  // In the admin every dialog's "×" (an id starting close-) and Escape close it; an app's own smaller dialogs (a checklist, a sweep) get
-  // the same here. The app's main editor is not one of these: its × goes back to the shelf, which the app wires itself.
-  const subDialogs = [];
-  function wireSubDialogs(ids) {
-    ids.forEach((id) => {
-      const d = document.getElementById(id);
-      if (!d || subDialogs.includes(d)) return;
-      subDialogs.push(d);
-      const x = d.querySelector('header button[id^="close-"]');
-      if (x) x.addEventListener("click", () => { d.hidden = true; });
-    });
-  }
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    const open = subDialogs.filter((d) => !d.hidden && document.contains(d) && d.offsetParent !== null);
-    if (!open.length) return;
-    e.preventDefault();
-    e.stopPropagation();
-    open[open.length - 1].hidden = true;
-  }, true);
 
   // ---------- the store ----------
   function readList(key) {
@@ -275,65 +211,6 @@
   const nextId = (list) => list.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1;
   const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
   const cleanName = (name) => String(name == null ? "" : name).replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120);
-  // A list of named presets (brushes, styles…) kept in one localStorage key, answered at `path` (GET, POST, DELETE /path/:id).
-  function presetApi(path, key, max) {
-    return (p, method, body) => {
-      if (p === path && method === "GET") return readList(key);
-      if (p === path && method === "POST") {
-        const list = readList(key);
-        if (list.length >= (max || 100)) throw fail("That is as many as this browser keeps. Delete one first.");
-        const item = Object.assign({}, body || {}, { id: nextId(list), name: cleanName(body && body.name) || "Untitled" });
-        list.push(item);
-        writeList(key, list);
-        return item;
-      }
-      const one = new RegExp("^" + path.replace(/[/]/g, "\\/") + "\\/(\\d+)$").exec(p);
-      if (one && method === "DELETE") {
-        writeList(key, readList(key).filter((x) => x.id !== Number(one[1])));
-        return { ok: true };
-      }
-      if (one && (method === "PATCH" || method === "PUT")) {
-        const list = readList(key);
-        const at = list.findIndex((x) => x.id === Number(one[1]));
-        if (at < 0) throw fail("Not found", 404);
-        list[at] = Object.assign({}, list[at], body || {}, { id: list[at].id });
-        writeList(key, list);
-        return list[at];
-      }
-      return undefined;
-    };
-  }
-  // Files (pictures, 3D models) in IndexedDB, one store per app: get, put, delete, all.
-  function fileStore(dbName) {
-    const open = () =>
-      new Promise((resolve, reject) => {
-        if (!window.indexedDB) return reject(fail("This browser can't keep files."));
-        const req = indexedDB.open(dbName, 1);
-        req.onupgradeneeded = () => req.result.createObjectStore("items", { keyPath: "id" });
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    const op = async (mode, fn) => {
-      const db = await open();
-      try {
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction("items", mode);
-          const req = fn(tx.objectStore("items"));
-          tx.oncomplete = () => resolve(req ? req.result : undefined);
-          tx.onerror = () => reject(tx.error && tx.error.name === "QuotaExceededError" ? fail("This browser has no room left. Delete something first.") : tx.error);
-          tx.onabort = () => reject(tx.error && tx.error.name === "QuotaExceededError" ? fail("This browser has no room left. Delete something first.") : tx.error);
-        });
-      } finally {
-        db.close();
-      }
-    };
-    return {
-      all: () => op("readonly", (s) => s.getAll()).then((x) => x || []),
-      get: (id) => op("readonly", (s) => s.get(id)),
-      put: (item) => op("readwrite", (s) => s.put(item)),
-      delete: (id) => op("readwrite", (s) => s.delete(id)),
-    };
-  }
   function whenEdited(stamp) {
     const t = Date.parse(String(stamp || "").replace(" ", "T") + "Z");
     if (!t) return "";
@@ -346,140 +223,12 @@
     return days < 30 ? `Edited ${days} day${days === 1 ? "" : "s"} ago` : `Edited ${new Date(t).toLocaleDateString()}`;
   }
 
-
-  // ---------- the Library panel (a tool page's workspace) ----------
-  // The tool pages open straight into an empty item, with the visitor's saved things in a panel on the left (a screen 1100 px wide and up;
-  // the phone keeps its shelf behind the editor's back button) and a choice of what new ones start from, remembered per page.
-  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
-  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not kept */ } };
   const WIDE = "(min-width: 1100px)";
   const isWide = () => !!(window.matchMedia && window.matchMedia(WIDE).matches);
-  // cfg = { id, host, title, noun, newLabel, items(): [{ id, name, meta, thumb }], onNew(), onOpen(id), onCopy?(id), onDelete?(id), isOpen?(id),
-  //         startKey, startLabel, startOptions(): [{ value, label }], onStartChange?() }
-  function library(cfg) {
-    const el = document.createElement("aside");
-    el.className = "app-library";
-    el.id = "app-library-" + cfg.id;
-    el.setAttribute("aria-label", cfg.title);
-    el.innerHTML = `<div class="studio-panel-head"><h2>${esc(cfg.title)} <span class="lib-count"></span></h2>
-        <button type="button" class="studio-panel-fold" aria-expanded="true" aria-controls="${el.id}-body" aria-label="Hide the ${esc(cfg.title.toLowerCase())} panel" title="Hide the ${esc(cfg.title.toLowerCase())} panel">←</button></div>
-      <div id="${el.id}-body" class="studio-panel-body">
-        <button type="button" class="btn btn-accent lib-new">${esc(cfg.newLabel)}</button>
-        <label class="lib-start field"><span class="field-label">${esc(cfg.startLabel)}</span><select class="lib-start-select"></select></label>
-        <ul class="lib-list"></ul>
-        <div class="lib-footer"></div>
-      </div>
-      <button type="button" class="studio-panel-handle" aria-expanded="false" aria-controls="${el.id}-body" title="Show the ${esc(cfg.title.toLowerCase())} panel"><span>${esc(cfg.title)}</span></button>`;
-    if (cfg.footer) el.querySelector(".lib-footer").appendChild(cfg.footer);
-    cfg.host.classList.add("has-library");
-    cfg.host.prepend(el);
-    const foldKey = cfg.id + ".libPanel";
-    const setFold = (on) => {
-      lsSet(foldKey, on ? "folded" : "open");
-      cfg.host.classList.toggle("lib-folded", on);
-      el.querySelectorAll(".studio-panel-fold, .studio-panel-handle").forEach((b) => b.setAttribute("aria-expanded", String(!on)));
-    };
-    setFold(lsGet(foldKey) === "folded");
-    const select = el.querySelector(".lib-start-select");
-    const fillStart = () => {
-      const opts = cfg.startOptions();
-      const now = lsGet(cfg.startKey);
-      select.innerHTML = opts.map((o) => `<option value="${esc(o.value)}"${o.value === now ? " selected" : ""}>${esc(o.label)}</option>`).join("");
-      if (!opts.some((o) => o.value === now)) select.value = opts[0] ? opts[0].value : "";
-      el.querySelector(".lib-start").hidden = opts.length < 2; // nothing to choose between
-    };
-    select.addEventListener("change", () => {
-      lsSet(cfg.startKey, select.value);
-      if (cfg.onStartChange) cfg.onStartChange();
-    });
-    let sig = "";
-    let busy = false;
-    async function render() {
-      if (busy) return;
-      busy = true;
-      try {
-        fillStartIfChanged();
-        const items = await cfg.items();
-        const open = cfg.isOpen ? items.map((i) => cfg.isOpen(i.id)) : [];
-        const next = JSON.stringify([items.map((i) => [i.id, i.name, i.meta]), open]);
-        el.querySelector(".lib-count").textContent = items.length ? `(${items.length})` : "";
-        if (next === sig) return;
-        sig = next;
-        el.querySelector(".lib-list").innerHTML = items.length
-          ? items.map((i, n) => `<li class="lib-item${open[n] ? " is-open" : ""}" data-id="${esc(i.id)}">
-              <button type="button" class="lib-open" data-act="open" aria-label="Open ${esc(i.name)}"${open[n] ? ' aria-current="true"' : ""}>${i.thumb || ""}<span class="lib-name">${esc(i.name)}</span><span class="lib-meta">${esc(i.meta || "")}</span></button>
-              <span class="lib-actions">${cfg.onCopy ? `<button type="button" data-act="copy" aria-label="Make a copy of ${esc(i.name)}">Copy</button>` : ""}${cfg.onDelete ? `<button type="button" data-act="delete" aria-label="Delete ${esc(i.name)}">Delete</button>` : ""}</span>
-            </li>`).join("")
-          : `<li class="lib-empty">Nothing saved yet. What you make is kept here, in this browser.</li>`;
-      } finally {
-        busy = false;
-      }
-    }
-    let startSig = "";
-    function fillStartIfChanged() {
-      const s = JSON.stringify(cfg.startOptions()) + lsGet(cfg.startKey);
-      if (s === startSig) return;
-      startSig = s;
-      fillStart();
-    }
-    el.addEventListener("click", async (e) => {
-      if (e.target.closest(".studio-panel-fold")) { setFold(true); el.querySelector(".studio-panel-handle").focus(); return; }
-      if (e.target.closest(".studio-panel-handle")) { setFold(false); el.querySelector(".studio-panel-fold").focus(); return; }
-      if (e.target.closest(".lib-new")) return cfg.onNew();
-      const btn = e.target.closest("button[data-act]");
-      const row = btn && btn.closest(".lib-item");
-      if (!row) return;
-      const id = row.dataset.id;
-      const act = btn.dataset.act;
-      if (act === "open") await cfg.onOpen(id);
-      else if (act === "copy") await cfg.onCopy(id);
-      else if (act === "delete") await cfg.onDelete(id);
-      sig = "";
-      render();
-    });
-    render();
-    return { el, render: () => { sig = ""; return render(); }, refresh: render };
-  }
-  // The same choice as a field for a shelf (a phone has no panel): `cfg` is the library's { startKey, startLabel, startOptions }.
-  function startSelect(cfg) {
-    const label = document.createElement("label");
-    label.className = "field shelf-start";
-    label.innerHTML = `<span class="field-label">${esc(cfg.startLabel)}</span><select></select>`;
-    const select = label.querySelector("select");
-    const fill = () => {
-      const opts = cfg.startOptions();
-      const now = lsGet(cfg.startKey);
-      select.innerHTML = opts.map((o) => `<option value="${esc(o.value)}"${o.value === now ? " selected" : ""}>${esc(o.label)}</option>`).join("");
-      if (!opts.some((o) => o.value === now)) select.value = opts[0] ? opts[0].value : "";
-      label.hidden = opts.length < 2;
-    };
-    select.addEventListener("change", () => { lsSet(cfg.startKey, select.value); if (cfg.onStartChange) cfg.onStartChange(); });
-    fill();
-    return { el: label, fill };
-  }
 
   // ---------- backup and restore ----------
   // What a visitor keeps lives in this browser only: a Back up button saves it all to one file, Restore puts it back (merging, never
   // overwriting: public/backup-logic.js). `cfg` = { app, collect(): parts, restore(parts): { added, skipped, full }, after?() }.
-  function blobToData(blob) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve({ type: blob.type || "", data: String(r.result).split(",")[1] || "" });
-      r.onerror = () => reject(new Error("A file could not be read."));
-      r.readAsDataURL(blob);
-    });
-  }
-  function dataToBlob(o) {
-    const chunks = [];
-    const text = (o && o.data) || "";
-    for (let i = 0; i < text.length; i += 1048576) {
-      const bin = atob(text.slice(i, i + 1048576));
-      const bytes = new Uint8Array(bin.length);
-      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
-      chunks.push(bytes);
-    }
-    return new Blob(chunks, { type: (o && o.type) || "" });
-  }
   function backup(cfg) {
     const el = document.createElement("div");
     el.className = "app-backup";
@@ -526,12 +275,6 @@
     return el;
   }
 
-  // What a page starts new things from: the saved choice, or the first option when it is gone.
-  function startChoice(key, options, fallback) {
-    const now = lsGet(key);
-    return options.some((o) => o.value === now) ? now : fallback;
-  }
-
   // ---------- the page life ----------
   // app = { name, mountId, shellClass, loadingText, scripts, dialogs: [ids taken from the admin page], editor: () => the dialog that is
   //         the editor, prepare(shell) before the scripts load, build(shell) after they ran (makes the shelf), onLeave(), shown(editorOpen), park()/unpark() optional }
@@ -542,10 +285,8 @@
     let shell = null;
     let booting = null;
     let wasOpen = false;
-    // A standalone app (the Trainer) has no admin tool behind it: no dialogs, no admin stylesheet, just its own page in the shell.
-    const editor = () => (app.standalone ? { hidden: false } : app.editor());
+    const editor = () => app.editor();
     async function boot(mount) {
-      if (app.standalone) return bootStandalone(mount);
       mount.innerHTML = `<p class="studio-loading app-loading" role="status">${esc(app.loadingText || "Loading…")}</p>`;
       const { doc, css } = await adminParts();
       ensureStyles(css);
@@ -574,27 +315,6 @@
         if (app.openStart && (app.wideQuery ? window.matchMedia(app.wideQuery).matches : isWide())) setTimeout(() => { if (shell && !(parking && parking.contains(shell)) && editor().hidden) app.openStart(); }, 0);
       }).observe(editor(), { attributes: true, attributeFilter: ["hidden"] });
       app.shown(!editor().hidden);
-    }
-    async function bootStandalone(mount) {
-      mount.innerHTML = `<p class="studio-loading app-loading" role="status">${esc(app.loadingText || "Loading…")}</p>`;
-      const own = await ownCss();
-      if (!document.getElementById("app-kit-lite-css")) {
-        const style = document.createElement("style");
-        style.id = "app-kit-lite-css";
-        style.dataset.addedBy = "app-kit";
-        style.textContent = own;
-        document.head.appendChild(style);
-      }
-      shell = document.createElement("div");
-      shell.className = "app-native " + (app.shellClass || "");
-      const inner = document.createElement("div");
-      inner.className = "app-shell";
-      shell.appendChild(inner);
-      mount.innerHTML = "";
-      mount.appendChild(shell);
-      await loadScripts(app.scripts);
-      await app.build(inner);
-      app.shown(true);
     }
     // Parking: by default the editor is hidden while parked (its document shortcuts sleep) and shown again on the way back; an app whose
     // editor loses its work when hidden (the photo editor frees its layers) gives park()/unpark() of its own instead.
@@ -642,7 +362,7 @@
       park();
       parking.appendChild(shell);
     });
-    const entry = { init, warm: () => { if (!shell && !booting) { (app.standalone ? ownCss() : adminParts()).catch(() => {}); prefetch(app.scripts); } } };
+    const entry = { init, warm: () => { if (!shell && !booting) { adminParts().catch(() => {}); prefetch(app.scripts); } } };
     apps.push(entry);
     // On another page the script was only loaded to get ready (page-slide.js warms the nav's pages): fetch what it needs while idle.
     const start = () => {
@@ -656,5 +376,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, library, startSelect, backup, blobToData, dataToBlob, startChoice, isWide, register };
+  window.SiteAppKit = { esc, fail, addApi, readList, writeList, nextId, now, cleanName, whenEdited, backup, register };
 })();

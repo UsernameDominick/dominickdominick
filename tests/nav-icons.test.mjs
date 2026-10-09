@@ -1,18 +1,20 @@
 // The camera-dial nav's icons: each link gets a fitting icon from its slug or label, and an unknown one a plain dot.
 import assert from "node:assert/strict";
-import { navIconName, navIconSvg } from "../worker/nav-icons.js";
+import { navIconName, navIconSvg, pixelIcon } from "../worker/nav-icons.js";
 
 assert.equal(navIconName("home", "Home"), "home");
-assert.equal(navIconName("projects", "Projects"), "projects");
-assert.equal(navIconName("random", "Articles"), "random");
-assert.equal(navIconName("topics", "Topics"), "topics");
 assert.equal(navIconName("studio", "Studio"), "studio");
-assert.equal(navIconName("hidden-notes", "Hidden Notes"), "notes");
-assert.equal(navIconName("components", "Components"), "components");
+assert.equal(navIconName("settings", "Settings"), "settings");
 assert.equal(navIconName("my-page", "Get in touch"), "dot");
-assert.equal(navIconName("x1", "Contact me"), "contact");
-assert.equal(navIconName("blog", "Writing"), "articles");
-const svg = navIconSvg("home", "Home");
-assert.ok(svg.startsWith('<svg class="tab-ico"') && svg.includes('aria-hidden="true"') && svg.includes("<path"));
-assert.ok(!/[<>"]/.test(navIconName('"><script>', "")), "a name is always one of ours");
+assert.equal(navIconName("", ""), "dot");
+assert.equal(navIconName(undefined, undefined), "dot");
+
+const svg = navIconSvg("studio", "studio");
+assert.match(svg, /^<svg class="tab-ico" viewBox="0 0 16 16"/);
+assert.match(svg, /aria-hidden="true"/);
+assert.match(svg, /<path d="M/);
+
+// the pixel icons the dialog and the editor link use exist; an unknown name falls back to the dot
+for (const name of ["sun", "moon", "pause", "pencil", "settings", "home", "studio"]) assert.match(pixelIcon(name), /<path d="M/, name);
+assert.equal(pixelIcon("no-such-icon"), pixelIcon("dot"));
 console.log("ALL PASS");

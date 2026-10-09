@@ -2,7 +2,6 @@
 // pattern each track plays in each bar, how the player walks the song and reports it, that the file helper and the engine agree, how a
 // save is validated and cleaned, and that a song without any of it is exactly what it always was.
 import { makeCtx, count, loadEngine, loadSongFiles, lane } from "./fake-audio.mjs";
-import { songDataError } from "../worker/songs.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -88,10 +87,6 @@ const song = (extra = {}) => ({
   ok(c.bars === 64, "the bar count is cut to 64");
   ok(JSON.stringify(c.lanes) === JSON.stringify({ drums: { order: ["A", "B", "A"], loop: false }, melody: { order: ["A"] } }), "lanes keep real patterns only, loop only when off, and drop junk", c.lanes);
   ok(F.cleanSong({ tempo: 100 }).bars === undefined && F.cleanSong({ tempo: 100 }).lanes === undefined && F.cleanSong({ bars: 0, lanes: {} }).bars === undefined && F.cleanSong({ lanes: { drums: { order: [] } } }).lanes !== undefined, "a song without them gets neither field");
-  ok(songDataError({ bars: 8, lanes: { drums: { order: ["A", "B"], loop: false } } }) === null, "a bar count and lanes are accepted");
-  ok(/bars/.test(songDataError({ bars: 0 })) && /bars/.test(songDataError({ bars: 65 })) && /bars/.test(songDataError({ bars: 2.5 })), "a bad bar count is refused");
-  ok(/lane/.test(songDataError({ lanes: [] })) && /lane/.test(songDataError({ lanes: { guitar: { order: [] } } })) && /lane/.test(songDataError({ lanes: { drums: { order: ["Z"] } } })) && /lane/.test(songDataError({ lanes: { drums: { order: [], loop: "no" } } })), "a bad lane is refused");
-  ok(/lane/.test(songDataError({ lanes: { drums: { order: Array(65).fill("A") } } })), "a lane is at most 64 bars");
 }
 
 // ---- a track's own sound tweaks ----
@@ -102,7 +97,6 @@ const song = (extra = {}) => ({
   const clean = F.cleanSong({ melody: { voice: "pad", synth: { attack: 0.5, nope: 1 } }, bass: { notes: {}, synth: { cutoff: 50 } }, lead: { notes: {}, synth: { wave: "triangle" } } });
   ok(clean.melody.synth.attack === 0.5 && !clean.melody.synth.nope && clean.bass.synth.cutoff === 120 && clean.lead.synth.wave === "triangle", "a saved song keeps each track's tweaks, cleaned", [clean.melody.synth, clean.bass.synth]);
   ok(F.cleanSong({ melody: { synth: { nope: 1 } } }).melody.synth === undefined, "none valid, none kept");
-  ok(songDataError({ melody: { synth: { attack: 0.2, wave: "sine" } }, bass: { synth: { cutoff: 900 } } }) === null && /sound settings/.test(songDataError({ melody: { synth: { attack: "x" } } })) && /sound settings/.test(songDataError({ lead: { synth: { evil: 1 } } })) && /sound settings/.test(songDataError({ chords: { synth: [] } })), "the worker accepts known settings only");
   // the sound really changes: the same note with a longer attack and a different cutoff gives different envelope and filter calls
   const play = (synth) => { const ctx = makeCtx(); E.playVoicedNote(ctx, 0, 440, "pluck", 0.2, synth); return ctx; };
   const plain = play(null);

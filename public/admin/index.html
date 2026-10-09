@@ -8,7 +8,6 @@
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/admin/style.css">
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 </head>
 <body class="admin-body">
   <main id="login-screen" class="login-screen" hidden>
@@ -29,32 +28,13 @@
       </div>
       <div id="sidebar-pages-slot"></div>
       <nav class="admin-sidebar-scroll">
-        <!-- The site is cut down to the home page and the Studio (worker/site-scope.js): the tools for the rest are hidden, not removed. -->
-        <div class="admin-sidebar-group" hidden>
-          <h3>Content</h3>
-          <button id="dashboard-btn" hidden>Dashboard</button>
-          <button id="articles-btn" hidden>Articles</button>
-          <button id="projects-btn" hidden>Projects</button>
-        </div>
         <div class="admin-sidebar-group">
           <h3>Library</h3>
           <button id="media-btn">Media</button>
-          <button id="redirects-btn" hidden>Redirects</button>
-          <button id="simulations-btn" hidden>Simulations</button>
-          <button id="scans-btn" hidden>Scans</button>
-          <button id="songs-btn">Songs</button>
-          <button id="shared-blocks-btn" hidden>Reusable Blocks</button>
         </div>
         <div class="admin-sidebar-group">
           <h3>Tools</h3>
-          <button id="layers-btn">Layers</button>
-          <button id="diagnostics-btn" hidden>Diagnostics</button>
-          <button id="scripts-btn" hidden>Scripts</button>
           <button id="features-btn">Features</button>
-          <button id="seo-dashboard-btn" hidden>Site Health</button>
-          <button id="topic-pages-btn" hidden>Topic Pages</button>
-          <button id="analytics-btn" hidden>Analytics</button>
-          <button id="trash-btn" hidden>Trash</button>
         </div>
         <div class="admin-sidebar-group">
           <h3>Settings</h3>
@@ -63,11 +43,6 @@
         <div class="admin-sidebar-group">
           <h3>View</h3>
           <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live</a>
-          <button id="draft-preview-mode-toggle" aria-pressed="false" title="Draft preview: while on, this browser shows your draft and expired articles and projects on the live site as you click around, instead of needing ?preview=1 on every link. Only you see them (while signed in); visitors are not affected.">Draft preview: Off</button>
-          <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
-          <button id="preview-at-btn" hidden title="See the public site as it will look on a future date: scheduled items live, expired ones gone. Only you see it.">Preview at a date…</button>
-          <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
-          <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
         </div>
       </nav>
       <div class="admin-sidebar-footer">
@@ -84,45 +59,21 @@
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
         <div class="admin-sidebar-pages">
           <select id="page-picker" aria-label="Page to edit"></select>
-          <button id="new-page-btn" hidden title="New page">+ Page</button>
-          <select id="page-template-picker" hidden aria-label="Template for the next new page" title="Start the next new page from a saved template">
-            <option value="">Blank page</option>
-          </select>
-          <div class="admin-more-wrap">
-            <button id="recent-items-btn" aria-haspopup="true" aria-expanded="false" aria-controls="recent-items-panel">Recent ▾</button>
-            <div class="admin-more-panel" id="recent-items-panel">
-              <div class="admin-more-group" id="recent-items-favorites"></div>
-              <div class="admin-more-group" id="recent-items-recent"></div>
-            </div>
-          </div>
         </div>
         <div class="page-actions" role="group" aria-label="Edit this page">
           <button type="button" id="add-block-btn" class="page-add-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="Add a block to the page. Or click an empty spot on the page to add one right there.">+ Add</button>
-          <button type="button" id="page-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="This page's title, address, navigation and search settings">Page settings</button>
+          <button type="button" id="page-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="This page's title, description and share image">Page settings</button>
         </div>
         <div class="panel-toggles" role="group" aria-label="Side panels">
-          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the tools menu: articles, projects, media, songs, settings and the rest (Ctrl+B)"><span class="px px-menu" aria-hidden="true"></span> Tools</button>
+          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the tools menu: media, features, settings (Ctrl+B)"><span class="px px-menu" aria-hidden="true"></span> Tools</button>
           <button type="button" id="inspector-toggle-btn" aria-pressed="true" title="Show or hide the block inspector">Inspector</button>
         </div>
         <div class="admin-header-right" id="admin-header-right">
-          <div class="admin-more-wrap">
-            <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look" aria-label="Notifications"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
-            <div class="admin-more-panel" id="notifications-panel">
-              <div id="notifications-list" class="notifications-list"></div>
-            </div>
-          </div>
           <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
         </div>
       </header>
-      <div id="admin-status-strip" class="admin-status-strip" role="status" hidden></div>
 
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
-
-    <div id="writing-focus-overlay" class="writing-focus-overlay" hidden role="dialog" aria-label="Distraction-free writing mode">
-      <div class="writing-focus-inner">
-        <button type="button" id="close-writing-focus" class="writing-focus-close" aria-label="Exit writing focus mode">× Exit focus mode</button>
-      </div>
-    </div>
 
     <div class="admin-body-layout">
       <aside id="palette" class="admin-palette" aria-label="Add blocks" data-win="add a block">
@@ -143,34 +94,12 @@
               <button class="palette-btn" data-type="image"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg><span>Image</span></button>
               <button class="palette-btn" data-type="quote"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h4v4c0 3-2 5-4 6M15 7h4v4c0 3-2 5-4 6"/></svg><span>Quote</span></button>
               <button class="palette-btn" data-type="gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg><span>Gallery</span></button>
-              <button class="palette-btn" data-type="before-after"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 3v18M9 12H6m12 0h-3"/></svg><span>Before / After</span></button>
             </div>
           </section>
           <section class="palette-group">
             <h2>Actions &amp; links</h2>
             <div class="palette-grid">
               <button class="palette-btn" data-type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M9 12h6"/></svg><span>Button / Link</span></button>
-              <button class="palette-btn" data-type="links"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Links</span></button>
-            </div>
-          </section>
-          <section class="palette-group">
-            <h2>Dynamic content</h2>
-            <div class="palette-grid">
-              <button class="palette-btn" data-type="project-card"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 11h18M7 15h6"/></svg><span>Project Card</span></button>
-              <button class="palette-btn" data-type="article-list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span>Article List</span></button>
-              <button class="palette-btn" data-type="project-list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="3" y="13" width="7" height="7" rx="1"/><rect x="14" y="13" width="7" height="7" rx="1"/></svg><span>Project List</span></button>
-              <button class="palette-btn" data-type="changelog"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Changelog / Now</span></button>
-            </div>
-          </section>
-          <section class="palette-group">
-            <h2>Embeds &amp; interactive</h2>
-            <div class="palette-grid">
-              <button class="palette-btn" data-type="video"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg><span>Video Embed</span></button>
-              <button class="palette-btn" data-type="embed"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><span>Generic Embed</span></button>
-              <button class="palette-btn" data-type="html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"/></svg><span>HTML / Embed</span></button>
-              <button class="palette-btn" data-type="simulation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg><span>Simulation</span></button>
-              <button class="palette-btn" data-type="song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Song</span></button>
-              <button class="palette-btn" data-type="scan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><span>3D Scan</span></button>
               <!-- STUDY (temporary): see worker/study/README.md -->
               <button class="palette-btn" data-type="study"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15H5.5A1.5 1.5 0 0 0 4 20.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg><span>Study (locked)</span></button>
             </div>
@@ -178,8 +107,6 @@
           <section class="palette-group">
             <h2>Layout</h2>
             <div class="palette-grid">
-              <button class="palette-btn" data-type="accordion"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="11" width="18" height="9" rx="1"/><path d="m9 6.5 1.5 1 1.5-1"/></svg><span>Accordion</span></button>
-              <button class="palette-btn" data-type="tabs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8h6V5h6v3h6v12z"/><path d="M9 8h6"/></svg><span>Tabs</span></button>
               <button class="palette-btn" data-type="divider"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18"/><path d="M8 7h8M8 17h8" opacity=".5"/></svg><span>Divider</span></button>
               <button class="palette-btn" data-type="spacer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg><span>Spacer</span></button>
             </div>
@@ -191,22 +118,13 @@
             <summary>Basics</summary>
             <label>Title<input id="page-title" type="text"></label>
             <label>Meta description<textarea id="page-meta" rows="2"></textarea></label>
-            <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
-            <label>Nav order<input id="page-nav-order" type="number"></label>
-            <label title="Visitors will not see this link in the navigation; you will, marked admin. The page itself can still be opened by anyone who knows its address."><input type="checkbox" id="page-nav-admin-only"> Show this nav link only when I'm signed in</label>
-            <label title="Nests this page as a dropdown item under another top-level nav page. One level of dropdown only — a page that already has a parent can't also be a parent.">Parent nav item (optional — makes this a dropdown item)<select id="page-nav-parent"><option value="">— none (top-level) —</option></select></label>
           </details>
           <details class="panel-section">
             <summary>Sharing &amp; SEO</summary>
             <label>Share image URL (og:image, blank = site default)
               <input id="page-og-image" type="text" spellcheck="false">
-              <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#page-og-image">Edit / crop for social…</button>
+              <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
             </label>
-            <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
-            <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
-            <label title="Only leaves this page out of the sitemap file search engines read. The page stays live, and search engines can still find it through links."><input type="checkbox" id="page-sitemap-exclude"> Leave out of sitemap.xml</label>
-            <label title="Adds a tag asking search engines not to list this page in their results. The page still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="page-noindex"> Ask search engines not to list this page (noindex)</label>
-            <p class="settings-hint">Leaving a page out of the sitemap does not hide it from search engines; use "noindex" for that.</p>
             <div class="og-preview-label">Share preview</div>
             <div class="og-preview" id="og-preview-page">
               <div class="og-preview-img" id="og-preview-page-img"></div>
@@ -217,43 +135,14 @@
               </div>
             </div>
           </details>
-          <details class="panel-section page-css-panel" id="page-css-panel">
-            <summary>Page CSS</summary>
-            <label title="Extra CSS that loads only on this page. No @import, no script, images only from /media or https.">CSS for this page only<textarea id="page-custom-css" rows="6" spellcheck="false" placeholder="h1 { letter-spacing: 0.02em; }"></textarea></label>
-            <div class="page-css-actions">
-              <button type="button" id="page-css-preview-btn" title="Open Screen Preview with this CSS applied, without saving">Preview</button>
-              <button type="button" id="page-css-save-btn" data-tier="primary">Save CSS</button>
-              <span id="page-css-status" class="page-css-status" role="status"></span>
-            </div>
-          </details>
-          <details class="panel-section" id="sections-panel">
-            <summary>Sections</summary>
-            <p class="redirects-hint">Select two or more blocks, press Group, then "Save as section…". Saved sections can be inserted below the page's last block.</p>
-            <div id="sections-list" class="sections-list"></div>
-          </details>
-          <details class="panel-section">
-            <summary>Access</summary>
-            <div class="tts-audio-field">
-              <label id="page-password-status">Password protection: <span id="page-password-status-text">not protected</span></label>
-              <input type="password" id="page-password-input" placeholder="New password" autocomplete="off">
-              <button type="button" id="page-set-password-btn">Set password</button>
-              <button type="button" id="page-remove-password-btn" hidden>Remove protection</button>
-            </div>
-          </details>
           <button id="save-page-settings">Save page settings</button>
           <div id="page-save-status" class="article-autosave-status"></div>
           <details class="panel-section" open>
             <summary>Page actions</summary>
             <div class="panel-action-grid">
               <button id="page-history-btn">History</button>
-              <button id="duplicate-page-btn">Duplicate</button>
-              <button id="save-page-template-btn">Save as template</button>
-              <button type="button" id="delete-page-template-btn" title="Delete the template currently selected in the picker above">Delete template</button>
               <button type="button" id="fit-all-blocks-btn" title="Make every heading, text, quote, picture and button block as tall as its content, moving the blocks below down so nothing overlaps">Fit blocks to content</button>
-              <button type="button" id="lock-page-btn" title="Locking protects this page from global find-replace — it doesn't affect editing it directly">Lock</button>
-              <button type="button" id="favorite-page-btn" title="Pin to the top of the command palette">☆ Pin</button>
             </div>
-            <button id="delete-page-btn" class="scripts-delete">Delete this page</button>
           </details>
         </div>
         </div>
@@ -269,25 +158,15 @@
         <div class="drawer-scroll-content">
         <div id="single-block-inspector">
           <h2>Edit block</h2>
-          <div id="shared-block-banner" hidden></div>
           <div id="inspector-fields"></div>
           <h2>Style</h2>
-          <div class="style-preset-row">
-            <select id="apply-style-preset-select" title="Apply a saved style preset to this block" aria-label="Apply a saved style preset">
-              <option value="">Apply preset…</option>
-            </select>
-            <button type="button" id="save-style-preset-btn" title="Save this block's style as a preset">Save</button>
-            <button type="button" id="delete-style-preset-btn" title="Delete the selected preset">Delete</button>
-          </div>
           <div id="inspector-style-fields"></div>
           <div id="block-save-status" class="article-autosave-status"></div>
           <h2>Block actions</h2>
           <div class="panel-action-grid inspector-action-grid">
             <button type="button" id="copy-block-btn">Copy</button>
             <button id="duplicate-block-btn">Duplicate</button>
-            <button type="button" id="isolate-block-btn" title="Dim every other block on the canvas so this one stands out for focused editing">Isolate</button>
             <button type="button" id="lock-block-btn" title="Locking protects this block from accidental drag/resize/delete — it doesn't affect editing its content or style">Lock</button>
-            <button type="button" id="save-as-shared-block-btn" class="span-2">Save as reusable block…</button>
           </div>
           <button id="delete-block-btn" class="scripts-delete">Delete block</button>
         </div>
@@ -304,7 +183,6 @@
           <div class="panel-action-grid inspector-action-grid">
             <button type="button" id="bulk-group-btn" title="Grouped blocks drag together">Group</button>
             <button type="button" id="bulk-ungroup-btn">Ungroup</button>
-            <button type="button" id="bulk-save-section-btn" class="span-2" title="Save these blocks as a section you can insert on any page">Save as section…</button>
             <button type="button" id="bulk-duplicate-btn" class="span-2">Duplicate all</button>
           </div>
           <button type="button" id="bulk-delete-btn" class="scripts-delete">Delete all</button>
@@ -315,533 +193,11 @@
     </div>
   </div>
 
-  <div id="articles-modal" class="modal" hidden role="dialog" aria-labelledby="articles-modal-title">
-    <div class="modal-inner">
-      <header>
-        <h1 id="articles-modal-title">Articles</h1>
-        <button id="close-articles" aria-label="Close Articles dialog">×</button>
-      </header>
-      <div class="articles-layout">
-        <div class="articles-list-wrap">
-          <div class="articles-bulk-bar">
-            <label><input type="checkbox" id="articles-select-all"> Select all</label>
-            <span id="articles-selected-count" class="articles-selected-count"></span>
-            <button type="button" id="bulk-publish-btn" disabled>Publish</button>
-            <button type="button" id="bulk-unpublish-btn" disabled>Unpublish</button>
-            <button type="button" id="bulk-tag-btn" disabled>Add tag…</button>
-            <button type="button" id="bulk-trash-btn" class="scripts-delete" disabled>Trash</button>
-          </div>
-          <div class="articles-list" id="articles-list"></div>
-        </div>
-        <div class="article-editor">
-          <button type="button" class="mobile-back-to-list-btn">← Back to list</button>
-          <div class="field-row">
-            <input id="article-title" placeholder="Title" aria-label="Title">
-            <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
-          </div>
-          <div class="md-toolbar">
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="bold" title="Bold"><strong>B</strong></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="italic" title="Italic"><em>I</em></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="link" title="Link">Link</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="h2" title="Heading">H2</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="h3" title="Subheading">H3</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="inline-code" title="Inline code: wraps the selected text in `backticks`"><code>`code`</code></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="code" title="Code block">Code</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="embed" title="Embed a published simulation, a song or a 3D scan from your libraries, written as ::sim 148::">Embed…</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
-            <button type="button" class="md-import-btn" data-import-target="article-body" title="Insert the text of a Markdown, plain text or HTML file (read in your browser, nothing is uploaded)">Import file…</button>
-            <button type="button" class="writing-focus-btn" data-focus-target="article-body" title="Distraction-free full-screen writing">Focus</button>
-          </div>
-          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents). ```lang / code / ``` for a code block. Pipe tables. [^1] + [^1]: note for footnotes. Use the Before/After button for an image comparison slider. Use the Callout button (or :::note ... ::: / :::tip / :::warning / :::danger) for a highlighted note box." rows="16"></textarea>
-          <small id="article-body-paste-note" class="paste-note" role="status"></small>
-          <div class="article-word-count-row">
-            <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
-            <label class="article-word-goal">Goal <input type="number" id="article-word-goal" min="0" step="50" placeholder="none"></label>
-          </div>
-          <div id="article-autosave-status" class="article-autosave-status"></div>
-          <div id="publish-checklist-article" class="publish-checklist"></div>
-          <div id="article-link-warnings" class="link-warnings"></div>
-          <div id="article-link-suggestions" class="link-suggestions"></div>
-          <details class="panel-section editor-section" open>
-            <summary>Details</summary>
-            <div class="field-row">
-              <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)" aria-label="Tags">
-              <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)" aria-label="Co-authors">
-            </div>
-            <div class="article-series-row">
-              <input id="article-series" placeholder="Series name (optional, e.g. &quot;Rebuilding my deck&quot;)" list="article-series-datalist" aria-label="Series name">
-              <datalist id="article-series-datalist"></datalist>
-              <input id="article-series-order" type="number" placeholder="Part #" aria-label="Series part number">
-            </div>
-            <p id="article-series-hint" class="article-series-hint" hidden></p>
-            <div class="article-flags-row">
-              <label><input type="checkbox" id="article-featured"> Featured</label>
-              <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
-              <label title="Only leaves this article out of the sitemap file search engines read. It stays live, and search engines can still find it through links."><input type="checkbox" id="article-sitemap-exclude"> Leave out of sitemap.xml</label>
-              <label title="Adds a tag asking search engines not to list this article in their results. It still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="article-noindex"> Ask search engines not to list this article (noindex)</label>
-              <label title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed"><input type="checkbox" id="article-archived"> Archived</label>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Sharing &amp; SEO</summary>
-            <div class="input-with-upload">
-              <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false" aria-label="Share image URL">
-              <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
-            </div>
-            <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
-            <label title="Added alongside this article's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="article-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
-            <div class="og-preview-label">Share preview</div>
-            <div class="og-preview" id="og-preview-article">
-              <div class="og-preview-img" id="og-preview-article-img"></div>
-              <div class="og-preview-body">
-                <div class="og-preview-domain">dominickdominick.com</div>
-                <div class="og-preview-title" id="og-preview-article-title"></div>
-                <div class="og-preview-desc" id="og-preview-article-desc"></div>
-              </div>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Reader extras</summary>
-            <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
-            <div class="tts-audio-field">
-              <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
-              <input type="file" id="article-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
-              <button type="button" id="article-tts-audio-upload-btn">Upload audio…</button>
-              <button type="button" id="article-tts-audio-remove-btn" hidden>Remove audio</button>
-              <audio id="article-tts-audio-preview" controls hidden></audio>
-            </div>
-            <label>Related projects (edits the project's own "Related articles" field)<select id="article-related-projects" multiple size="4"></select></label>
-            <label>Pin "Related articles" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="article-related-override" multiple size="4"></select></label>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Private notes</summary>
-            <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="article-private-notes" rows="2" placeholder="e.g. Still need to add the benchmark screenshots before publishing."></textarea></label>
-          </details>
-          <details class="panel-section editor-section" open>
-            <summary>Publishing</summary>
-            <div class="field-row publish-row">
-              <label><input type="checkbox" id="article-published"> Published</label>
-              <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
-              <label>Expires at (blank = never)<input type="datetime-local" id="article-expires-at" title="Automatically unpublishes at this time — the article isn't deleted, just drops out of listings and the direct URL"></label>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>More actions</summary>
-            <div class="panel-action-grid">
-              <button type="button" id="share-preview-article-btn" hidden>Share preview link…</button>
-              <button id="article-history-btn" type="button" hidden>History</button>
-              <button type="button" id="duplicate-article-btn" hidden>Duplicate</button>
-              <button type="button" id="convert-article-to-project-btn" hidden title="Creates a project draft from this article's content — the article itself is kept as-is">Convert to Project…</button>
-              <button type="button" id="export-article-md-btn" title="Download the title and body as a .md file">Export .md</button>
-              <button type="button" id="lock-article-btn" title="Locking protects this article from bulk publish/unpublish/trash and global find-replace — it doesn't affect editing it directly">Lock</button>
-              <button type="button" id="favorite-article-btn" title="Pin to the top of the command palette">☆ Pin</button>
-            </div>
-            <div class="template-row">
-                <button type="button" id="save-article-template-btn">Save body as template</button>
-                <button type="button" id="delete-article-template-btn" title="Delete a template by typing its exact name">Delete template</button>
-            </div>
-            <button id="delete-article" class="scripts-delete">Delete</button>
-          </details>
-          <div class="article-actions editor-primary-actions">
-            <button type="button" id="live-preview-article-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-article" title="Show the article beside the editor as readers see it" hidden>Live preview</button>
-            <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview</a>
-            <select id="article-template-picker" aria-label="Template for a new article" title="Fill a new article's body from a saved template">
-              <option value="">Start blank</option>
-            </select>
-            <button id="new-article">New</button>
-            <button id="save-article">Save</button>
-          </div>
-          <div id="preview-links-panel-article" class="preview-links-panel" hidden>
-            <label>Link valid for
-              <select id="preview-link-hours-article">
-                <option value="24">1 day</option>
-                <option value="168" selected>7 days</option>
-                <option value="720">30 days</option>
-              </select>
-            </label>
-            <button type="button" id="create-preview-link-article-btn">Create link</button>
-            <div id="preview-links-list-article" class="preview-links-list"></div>
-          </div>
-        </div>
-        <aside class="live-preview-pane" id="live-preview-article" data-width="fit" hidden aria-label="Live preview of this article">
-          <div class="live-preview-bar">
-            <strong>Live preview</strong>
-            <span class="live-preview-widths" role="group" aria-label="Preview width">
-              <button type="button" class="live-preview-width-btn" data-width="fit" aria-pressed="true" title="Use the pane's full width">Fit</button>
-              <button type="button" class="live-preview-width-btn" data-width="phone" aria-pressed="false" title="A 390px-wide phone screen (scaled down if the pane is narrower)">Phone</button>
-            </span>
-            <button type="button" class="live-preview-refresh" title="Reload the preview now">Refresh</button>
-            <button type="button" class="live-preview-close" aria-label="Close the live preview">×</button>
-          </div>
-          <p class="live-preview-note">Shows the saved article; it refreshes a couple of seconds after you stop typing.</p>
-          <div class="live-preview-frame-wrap"><div class="live-preview-stage"><iframe title="Live preview of this article" src="about:blank"></iframe></div></div>
-        </aside>
-      </div>
-    </div>
-  </div>
-
-  <div id="projects-modal" class="modal" hidden role="dialog" aria-labelledby="projects-modal-title">
-    <div class="modal-inner">
-      <header>
-        <h1 id="projects-modal-title">Projects</h1>
-        <button id="close-projects" aria-label="Close Projects dialog">×</button>
-      </header>
-      <div class="articles-layout">
-        <div class="articles-list-wrap">
-          <div class="articles-bulk-bar">
-            <label><input type="checkbox" id="projects-select-all"> Select all</label>
-            <span id="projects-selected-count" class="articles-selected-count"></span>
-            <button type="button" id="bulk-project-publish-btn" disabled>Publish</button>
-            <button type="button" id="bulk-project-unpublish-btn" disabled>Unpublish</button>
-            <button type="button" id="bulk-project-tag-btn" disabled>Add tag…</button>
-            <button type="button" id="bulk-project-trash-btn" class="scripts-delete" disabled>Trash</button>
-          </div>
-          <div class="articles-list" id="projects-list"></div>
-        </div>
-        <div class="article-editor">
-          <button type="button" class="mobile-back-to-list-btn">← Back to list</button>
-          <div class="field-row">
-            <input id="project-title" placeholder="Title" aria-label="Title">
-            <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
-          </div>
-          <textarea id="project-summary" rows="2" placeholder="One or two sentence summary — shown on project lists and as the share description" aria-label="Summary"></textarea>
-          <div class="md-toolbar">
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="bold" title="Bold"><strong>B</strong></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="italic" title="Italic"><em>I</em></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="link" title="Link">Link</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="h2" title="Heading">H2</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="h3" title="Subheading">H3</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="inline-code" title="Inline code: wraps the selected text in `backticks`"><code>`code`</code></button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="code" title="Code block">Code</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="embed" title="Embed a published simulation, a song or a 3D scan from your libraries, written as ::sim 148::">Embed…</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
-            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
-            <button type="button" class="md-import-btn" data-import-target="project-body" title="Insert the text of a Markdown, plain text or HTML file (read in your browser, nothing is uploaded)">Import file…</button>
-            <button type="button" class="writing-focus-btn" data-focus-target="project-body" title="Distraction-free full-screen writing">Focus</button>
-          </div>
-          <textarea id="project-body" placeholder="Write here. Same formatting as articles: **bold**, *italic*, [link](url), ## / ### headings, ```code``` blocks, pipe tables, [^1] footnotes, :::note ::: callouts." rows="14"></textarea>
-          <small id="project-body-paste-note" class="paste-note" role="status"></small>
-          <div id="project-autosave-status" class="article-autosave-status"></div>
-          <div id="publish-checklist-project" class="publish-checklist"></div>
-          <div id="project-link-warnings" class="link-warnings"></div>
-          <div id="project-link-suggestions" class="link-suggestions"></div>
-          <details class="panel-section editor-section" open>
-            <summary>Details &amp; links</summary>
-            <div class="field-row">
-              <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)" aria-label="Tags">
-              <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)" aria-label="Tech stack">
-            </div>
-            <div class="article-series-row">
-              <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)" aria-label="Status">
-              <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
-              <label class="project-featured-label" title="Lower numbers lead the featured-projects list; blank falls back to newest-first">Featured order<input type="number" id="project-featured-order" style="width:70px;"></label>
-              <label class="project-featured-label" title="Used by a Project List block set to 'Manual order' — lower numbers come first; blank falls back to newest-first">Sort order<input type="number" id="project-sort-order" style="width:70px;"></label>
-              <label class="project-featured-label" title="Only leaves this project out of the sitemap file search engines read. It stays live, and search engines can still find it through links."><input type="checkbox" id="project-sitemap-exclude"> Leave out of sitemap.xml</label>
-              <label class="project-featured-label" title="Adds a tag asking search engines not to list this project in their results. It still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="project-noindex"> Ask search engines not to list this project (noindex)</label>
-              <label class="project-featured-label" title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed — separate from the free-text Status field above"><input type="checkbox" id="project-archived"> Archived (hide from listings)</label>
-            </div>
-            <div class="project-links-row">
-              <input id="project-link-github" placeholder="GitHub URL" aria-label="GitHub URL">
-              <input id="project-link-demo" placeholder="Live demo URL" aria-label="Live demo URL">
-              <input id="project-link-docs" placeholder="Docs URL" aria-label="Docs URL">
-              <input id="project-link-download" placeholder="Download URL (quick single link)" aria-label="Download URL">
-            </div>
-            <label>Download manifest (optional — one file per line: Label | URL | Description)<textarea id="project-downloads" rows="4" placeholder="Firmware v1.2 | /media/uploads/firmware.bin | Latest build, flash with esptool"></textarea></label>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Sharing &amp; SEO</summary>
-            <div class="input-with-upload">
-              <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false" aria-label="Share/hero image URL">
-              <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
-            </div>
-            <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
-            <label title="Added alongside this project's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a Product or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="project-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"Product",...}'></textarea></label>
-            <div class="og-preview-label">Share preview</div>
-            <div class="og-preview" id="og-preview-project">
-              <div class="og-preview-img" id="og-preview-project-img"></div>
-              <div class="og-preview-body">
-                <div class="og-preview-domain">dominickdominick.com</div>
-                <div class="og-preview-title" id="og-preview-project-title"></div>
-                <div class="og-preview-desc" id="og-preview-project-desc"></div>
-              </div>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Media &amp; reader extras</summary>
-            <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
-            <div class="tts-audio-field">
-              <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
-              <input type="file" id="project-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
-              <button type="button" id="project-tts-audio-upload-btn">Upload audio…</button>
-              <button type="button" id="project-tts-audio-remove-btn" hidden>Remove audio</button>
-              <audio id="project-tts-audio-preview" controls hidden></audio>
-            </div>
-            <div class="tts-audio-field">
-              <label>Hero video (optional — muted, looping background clip shown near the top of the project page; respects visitors' reduced-motion preference)</label>
-              <input type="file" id="project-hero-video-file" accept="video/mp4,video/webm,video/quicktime" hidden>
-              <button type="button" id="project-hero-video-upload-btn">Upload video…</button>
-              <button type="button" id="project-hero-video-remove-btn" hidden>Remove video</button>
-              <video id="project-hero-video-preview" controls muted hidden style="max-width:320px;"></video>
-            </div>
-            <div class="project-related-row">
-              <label>Related articles<select id="project-related-articles" multiple size="4"></select></label>
-              <label>Related simulations<select id="project-related-simulations" multiple size="4"></select></label>
-              <label>Related scans<select id="project-related-scans" multiple size="4"></select></label>
-              <label title="Songs shown as playable tracks on this project's page">Related songs<select id="project-related-songs" multiple size="4"></select></label>
-              <label>Pin "Related projects" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="project-related-override" multiple size="4"></select></label>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>Private notes</summary>
-            <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>
-          </details>
-          <details id="journal-section" class="panel-section editor-section" hidden>
-            <summary>Build journal <span class="style-group-count" id="journal-count" hidden></span></summary>
-            <p class="redirects-hint">Dated entries telling the story of building this — logs, test results, decisions, dead ends.</p>
-            <div id="journal-list" class="redirects-list"></div>
-            <div class="journal-form-row">
-              <input type="date" id="journal-entry-date" aria-label="Entry date">
-              <select id="journal-entry-type" aria-label="Entry type">
-                <option value="log">Log</option>
-                <option value="test">Test result</option>
-                <option value="decision">Decision</option>
-                <option value="failed">Failed attempt</option>
-              </select>
-            </div>
-            <input id="journal-entry-title" placeholder="Entry title">
-            <textarea id="journal-entry-body" rows="4" placeholder="What happened. Same formatting as the project body."></textarea>
-            <div class="journal-form-actions">
-              <button type="button" id="save-journal-entry-btn" data-tier="primary">Add entry</button>
-              <button type="button" id="cancel-journal-entry-btn" hidden>Cancel edit</button>
-            </div>
-          </details>
-          <details id="bom-section" class="panel-section editor-section" hidden>
-            <summary>Bill of materials <span class="style-group-count" id="bom-count" hidden></span></summary>
-            <div class="template-row">
-              <button type="button" id="export-bom-csv-btn" title="Download this project's parts list as a CSV, for shopping/ordering">Export CSV</button>
-              <button type="button" id="import-bom-csv-btn" title="Bulk-add parts from a CSV file (needs an &quot;Item&quot; column; Quantity/Price/Link/Substitution columns are optional)">Import CSV…</button>
-              <input type="file" id="import-bom-csv-input" accept=".csv,text/csv" hidden>
-            </div>
-            <p class="redirects-hint">Parts, quantities, prices paid — the total build cost below is computed automatically.</p>
-            <div id="bom-list" class="redirects-list"></div>
-            <div id="bom-total" class="bom-total"></div>
-            <div class="bom-form-row">
-              <input id="bom-item" placeholder="Item">
-              <input id="bom-quantity" type="number" step="any" placeholder="Qty" value="1">
-              <input id="bom-price" type="number" step="0.01" placeholder="Price paid">
-            </div>
-            <div class="bom-form-row">
-              <input id="bom-link" placeholder="Where you bought it (URL, optional)">
-              <input id="bom-substitution" placeholder="Substitution notes (optional)">
-            </div>
-            <div class="journal-form-actions">
-              <button type="button" id="save-bom-item-btn" data-tier="primary">Add item</button>
-              <button type="button" id="cancel-bom-item-btn" hidden>Cancel edit</button>
-            </div>
-          </details>
-          <details class="panel-section editor-section" open>
-            <summary>Publishing</summary>
-            <div class="field-row publish-row">
-              <label><input type="checkbox" id="project-published"> Published</label>
-              <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
-              <label>Expires at (blank = never)<input type="datetime-local" id="project-expires-at" title="Automatically unpublishes at this time — the project isn't deleted, just drops out of listings and the direct URL"></label>
-            </div>
-          </details>
-          <details class="panel-section editor-section">
-            <summary>More actions</summary>
-            <div class="panel-action-grid">
-              <button type="button" id="share-preview-project-btn" hidden>Share preview link…</button>
-              <button type="button" id="duplicate-project-btn" hidden>Duplicate</button>
-              <button type="button" id="export-project-md-btn" title="Download the title and body as a .md file">Export .md</button>
-              <button type="button" id="lock-project-btn" title="Locking protects this project from accidental deletion — it doesn't affect editing it directly">Lock</button>
-              <button type="button" id="favorite-project-btn" title="Pin to the top of the command palette">☆ Pin</button>
-            </div>
-            <div class="template-row">
-                <button type="button" id="save-project-template-btn">Save as template</button>
-                <button type="button" id="delete-project-template-btn" title="Delete a template by typing its exact name">Delete template</button>
-            </div>
-            <button id="delete-project" class="scripts-delete">Delete</button>
-          </details>
-          <div class="article-actions editor-primary-actions">
-            <button type="button" id="live-preview-project-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-project" title="Show the project beside the editor as readers see it" hidden>Live preview</button>
-            <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview</a>
-            <select id="project-template-picker" aria-label="Template for a new project" title="Fill a new project's body/summary/tech-stack/status from a saved template">
-              <option value="">Start blank</option>
-            </select>
-            <button id="new-project">New</button>
-            <button id="save-project">Save</button>
-          </div>
-          <div id="preview-links-panel-project" class="preview-links-panel" hidden>
-            <label>Link valid for
-              <select id="preview-link-hours-project">
-                <option value="24">1 day</option>
-                <option value="168" selected>7 days</option>
-                <option value="720">30 days</option>
-              </select>
-            </label>
-            <button type="button" id="create-preview-link-project-btn">Create link</button>
-            <div id="preview-links-list-project" class="preview-links-list"></div>
-          </div>
-        </div>
-        <aside class="live-preview-pane" id="live-preview-project" data-width="fit" hidden aria-label="Live preview of this project">
-          <div class="live-preview-bar">
-            <strong>Live preview</strong>
-            <span class="live-preview-widths" role="group" aria-label="Preview width">
-              <button type="button" class="live-preview-width-btn" data-width="fit" aria-pressed="true" title="Use the pane's full width">Fit</button>
-              <button type="button" class="live-preview-width-btn" data-width="phone" aria-pressed="false" title="A 390px-wide phone screen (scaled down if the pane is narrower)">Phone</button>
-            </span>
-            <button type="button" class="live-preview-refresh" title="Reload the preview now">Refresh</button>
-            <button type="button" class="live-preview-close" aria-label="Close the live preview">×</button>
-          </div>
-          <p class="live-preview-note">Shows the saved project; it refreshes a couple of seconds after you stop typing.</p>
-          <div class="live-preview-frame-wrap"><div class="live-preview-stage"><iframe title="Live preview of this project" src="about:blank"></iframe></div></div>
-        </aside>
-      </div>
-    </div>
-  </div>
-
-  <div id="analytics-modal" class="modal" hidden role="dialog" aria-labelledby="analytics-modal-title">
-    <div class="modal-inner analytics-modal-inner">
-      <header>
-        <h1 id="analytics-modal-title">Analytics</h1>
-        <div class="analytics-range">
-          <button class="range-btn" data-days="7">7d</button>
-          <button class="range-btn" data-days="30">30d</button>
-          <button class="range-btn" data-days="90">90d</button>
-        </div>
-        <button id="export-analytics-btn" title="Download this range as a CSV file">Export CSV</button>
-        <button id="export-analytics-raw-btn" title="Download every individual pageview/event row in this range (not just the top-N breakdowns above)">Export raw events</button>
-        <button id="close-analytics" aria-label="Close Analytics dialog">×</button>
-      </header>
-      <div class="analytics-filters">
-        <select id="analytics-filter-content-type" aria-label="Filter by content type">
-          <option value="">All content types</option>
-          <option value="page">Pages</option>
-          <option value="article">Articles</option>
-          <option value="project">Projects</option>
-        </select>
-        <select id="analytics-filter-device" aria-label="Filter by device"><option value="">All devices</option></select>
-        <select id="analytics-filter-referrer" aria-label="Filter by referrer"><option value="">All referrers</option></select>
-        <button type="button" id="analytics-clear-filters" hidden>Clear filters</button>
-      </div>
-      <div class="analytics-body" tabindex="0" role="region" aria-label="Analytics results">
-        <div class="analytics-tiles">
-          <div class="analytics-tile"><span id="stat-active">–</span><label>Active now (5 min)</label></div>
-          <div class="analytics-tile"><span id="stat-today">–</span><label>Today</label></div>
-          <div class="analytics-tile"><span id="stat-7d">–</span><label>Last 7 days</label></div>
-          <div class="analytics-tile"><span id="stat-30d">–</span><label>Last 30 days</label></div>
-          <div class="analytics-tile"><span id="stat-all">–</span><label>All time</label></div>
-        </div>
-        <h2>Views per day</h2>
-        <p id="analytics-compare" class="analytics-compare" role="status"></p>
-        <div id="analytics-chart" class="analytics-chart"></div>
-        <div class="analytics-columns">
-          <div>
-            <h2>Top pages</h2>
-            <div id="analytics-pages" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Read to the end</h2>
-            <p class="analytics-hint">Of the visits to each article or project, how many scrolled to the end and stayed long enough to have read it.</p>
-            <div id="analytics-reads" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top referrers</h2>
-            <div id="analytics-referrers" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top countries</h2>
-            <div id="analytics-countries" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top locations</h2>
-            <div id="analytics-locations" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Devices</h2>
-            <div id="analytics-devices" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Browsers</h2>
-            <div id="analytics-browsers" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top events</h2>
-            <div id="analytics-events" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top search terms</h2>
-            <div id="analytics-search-terms" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Searches with no results</h2>
-            <div id="analytics-no-result-searches" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top outbound links</h2>
-            <div id="analytics-outbound-links" class="analytics-list"></div>
-          </div>
-          <div>
-            <h2>Top downloads</h2>
-            <div id="analytics-downloads" class="analytics-list"></div>
-          </div>
-          <div class="analytics-wide">
-            <h2>Missing pages</h2>
-            <p class="analytics-hint">Addresses people asked for that don't exist (bots and scanners left out). Add a redirect to send them somewhere real.</p>
-            <div id="analytics-missing-pages" class="analytics-list"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="embed-picker-modal" class="modal" hidden role="dialog" aria-labelledby="embed-picker-title">
-    <div class="modal-inner embed-picker-inner">
-      <header>
-        <h1 id="embed-picker-title">Embed in the text</h1>
-        <button id="close-embed-picker" aria-label="Close Embed dialog">×</button>
-      </header>
-      <div class="embed-picker-body">
-        <label>What to embed
-          <select id="embed-picker-kind">
-            <option value="sim">Simulation</option>
-            <option value="song">Song</option>
-            <option value="scan">3D scan</option>
-          </select>
-        </label>
-        <label>Which one
-          <select id="embed-picker-item"></select>
-        </label>
-        <label id="embed-picker-desc-label">Describe it for people who can't see it (optional)
-          <input id="embed-picker-desc" maxlength="300" placeholder="e.g. A resistor limiting the current to an LED">
-        </label>
-        <p class="embed-picker-hint" id="embed-picker-hint"></p>
-        <div class="article-actions">
-          <button type="button" id="embed-picker-insert">Insert</button>
-          <button type="button" id="embed-picker-cancel">Cancel</button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <input type="text" id="md-image-pick" hidden tabindex="-1" aria-hidden="true">
   <div id="media-modal" class="modal" hidden role="dialog" aria-labelledby="media-modal-title">
     <div class="modal-inner media-modal-inner">
       <header class="media-header">
         <h1 id="media-modal-title">Media Library</h1>
         <div class="media-header-actions">
-          <label class="media-upload-folder-label" title="New uploads go into this folder">Upload to
-            <select id="media-upload-folder"><option value="">No folder</option></select>
-          </label>
-          <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
-          <button type="button" id="media-edit-file-btn" class="media-secondary-btn" title="Open a picture from your computer in the Photo Editor without uploading it first (you can also paste a copied picture while this window is open)">Edit a file…</button>
-          <input type="file" id="media-edit-file-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden tabindex="-1" aria-hidden="true">
           <label class="media-shrink-label" title="Pictures over 3000 pixels on the longest side are made smaller when uploaded, so big phone and camera photos fit the 8 MB limit. Untick to keep full size."><input type="checkbox" id="media-shrink-big" checked> Shrink big photos</label>
           <button type="button" id="media-upload-btn" class="media-primary-btn" title="Choose images to upload, or drag them from your computer onto this window">Upload files</button>
         </div>
@@ -850,94 +206,19 @@
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
       <div class="media-toolbar">
         <div class="media-find-row">
-          <input type="search" id="media-search" placeholder="Search filename or tag…" aria-label="Search filename or tag">
-          <input type="search" id="media-usage-filter" placeholder="Used in…" aria-label="Filter by where it's used">
-          <select id="media-folder-filter" aria-label="Folder"><option value="">All folders</option></select>
-          <select id="media-type-filter" aria-label="Type">
-            <option value="">All types</option>
-            <option value="image">Images</option>
-            <option value="audio">Audio</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div class="media-filter-row">
-          <label class="filter-chip"><input type="checkbox" id="media-unused-filter"> Unused</label>
-          <label class="filter-chip"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates</label>
-          <select id="media-size-filter" aria-label="Image dimensions" title="Filter images by shape (square means within 5% of equal sides), or by size, which is the longest side in pixels. Sizes are recorded when a file is uploaded.">
-            <option value="">Any dimensions</option>
-            <optgroup label="Shape">
-              <option value="landscape">Landscape</option>
-              <option value="portrait">Portrait</option>
-              <option value="square">Square (about 1:1)</option>
-            </optgroup>
-            <optgroup label="Size (longest side)">
-              <option value="large">Large (1600 px or more)</option>
-              <option value="medium">Medium (800 to 1599 px)</option>
-              <option value="small">Small (under 800 px)</option>
-            </optgroup>
-            <option value="unknown">Size not recorded</option>
-          </select>
-          <select id="media-filesize-filter" aria-label="File size" title="Filter by how big the file is on disk">
-            <option value="">Any file size</option>
-            <option value="tiny">Under 100 KB</option>
-            <option value="small">100 KB to 1 MB</option>
-            <option value="medium">1 to 5 MB</option>
-            <option value="huge">Over 5 MB</option>
-          </select>
-          <select id="media-sort" aria-label="Sort by" title="The order the files are shown in">
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="name">Name A to Z</option>
-            <option value="name-desc">Name Z to A</option>
-            <option value="size-desc">Largest first</option>
-            <option value="size-asc">Smallest first</option>
-          </select>
-          <div class="media-saved-searches">
-            <select id="media-saved-search-select" aria-label="Saved searches"><option value="">Saved searches…</option></select>
-            <button type="button" id="media-save-search-btn" class="media-secondary-btn" title="Save the current filters under a name">Save</button>
-            <button type="button" id="media-delete-search-btn" class="media-secondary-btn" title="Delete the selected saved search">Delete</button>
-          </div>
+          <input type="search" id="media-search" placeholder="Search filename or alt text…" aria-label="Search filename or alt text">
         </div>
       </div>
       <p id="media-load-status" class="media-load-status" role="status"></p>
       <div class="media-selection-bar">
-        <label class="media-select-all-label" title="Selects every file currently shown by the filters above, not the whole library"><input type="checkbox" id="media-select-all"> <span id="media-shown-count">Select all</span></label>
+        <label class="media-select-all-label" title="Selects every file currently shown by the search above, not the whole library"><input type="checkbox" id="media-select-all"> <span id="media-shown-count">Select all</span></label>
         <span id="media-selected-count" class="media-selected-count"></span>
         <div class="media-bulk-actions" id="media-bulk-actions" hidden>
-          <button type="button" id="media-bulk-move-btn" class="media-secondary-btn" disabled>Move to folder…</button>
-          <button type="button" id="media-bulk-tag-btn" class="media-secondary-btn" disabled>Add tag…</button>
-          <button type="button" id="media-bulk-alt-btn" class="media-secondary-btn" disabled title="Sets the same alt text on every selected file — for a batch of near-duplicate images, not a substitute for distinct alt text per image. Only updates the Media Library entry; images already placed on a page keep their own alt text until you re-pick or edit that block directly">Set alt text…</button>
           <button type="button" id="media-bulk-clear-btn" class="media-secondary-btn">Clear</button>
           <button type="button" id="media-bulk-delete-btn" class="scripts-delete" disabled>Delete selected</button>
         </div>
       </div>
       <div id="media-grid" class="media-grid"></div>
-    </div>
-  </div>
-
-  <div id="pe-new-doc-modal" class="modal" hidden role="dialog" aria-labelledby="pe-new-doc-modal-title">
-    <div class="modal-inner pe-new-doc-modal-inner">
-      <header>
-        <h1 id="pe-new-doc-modal-title">New blank image</h1>
-        <button id="close-pe-new-doc" aria-label="Close New blank image dialog">×</button>
-      </header>
-      <label>Size
-        <select id="pe-new-doc-preset">
-          <option value="custom">Custom…</option>
-          <option value="1920x1080">1920 × 1080 (widescreen / video frame)</option>
-          <option value="1080x1080">1080 × 1080 (square / social post)</option>
-          <option value="1200x630">1200 × 630 (social share image)</option>
-          <option value="1600x900">1600 × 900 (16:9)</option>
-          <option value="800x600">800 × 600</option>
-        </select>
-      </label>
-      <label>Width (px) <input type="number" id="pe-new-doc-width" min="1" max="2000" value="1200"></label>
-      <label>Height (px) <input type="number" id="pe-new-doc-height" min="1" max="2000" value="630"></label>
-      <p class="pe-new-doc-hint">Starts fully transparent -- there's nothing to "overwrite" yet, so this always saves as a new file.</p>
-      <div class="modal-actions">
-        <button type="button" id="cancel-pe-new-doc">Cancel</button>
-        <button type="button" id="pe-new-doc-create">Create</button>
-      </div>
     </div>
   </div>
 
@@ -949,112 +230,11 @@
       </header>
       <img id="media-info-preview" class="media-info-preview" alt="">
       <div id="media-info-meta" class="media-info-meta"></div>
-      <label>Folder<input id="media-info-folder" placeholder="Blank = none"></label>
-      <label>Tags, comma separated<input id="media-info-tags"></label>
       <label>Alt text (default when this image is inserted)<input id="media-info-alt"></label>
       <label>Caption (default when this image is inserted)<input id="media-info-caption"></label>
       <label>Credit (default when this image is inserted)<input id="media-info-credit"></label>
-      <label>License / usage rights<input id="media-info-license" placeholder="e.g. CC BY 4.0, own photo, licensed stock"></label>
-      <label class="settings-checkbox-row" title="Requires being logged in to view this file's direct URL. Useful for a source file with private/sensitive material that shouldn't be publicly reachable, even by a guessed or leaked link."><input type="checkbox" id="media-info-private"> Private (admin-only — not publicly reachable, even by direct link)</label>
       <div class="article-actions">
         <button id="save-media-info">Save</button>
-        <button type="button" id="media-info-shrink-btn" hidden title="Make this big picture smaller in place. The address stays the same and the current file is kept under Previous versions">Shrink</button>
-        <button type="button" id="media-info-history-btn" title="Metadata history (folder/tags/alt/caption/credit/license)">Metadata history</button>
-        <button type="button" id="media-info-file-versions-btn" title="Previous versions of the file itself, from 'Overwrite original' in the photo editor">File versions</button>
-      </div>
-      <div id="media-info-history-list" class="link-check-results"></div>
-      <div id="media-info-file-versions-list" class="link-check-results"></div>
-    </div>
-  </div>
-
-  <div id="redirects-modal" class="modal" hidden role="dialog" aria-labelledby="redirects-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="redirects-modal-title">Redirects</h1>
-        <button id="close-redirects" aria-label="Close Redirects dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Send an old URL to a new one. Useful after renaming or deleting a page or post.</p>
-        <div class="redirect-form">
-          <input id="redirect-from" placeholder="/old-path">
-          <span class="redirect-arrow">→</span>
-          <input id="redirect-to" placeholder="/new-path or https://...">
-          <select id="redirect-status" aria-label="Redirect type">
-            <option value="301">301 (permanent)</option>
-            <option value="302">302 (temporary)</option>
-            <option value="308">308 (permanent, same method)</option>
-            <option value="307">307 (temporary, same method)</option>
-          </select>
-          <button id="add-redirect-btn">Add</button>
-        </div>
-        <div id="redirects-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="scripts-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="scripts-modal-title">
-    <div class="modal-inner scripts-modal-inner">
-      <header>
-        <h1 id="scripts-modal-title">Scripts</h1>
-        <button id="close-scripts" aria-label="Close Scripts dialog">×</button>
-      </header>
-      <div class="scripts-layout">
-        <aside class="scripts-side" aria-label="Saved scripts">
-          <div class="scripts-side-actions">
-            <button id="script-new" type="button">New script</button>
-            <button id="script-new-nodes" type="button">New node graph</button>
-            <label class="scripts-sr" for="script-template">Start from a template</label>
-            <select id="script-template"><option value="">Start from a template…</option></select>
-          </div>
-          <ul id="scripts-list" class="scripts-list"></ul>
-          <details class="scripts-reference">
-            <summary>Helpers you can call</summary>
-            <p class="scripts-hint">Click one to add it to the script.</p>
-            <ul id="scripts-reference-list"></ul>
-          </details>
-        </aside>
-        <section class="scripts-main" aria-label="Script editor">
-          <div class="scripts-fields">
-            <label class="scripts-sr" for="script-name">Script name</label>
-            <input id="script-name" placeholder="Script name" maxlength="60" autocomplete="off">
-            <label class="scripts-sr" for="script-description">What this script does</label>
-            <input id="script-description" placeholder="What it does (optional)" maxlength="300" autocomplete="off">
-          </div>
-          <div id="script-modes" class="scripts-modes" hidden>
-            <div role="tablist" aria-label="How to view this script">
-              <button id="script-tab-nodes" type="button" role="tab" aria-selected="true" aria-controls="script-nodes">Nodes</button>
-              <button id="script-tab-code" type="button" role="tab" aria-selected="false" aria-controls="script-editor">Generated code</button>
-            </div>
-            <button id="script-detach" type="button" title="Turn it into a normal script you edit by hand">Edit as code…</button>
-          </div>
-          <div id="script-nodes" class="scripts-nodes" role="tabpanel" aria-labelledby="script-tab-nodes" hidden></div>
-          <div id="script-editor" class="scripts-editor" role="tabpanel"></div>
-          <div class="scripts-toolbar">
-            <button id="script-run" type="button">Preview</button>
-            <button id="script-apply" type="button">Apply…</button>
-            <button id="script-stop" type="button" hidden>Stop</button>
-            <button id="script-save" type="button">Save</button>
-            <button id="script-delete" type="button" class="scripts-delete" hidden>Delete</button>
-            <span id="script-status" class="scripts-status" role="status" aria-live="polite"></span>
-          </div>
-          <div id="script-confirm" class="scripts-confirm" role="alertdialog" aria-labelledby="script-confirm-text" hidden>
-            <p id="script-confirm-text"></p>
-            <div>
-              <button id="script-confirm-go" type="button">Apply for real</button>
-              <button id="script-confirm-cancel" type="button">Cancel</button>
-            </div>
-          </div>
-          <div class="scripts-results">
-            <div class="scripts-pane">
-              <h2>Output</h2>
-              <pre id="script-output" class="scripts-output" role="log" tabindex="0" aria-label="Script output"></pre>
-            </div>
-            <div class="scripts-pane">
-              <h2>Changes <span id="script-change-count" class="scripts-count"></span></h2>
-              <ul id="script-changes" class="scripts-changes" tabindex="0" aria-label="Changes the script made or would make"></ul>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   </div>
@@ -1081,15 +261,6 @@
         <div class="fb-columns">
           <section class="fb-pane fb-left" aria-labelledby="fb-todo-title">
             <h2 id="fb-todo-title">To do <span id="features-todo-count" class="fb-count"></span></h2>
-            <form id="features-request-form" class="fb-request-form">
-              <label class="fb-sr-label" for="features-request-title">What needs doing?</label>
-              <input id="features-request-title" placeholder="Add something: a bug, an idea, what needs attention" maxlength="120" autocomplete="off">
-              <label class="fb-sr-label" for="features-request-kind">What kind is it?</label>
-              <select id="features-request-kind"><option value="idea">Idea</option><option value="bug">Bug</option><option value="attention">Needs attention</option></select>
-              <label class="fb-sr-label" for="features-request-notes">Details (optional)</label>
-              <textarea id="features-request-notes" placeholder="Details (optional)" rows="2" maxlength="1000"></textarea>
-              <button type="submit">Add</button>
-            </form>
             <div id="features-kinds" class="fb-kinds" role="group" aria-label="Filter by kind"></div>
             <div class="fb-scroll">
               <div id="features-todo" class="fb-groups"></div>
@@ -1116,34 +287,6 @@
     </div>
   </div>
 
-  <div id="dashboard-modal" class="modal" hidden role="dialog" aria-labelledby="dashboard-modal-title">
-    <div class="modal-inner dashboard-modal-inner">
-      <header>
-        <h1 id="dashboard-modal-title">Dashboard</h1>
-        <button id="close-dashboard" aria-label="Close Dashboard dialog">×</button>
-      </header>
-      <div id="dashboard-body" class="dashboard-body" aria-live="polite"></div>
-    </div>
-  </div>
-
-  <div id="trash-modal" class="modal" hidden role="dialog" aria-labelledby="trash-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="trash-modal-title">Trash</h1>
-        <button id="close-trash" aria-label="Close Trash dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Deleted pages, articles and projects land here first — restore them or delete forever, which also removes their saved versions. Nothing here is reachable on the live site.</p>
-        <h2>Pages <span class="trash-section-actions"><button type="button" class="restore-all-trash-btn" data-kind="page" data-base-path="/pages">Restore all</button><button type="button" class="danger empty-trash-btn" data-kind="page" data-base-path="/pages">Empty pages trash</button></span></h2>
-        <div id="trash-pages-list" class="redirects-list"></div>
-        <h2>Articles <span class="trash-section-actions"><button type="button" class="restore-all-trash-btn" data-kind="article" data-base-path="/articles">Restore all</button><button type="button" class="danger empty-trash-btn" data-kind="article" data-base-path="/articles">Empty articles trash</button></span></h2>
-        <div id="trash-articles-list" class="redirects-list"></div>
-        <h2>Projects <span class="trash-section-actions"><button type="button" class="restore-all-trash-btn" data-kind="project" data-base-path="/projects">Restore all</button><button type="button" class="danger empty-trash-btn" data-kind="project" data-base-path="/projects">Empty projects trash</button></span></h2>
-        <div id="trash-projects-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
   <div id="settings-modal" class="modal" hidden role="dialog" aria-labelledby="settings-modal-title">
     <div class="modal-inner settings-modal-inner">
       <header>
@@ -1151,187 +294,15 @@
         <button id="close-settings" aria-label="Close Site Settings dialog">×</button>
       </header>
       <div class="settings-tabs" role="tablist">
-        <button type="button" class="settings-tab is-active" data-panel="appearance" role="tab" aria-selected="true">Appearance</button>
-        <button type="button" class="settings-tab" data-panel="headerfooter" role="tab" aria-selected="false">Header &amp; footer</button>
-        <button type="button" class="settings-tab" data-panel="sharing" role="tab" aria-selected="false">Sharing &amp; SEO</button>
-        <button type="button" class="settings-tab" data-panel="integrations" role="tab" aria-selected="false">Integrations</button>
-        <button type="button" class="settings-tab" data-panel="songs" role="tab" aria-selected="false">Songs</button>
+        <button type="button" class="settings-tab is-active" data-panel="footer" role="tab" aria-selected="true">Footer</button>
+        <button type="button" class="settings-tab" data-panel="sharing" role="tab" aria-selected="false">Sharing</button>
         <button type="button" class="settings-tab" data-panel="maintenance" role="tab" aria-selected="false">Maintenance</button>
-        <button type="button" class="settings-tab" data-panel="tools" role="tab" aria-selected="false">Tools</button>
-        <button type="button" class="settings-tab" data-panel="logs" role="tab" aria-selected="false">Logs</button>
+        <button type="button" class="settings-tab" data-panel="errors" role="tab" aria-selected="false">Errors</button>
         <button type="button" class="settings-tab" data-panel="backups" role="tab" aria-selected="false">Backups</button>
         <button type="button" class="settings-tab" data-panel="outline" role="tab" aria-selected="false">Outline</button>
       </div>
       <div class="settings-body">
-        <div class="settings-panel" data-panel="appearance">
-          <section class="settings-group">
-            <h2>Colors</h2>
-            <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
-          <div class="theme-preset-row" id="theme-preset-row" role="tablist" aria-label="Theme presets">
-            <button type="button" class="theme-preset-btn" data-preset="coral" style="--preset-bg:#0c0a16;--preset-accent:#ff7a45;" role="tab">Coral Violet</button>
-            <button type="button" class="theme-preset-btn" data-preset="ocean" style="--preset-bg:#0a1420;--preset-accent:#3fb8e8;" role="tab">Ocean</button>
-            <button type="button" class="theme-preset-btn" data-preset="forest" style="--preset-bg:#0a140f;--preset-accent:#4ade80;" role="tab">Forest</button>
-            <button type="button" class="theme-preset-btn" data-preset="sunset" style="--preset-bg:#1a0a14;--preset-accent:#ff4d94;" role="tab">Sunset</button>
-            <button type="button" class="theme-preset-btn" data-preset="mono" style="--preset-bg:#121212;--preset-accent:#d8d8d8;" role="tab">Monochrome</button>
-          </div>
-          <div class="theme-color-grid">
-            <label class="theme-color-field">Accent<input id="settings-accent" type="color" value="#ff7a45"></label>
-            <label class="theme-color-field">Background<input id="settings-bg" type="color" value="#0c0a16"></label>
-            <label class="theme-color-field">Text<input id="settings-text" type="color" value="#f4eefc"></label>
-            <div class="theme-color-field">
-              <label for="settings-border">Border</label>
-              <input id="settings-border" type="color" value="#2a2438">
-              <label class="theme-border-auto" title="Derive the border from the background and text colors instead of a fixed color"><input type="checkbox" id="settings-border-auto"> Match theme</label>
-            </div>
-          </div>
-          <div id="theme-contrast-check" class="theme-contrast-check"></div>
-          </section>
-          <section class="settings-group">
-            <h2>Buttons &amp; controls</h2>
-            <p class="settings-hint">One shape for every button, tab, chip and field on the public site and in this admin.</p>
-            <div class="control-preset-layout">
-              <div class="control-preset-list">
-          <div class="control-preset" data-setting="control_shape">
-            <span class="control-preset-label" id="control_shape-label">Button shape</span>
-            <div class="seg-control" role="group" aria-labelledby="control_shape-label">
-              <button type="button" data-value="chunky" aria-pressed="false">Chunky</button>
-              <button type="button" data-value="pill" aria-pressed="false">Pill</button>
-              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
-              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
-              <button type="button" data-value="square" aria-pressed="false">Square</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="control_size">
-            <span class="control-preset-label" id="control_size-label">Button size</span>
-            <div class="seg-control" role="group" aria-labelledby="control_size-label">
-              <button type="button" data-value="compact" aria-pressed="false">Compact</button>
-              <button type="button" data-value="regular" aria-pressed="false">Regular</button>
-              <button type="button" data-value="roomy" aria-pressed="false">Roomy</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="control_outline">
-            <span class="control-preset-label" id="control_outline-label">Outline weight</span>
-            <div class="seg-control" role="group" aria-labelledby="control_outline-label">
-              <button type="button" data-value="chunky" aria-pressed="false">Chunky (shadow)</button>
-              <button type="button" data-value="thin" aria-pressed="false">Thin</button>
-              <button type="button" data-value="bold" aria-pressed="false">Bold</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="field_shape">
-            <span class="control-preset-label" id="field_shape-label">Text field corners</span>
-            <div class="seg-control" role="group" aria-labelledby="field_shape-label">
-              <button type="button" data-value="chunky" aria-pressed="false">Chunky</button>
-              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
-              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
-              <button type="button" data-value="square" aria-pressed="false">Square</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="card_shape">
-            <span class="control-preset-label" id="card_shape-label">Card &amp; embed corners</span>
-            <div class="seg-control" role="group" aria-labelledby="card_shape-label">
-              <button type="button" data-value="round" aria-pressed="false">Round</button>
-              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
-              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
-              <button type="button" data-value="square" aria-pressed="false">Square</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="space_scale">
-            <span class="control-preset-label" id="space_scale-label">Spacing scale (padding steps)</span>
-            <div class="seg-control" role="group" aria-labelledby="space_scale-label">
-              <button type="button" data-value="compact" aria-pressed="false">Compact</button>
-              <button type="button" data-value="roomy" aria-pressed="false">Roomy</button>
-            </div>
-          </div>
-          <div class="control-preset" data-setting="shadow_strength">
-            <span class="control-preset-label" id="shadow_strength-label">Shadow strength</span>
-            <div class="seg-control" role="group" aria-labelledby="shadow_strength-label">
-              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
-              <button type="button" data-value="strong" aria-pressed="false">Strong</button>
-            </div>
-          </div>
-              </div>
-              <div class="control-preview" id="control-preview" aria-label="Preview">
-                <span class="control-preview-label">Preview</span>
-                <div class="control-preview-card">
-                  <strong>Card title</strong>
-                  <p>Cards, embeds and callouts use these corners.</p>
-                  <input type="text" placeholder="Text field" tabindex="-1" aria-hidden="true">
-                  <div class="control-preview-buttons">
-                    <span class="btn">Primary</span>
-                    <span class="btn btn-secondary">Secondary</span>
-                  </div>
-                  <div class="control-preview-chips"><span class="tag">#tag</span><span class="tag">#another</span></div>
-                </div>
-              </div>
-            </div>
-          </section>
-          <section class="settings-group">
-            <h2>Typography</h2>
-          <label>Body font
-            <select id="settings-font">
-              <option value="">Default (system sans)</option>
-              <option value="sans">Sans-serif</option>
-              <option value="serif">Serif</option>
-              <option value="mono">Monospace</option>
-              <option value="rounded">Rounded (Trebuchet)</option>
-              <option value="custom">Custom (uploaded below)</option>
-            </select>
-          </label>
-          <p id="settings-font-preview" class="font-preview">The quick brown fox jumps over the lazy dog.</p>
-          <label>Heading font (blank = same as body)
-            <select id="settings-heading-font">
-              <option value="">Same as body</option>
-              <option value="sans">Sans-serif</option>
-              <option value="serif">Serif</option>
-              <option value="mono">Monospace</option>
-              <option value="rounded">Rounded (Trebuchet)</option>
-              <option value="custom">Custom (uploaded below)</option>
-            </select>
-          </label>
-          <p id="settings-heading-font-preview" class="font-preview">The quick brown fox jumps over the lazy dog.</p>
-          <div class="tts-audio-field">
-            <label>Custom font file (optional — WOFF2/WOFF/TTF/OTF, 5MB max). Select "Custom" above to use it.</label>
-            <input id="settings-custom-font-name" type="text" placeholder="Font name (e.g. My Brand Sans)">
-            <input type="file" id="settings-custom-font-file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
-            <button type="button" id="settings-custom-font-upload-btn">Upload font…</button>
-            <button type="button" id="settings-custom-font-remove-btn" hidden>Remove custom font</button>
-            <span id="settings-custom-font-status"></span>
-          </div>
-          </section>
-          <section class="settings-group">
-            <h2>Layout</h2>
-          <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
-            <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
-          </label>
-          </section>
-        </div>
-        <div class="settings-panel" data-panel="headerfooter" hidden>
-          <section class="settings-group">
-            <h2>Home page</h2>
-            <label class="settings-checkbox-row"><input type="checkbox" id="settings-home-tools-off"> Hide the &quot;Try the tools&quot; cards at the bottom of the home page</label>
-          </section>
-          <section class="settings-group">
-            <h2>Site name</h2>
-          <label>Shown at the top left of every page. Blank = dominick.dominick. Each dot is drawn in the accent colour.
-            <input id="settings-brand" type="text" maxlength="40" placeholder="dominick.dominick" autocomplete="off">
-          </label>
-          </section>
-          <section class="settings-group">
-            <h2>Navigation</h2>
-          <p class="settings-hint">The links in the bar at the top, in order. Move a link with the arrows, nest it under another one (one level of dropdown), rename it, hide it from visitors, or take it out of the bar. Pages that are not in the bar are listed under "Add a page". Both Save buttons save these changes.</p>
-          <div id="nav-editor" class="nav-editor"></div>
-          <div class="nav-editor-add">
-            <label>Add a page to the bar <select id="nav-add-select"><option value="">Choose a page…</option></select></label>
-            <button type="button" id="nav-add-btn">Add</button>
-          </div>
-          <div class="nav-editor-actions">
-            <button type="button" id="nav-save-btn" class="btn">Save navigation</button>
-            <span id="nav-save-status" class="settings-hint" role="status"></span>
-          </div>
-          <h3 class="nav-editor-subtitle">Built-in links</h3>
-          <p class="settings-hint">These follow your own links above. A page of your own with the same address (for example /projects) takes the place of the built-in one. Saved with the Save button at the bottom (that one saves the links above as well).</p>
-          <div id="nav-builtin-editor" class="nav-editor"></div>
-          </section>
+        <div class="settings-panel" data-panel="footer">
           <section class="settings-group">
             <h2>Footer</h2>
           <label>Footer text, shown at the bottom of every page. Blank = a small © line. Supports **bold**, *italic*, [link](url).
@@ -1339,7 +310,7 @@
           </label>
           <p class="settings-hint">Link columns (optional): one link per line as <code>Label | /page</code> or <code>Label | https://…</code>. Up to 3 columns of 8 links; empty columns are skipped. With links set and the text above left blank, no © line is added.</p>
           <div class="footer-editor">
-            <fieldset><legend>Column 1</legend><input id="settings-footer-col-title-1" type="text" placeholder="Title (optional)" maxlength="40" aria-label="Column 1 title"><textarea id="settings-footer-col-links-1" rows="4" spellcheck="false" placeholder="Projects | /projects" aria-label="Column 1 links"></textarea></fieldset>
+            <fieldset><legend>Column 1</legend><input id="settings-footer-col-title-1" type="text" placeholder="Title (optional)" maxlength="40" aria-label="Column 1 title"><textarea id="settings-footer-col-links-1" rows="4" spellcheck="false" placeholder="Studio | /studio" aria-label="Column 1 links"></textarea></fieldset>
             <fieldset><legend>Column 2</legend><input id="settings-footer-col-title-2" type="text" placeholder="Title (optional)" maxlength="40" aria-label="Column 2 title"><textarea id="settings-footer-col-links-2" rows="4" spellcheck="false" aria-label="Column 2 links"></textarea></fieldset>
             <fieldset><legend>Column 3</legend><input id="settings-footer-col-title-3" type="text" placeholder="Title (optional)" maxlength="40" aria-label="Column 3 title"><textarea id="settings-footer-col-links-3" rows="4" spellcheck="false" aria-label="Column 3 links"></textarea></fieldset>
           </div>
@@ -1351,71 +322,10 @@
         </div>
         <div class="settings-panel" data-panel="sharing" hidden>
           <h2>Share image</h2>
-          <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
+          <label>Default share image (og:image)<br>Used on any page that doesn't set its own.
             <input id="settings-og-image" type="text" placeholder="https://...">
-            <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#settings-og-image">Edit / crop for social…</button>
+            <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button>
           </label>
-          <h2>Empty States</h2>
-          <label>Search — no results<br>Shown on /search when a query matches nothing. Blank = default.
-            <input id="settings-empty-search" type="text" placeholder='No results for "{query}".'>
-          </label>
-          <label>Archive — nothing published<br>Shown on /archive when there's nothing published yet. Blank = default.
-            <input id="settings-empty-archive" type="text" placeholder="Nothing published yet.">
-          </label>
-          <label>Topics — no tagged content<br>Shown on /topics when nothing has a tag yet. Blank = default.
-            <input id="settings-empty-topics" type="text" placeholder="No tagged content yet.">
-          </label>
-        </div>
-        <div class="settings-panel" data-panel="integrations" hidden>
-          <h2>Advanced</h2>
-          <label>Custom &lt;head&gt; code<br>Inserted as-is on every page — for a script tag, verification meta tag, etc. Trusted content only.
-            <textarea id="settings-custom-head" rows="3" placeholder="&lt;script&gt;...&lt;/script&gt;"></textarea>
-          </label>
-          <h2>Webhooks</h2>
-          <label>Webhook URLs (one per line)<br>Each one gets its own POST when an article is published; one scheduled for later is sent by the daily run (08:00 UTC) after its time has passed. Blank = off.
-            <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
-          </label>
-          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
-          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-backup-failure"> Also call them when the daily backup fails (a JSON message with event "backup_failed"; leave off if these are build hooks)</label>
-          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-login-failures"> Also call them after 5 wrong passwords in 15 minutes from one connection (a JSON message with event "login_failures", no address in it; leave off if these are build hooks)</label>
-          <h2>Webhook Deliveries</h2>
-          <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
-          <button type="button" id="load-webhook-deliveries-btn">Refresh</button>
-          <div id="webhook-deliveries-list" class="link-check-results"></div>
-        </div>
-        <div class="settings-panel" data-panel="songs" hidden>
-          <section class="settings-group">
-            <h2>Song settings</h2>
-            <p class="settings-hint">What a new song starts with. Songs you already have are not changed, and you can still change all of this inside a song.</p>
-            <label>Default tempo (BPM)
-              <input id="settings-song-tempo" type="number" min="40" max="240" step="1" inputmode="numeric" placeholder="120" data-no-reset>
-            </label>
-            <p class="settings-hint">A whole number from 40 to 240. Leave it empty for 120.</p>
-            <label>Default length (bars)
-              <input id="settings-song-bars" type="number" min="1" max="64" step="1" inputmode="numeric" placeholder="Grows as you record" data-no-reset>
-            </label>
-            <p class="settings-hint">A whole number from 1 to 64. Leave it empty and a song is as long as the music in it.</p>
-            <label>Default drum kit
-              <select id="settings-song-kit">
-                <option value="">Acoustic (built in)</option>
-                <option value="acoustic">Acoustic</option>
-                <option value="electronic">Electronic</option>
-                <option value="808">808</option>
-                <option value="909">909</option>
-                <option value="house">House</option>
-                <option value="techno">Techno</option>
-                <option value="trap">Trap</option>
-                <option value="boombap">Boom bap</option>
-                <option value="lofi">Lo-fi</option>
-                <option value="rock">Rock</option>
-                <option value="jazz">Jazz</option>
-                <option value="dnb">Drum and bass</option>
-                <option value="chip">8-bit</option>
-                <option value="industrial">Industrial</option>
-                <option value="soft">Soft</option>
-              </select>
-            </label>
-          </section>
         </div>
         <div class="settings-panel" data-panel="maintenance" hidden>
           <h2>Maintenance mode</h2>
@@ -1424,31 +334,7 @@
             <input id="settings-maintenance-message" type="text" placeholder="We'll be back shortly.">
           </label>
         </div>
-        <div class="settings-panel" data-panel="tools" hidden>
-          <h2>Find &amp; Replace</h2>
-          <label style="margin-bottom:0;">Searches article titles/bodies, project titles/summaries/bodies, and page block text (headings, text, quotes, buttons, project-card blocks, links, changelog entries — not raw HTML/CSS blocks). Always preview before applying.</label>
-          <div class="find-replace-row">
-            <input type="text" id="find-replace-find" placeholder="Find text" spellcheck="false">
-            <input type="text" id="find-replace-replace" placeholder="Replace with" spellcheck="false">
-          </div>
-          <div class="find-replace-actions">
-            <button type="button" id="find-replace-preview-btn">Preview</button>
-            <button type="button" id="find-replace-apply-btn" class="scripts-delete" disabled>Apply to all matches</button>
-          </div>
-          <div id="find-replace-results" class="link-check-results"></div>
-          <h2>Media maintenance</h2>
-          <label style="margin-bottom:0;">One-time fixes for uploads made before these features existed. Safe to run again.</label>
-          <div class="find-replace-actions">
-            <button type="button" id="media-scan-duplicates-btn" title="Hash any uploads from before duplicate detection existed">Scan for duplicates</button>
-            <button type="button" id="media-backfill-dimensions-btn" title="Read width/height from any uploads made before that existed, so their pages can reserve the right space while they load">Backfill image dimensions</button>
-          </div>
-        </div>
-        <div class="settings-panel" data-panel="logs" hidden>
-          <h2>Activity Log</h2>
-          <label style="margin-bottom:0;">Recent admin actions on this site.</label>
-          <button type="button" id="load-activity-btn">Refresh</button>
-          <label class="settings-checkbox-row"><input type="checkbox" id="activity-security-only-filter"> Security events only (logins, logouts, failed attempts)</label>
-          <div id="activity-log-list" class="link-check-results"></div>
+        <div class="settings-panel" data-panel="errors" hidden>
           <h2>Error Log</h2>
           <label style="margin-bottom:0;">Uncaught errors the live site has hit.</label>
           <button type="button" id="load-errors-btn">Refresh</button>
@@ -1477,7 +363,7 @@
         </div>
         <div class="settings-panel" data-panel="backups" hidden>
           <h2>Backup</h2>
-          <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
+          <label style="margin-bottom:0;">Download everything — pages, blocks, settings — as one file.</label>
           <button type="button" id="export-btn">Download backup</button>
           <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
           <button type="button" id="import-btn" class="scripts-delete">Restore from file…</button>
@@ -1485,14 +371,6 @@
           <button type="button" id="run-backup-now-btn">Run a backup now</button>
           <div id="scheduled-backup-status"></div>
           <div id="scheduled-backups-list" class="link-check-results"></div>
-          <h2>Storage</h2>
-          <label style="margin-bottom:0;">R2 bucket usage and an approximate database size.</label>
-          <button type="button" id="load-storage-usage-btn">Refresh</button>
-          <div id="storage-usage-summary"></div>
-          <div id="storage-usage-list" class="link-check-results"></div>
-          <label style="margin-bottom:0;">Saved versions that belong to pages, articles, projects or files already deleted for good (before deleting also removed them).</label>
-          <button type="button" id="clean-orphan-history-btn">Clean up orphaned history…</button>
-          <div id="orphan-history-status" role="status" aria-live="polite"></div>
         </div>
       </div>
       <div class="settings-save-bar">
@@ -1504,7 +382,7 @@
   <div id="command-modal" class="modal command-modal" hidden role="dialog" aria-label="Command palette">
     <div class="modal-inner command-modal-inner">
       <div class="command-input-row">
-        <input id="command-input" class="command-input" role="combobox" aria-expanded="true" aria-controls="command-results" aria-autocomplete="list" placeholder="Search pages, articles, blocks… or jump to an action">
+        <input id="command-input" class="command-input" role="combobox" aria-expanded="true" aria-controls="command-results" aria-autocomplete="list" placeholder="Search blocks, settings… or jump to an action">
         <button type="button" id="close-command" aria-label="Close Command palette dialog">×</button>
       </div>
       <div id="command-results" class="command-results" role="listbox" aria-label="Search results"></div>
@@ -1518,8 +396,8 @@
         <button id="close-shortcuts" aria-label="Close Keyboard shortcuts dialog">×</button>
       </header>
       <div class="shortcuts-list">
-        <div><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd><span>Open command palette (search or jump to anything)</span></div>
-        <div><kbd>Ctrl/⌘</kbd> + <kbd>S</kbd><span>Save the topmost editor: article, simulation, song, 3D scan, site settings, or the open page's settings (the photo editor has its own Save as new / Overwrite buttons)</span></div>
+        <div><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd><span>Open command palette (jump to a setting, a block or an action)</span></div>
+        <div><kbd>Ctrl/⌘</kbd> + <kbd>S</kbd><span>Save the topmost editor: site settings, a file's details, or the open page's settings</span></div>
         <div><kbd>?</kbd><span>Show this shortcuts reference</span></div>
         <div><kbd>Esc</kbd><span>Close the command palette</span></div>
         <div><kbd>Delete</kbd> / <kbd>Backspace</kbd><span>Delete the selected block (or every selected block in a multi-select) — locked blocks are protected</span></div>
@@ -1544,21 +422,6 @@
     </div>
   </div>
 
-  <div id="prepublish-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="prepublish-title">
-    <div class="modal-inner prepublish-inner">
-      <header>
-        <h1 id="prepublish-title">Before you publish</h1>
-        <button id="close-prepublish" aria-label="Go back and keep editing">×</button>
-      </header>
-      <p id="prepublish-intro" class="settings-hint"></p>
-      <ul id="prepublish-list" class="prepublish-list"></ul>
-      <div class="typed-confirm-actions">
-        <button type="button" id="prepublish-back">Go back and fix</button>
-        <button type="button" id="prepublish-go">Publish anyway</button>
-      </div>
-    </div>
-  </div>
-
   <div id="revisions-modal" class="modal" hidden role="dialog" aria-labelledby="revisions-modal-title">
     <div class="modal-inner revisions-modal-inner">
       <header>
@@ -1570,569 +433,6 @@
       <div id="revisions-diff" class="revisions-diff" hidden>
         <button type="button" id="revisions-diff-back">← Back to list</button>
         <div id="revisions-diff-body"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="photo-editor-modal" class="modal photo-editor-modal" hidden role="dialog" aria-labelledby="photo-editor-modal-title">
-    <div class="modal-inner photo-editor-inner">
-      <header>
-        <h1 id="photo-editor-modal-title">Photo Editor</h1>
-        <span class="editor-header-end">
-          <button type="button" class="editor-help-btn" data-help="photo" aria-label="Help for the Photo editor" title="Tips and shortcuts for this editor">?</button>
-          <button id="close-photo-editor" aria-label="Close Photo editor dialog">×</button>
-        </span>
-      </header>
-      <div class="pe-body">
-        <div class="pe-workspace">
-          <div class="pe-toolbar">
-            <div class="pe-tool-group" id="pe-zoom-group" role="group" aria-label="Zoom and pan">
-              <span class="pe-group-label">Zoom</span>
-              <span id="pe-zoom-status" class="pe-zoom-status" role="status"></span>
-              <button type="button" id="pe-zoom-out" aria-label="Zoom out" title="Zoom out (-, or Ctrl+wheel)">−</button>
-              <button type="button" id="pe-zoom-reset" aria-pressed="true" title="Fit the whole image in the window (0)">Fit</button>
-              <button type="button" id="pe-zoom-100" aria-pressed="false" title="Actual pixels (1)">100%</button>
-              <button type="button" id="pe-zoom-in" aria-label="Zoom in" title="Zoom in (+, or Ctrl+wheel)">+</button>
-              <select id="pe-guides-mode" aria-label="Guides" title="Show composition guides over the image. They are only a viewing aid and never become part of the image or the export.">
-                <option value="off">Guides: off</option>
-                <option value="thirds">Rule of thirds</option>
-                <option value="safe">Text safe area (10% margin)</option>
-                <option value="center">Centre lines</option>
-                <option value="all">All guides</option>
-              </select>
-              <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">Pan</button>
-            </div>
-            <div class="pe-tool-group pe-layers-group" id="pe-layers-group" role="group" aria-label="Layers">
-              <span class="pe-group-label">Layers</span>
-              <span id="pe-layer-count" class="pe-layer-count"></span>
-              <button type="button" id="pe-layer-add" title="Add an empty layer above the current one">+ Layer</button>
-              <button type="button" id="pe-layer-duplicate" title="Copy the current layer">Duplicate</button>
-              <button type="button" id="pe-layer-delete" title="Delete the current layer (Undo brings it back)">Delete</button>
-              <button type="button" id="pe-layer-merge" title="Merge the current layer into the one below it">Merge down</button>
-              <button type="button" id="pe-layer-flatten" title="Combine all layers into one">Flatten</button>
-              <button type="button" id="pe-layer-up" aria-label="Move layer up" title="Move the current layer up">↑</button>
-              <button type="button" id="pe-layer-down" aria-label="Move layer down" title="Move the current layer down">↓</button>
-              <button type="button" id="pe-layer-rename" title="Rename the current layer">Rename</button>
-              <button type="button" id="pe-mask-add" title="Add a mask to the current layer: paint or erase in it to show or hide parts of the layer without deleting them">+ Mask</button>
-              <button type="button" id="pe-mask-edit" aria-pressed="false" title="Switch between painting the layer and painting its mask (Paint shows the layer, Erase hides it)">Edit mask</button>
-              <button type="button" id="pe-mask-toggle" title="Turn the mask off to see the whole layer, or back on">Mask on</button>
-              <button type="button" id="pe-mask-invert" title="Swap the shown and hidden parts of the mask">Invert mask</button>
-              <label title="While editing a mask, tint the hidden parts of the layer red"><input type="checkbox" id="pe-mask-show" checked> Show mask</label>
-              <button type="button" id="pe-mask-delete" title="Remove the mask (Undo brings it back); the layer shows in full">Delete mask</button>
-              <label title="How see-through the current layer is">Opacity <input type="range" id="pe-layer-opacity" min="0" max="100" value="100"><output id="pe-layer-opacity-val" for="pe-layer-opacity" class="pe-layer-opacity-val">100%</output></label>
-              <label title="How the current layer mixes with the layers below it">Blend <select id="pe-layer-blend" aria-label="Layer blend mode">
-                <option value="normal">Normal</option>
-                <option value="multiply">Multiply</option>
-                <option value="screen">Screen</option>
-                <option value="overlay">Overlay</option>
-                <option value="darken">Darken</option>
-                <option value="lighten">Lighten</option>
-              </select></label>
-              <label title="A colour tag for the current layer, to find it faster">Label <select id="pe-layer-color" aria-label="Layer colour label">
-                <option value="">None</option>
-                <option value="red">Red</option>
-                <option value="orange">Orange</option>
-                <option value="yellow">Yellow</option>
-                <option value="green">Green</option>
-                <option value="blue">Blue</option>
-                <option value="purple">Purple</option>
-              </select></label>
-              <input type="search" id="pe-layer-filter" class="pe-layer-filter" placeholder="Find layer…" maxlength="40" aria-label="Find layers by name" autocomplete="off">
-              <select id="pe-layer-filter-color" aria-label="Show only layers with this colour label" title="Show only layers with this colour label">
-                <option value="">All labels</option>
-                <option value="none">No label</option>
-                <option value="red">Red</option>
-                <option value="orange">Orange</option>
-                <option value="yellow">Yellow</option>
-                <option value="green">Green</option>
-                <option value="blue">Blue</option>
-                <option value="purple">Purple</option>
-              </select>
-              <ul id="pe-layer-list" class="pe-layer-list" aria-label="Layers, top layer first"></ul>
-              <span id="pe-layer-note" class="pe-layer-note" role="status"></span>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Crop</span>
-              <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
-              <select id="pe-crop-ratio" aria-label="Crop shape" title="Constrain the crop selection to a fixed aspect ratio">
-                <option value="free">Free</option>
-                <option value="1:1">1:1</option>
-                <option value="4:3">4:3</option>
-                <option value="3:4">3:4</option>
-                <option value="3:2">3:2</option>
-                <option value="2:3">2:3</option>
-                <option value="16:9">16:9</option>
-                <option value="9:16">9:16</option>
-                <optgroup label="Site image templates (crop, then resize)">
-                  <option value="1200:630" data-size="1200x630">Social share 1200×630</option>
-                  <option value="1600:900" data-size="1600x900">Project cover 1600×900</option>
-                  <option value="1600:800" data-size="1600x800">Article header 1600×800</option>
-                  <option value="800:800" data-size="800x800">Profile / square 800×800</option>
-                </optgroup>
-                <optgroup label="Phone and desktop variants (crop, then resize)">
-                  <option value="1080:1350" data-size="1080x1350">Phone portrait 1080×1350 (4:5)</option>
-                  <option value="1080:1920" data-size="1080x1920">Phone full-screen 1080×1920 (9:16)</option>
-                  <option value="1920:1080" data-size="1920x1080">Desktop hero 1920×1080 (16:9)</option>
-                  <option value="1920:600" data-size="1920x600">Desktop banner 1920×600 (16:5)</option>
-                </optgroup>
-              </select>
-              <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
-              <span id="pe-crop-note" class="pe-crop-note" role="status" aria-live="polite"></span>
-            </div>
-            <div class="pe-tool-group" id="pe-selection-group" role="group" aria-label="Selection">
-              <span class="pe-group-label">Selection</span>
-              <button type="button" class="pe-tool" data-tool="sel-rect" aria-label="Rectangle selection tool" title="Drag a rectangular selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">▭ Rect</button>
-              <button type="button" class="pe-tool" data-tool="sel-ellipse" aria-label="Ellipse selection tool" title="Drag an elliptical selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">◯ Ellipse</button>
-              <button type="button" class="pe-tool" data-tool="sel-lasso" aria-label="Freehand lasso selection tool" title="Draw a freehand selection. Hold Shift to add, Alt to subtract (or pick a Mode).">Lasso</button>
-              <button type="button" class="pe-tool" data-tool="sel-poly" aria-label="Polygon selection tool" title="Click to place corners; double-click, press Enter, or click the first corner to close it. Backspace removes the last corner, Escape cancels. Hold Shift when you start to add, Alt to subtract (or pick a Mode).">⬠ Polygon</button>
-              <label title="How the next shape combines with the current selection. Shift and Alt still add and subtract for one shape.">Mode <select id="pe-sel-mode" aria-label="Selection mode">
-                <option value="replace">New selection</option>
-                <option value="add">Add to selection</option>
-                <option value="sub">Subtract from selection</option>
-                <option value="int">Intersect with selection</option>
-              </select></label>
-              <button type="button" id="pe-sel-all" title="Select the whole image">Select all</button>
-              <button type="button" id="pe-sel-invert" disabled title="Swap the selected and unselected areas">Invert selection</button>
-              <button type="button" id="pe-sel-clear" disabled title="Remove the selection (Ctrl+D)">Deselect</button>
-              <button type="button" id="pe-sel-delete" disabled title="Make the selected pixels transparent">Delete selected pixels</button>
-              <button type="button" id="pe-sel-crop" disabled title="Crop to the box around the selection">Crop to selection</button>
-              <details class="pe-sel-more" id="pe-sel-more">
-                <summary>More selection options</summary>
-              <details class="pe-sel-box">
-                <summary>Type a box</summary>
-                <label>X <input type="number" id="pe-sel-box-x" min="0" step="1" value="0" title="Left edge in pixels"></label>
-                <label>Y <input type="number" id="pe-sel-box-y" min="0" step="1" value="0" title="Top edge in pixels"></label>
-                <label>W <input type="number" id="pe-sel-box-w" min="1" step="1" value="100" title="Width in pixels"></label>
-                <label>H <input type="number" id="pe-sel-box-h" min="1" step="1" value="100" title="Height in pixels"></label>
-                <button type="button" id="pe-sel-box-apply" title="Make a rectangular selection from these numbers, using the Mode above">Select this box</button>
-              </details>
-              <label title="How the selection is shown on the image">Show <select id="pe-sel-view" aria-label="Selection view">
-                <option value="ants">Outline</option>
-                <option value="inside">Tint selected</option>
-                <option value="outside">Tint the rest</option>
-                <option value="mask">Mask only</option>
-              </select></label>
-              <input type="color" id="pe-sel-tint" value="#ff3b30" aria-label="Selection tint colour" title="Tint colour used by the tint views">
-              <select id="pe-apply-selection" aria-label="Saved selections" title="Choose a saved selection (it scales to this image)">
-                <option value="">Load saved selection…</option>
-              </select>
-              <button type="button" id="pe-load-selection" disabled title="Apply the saved selection chosen above to this image">Load chosen selection</button>
-              <button type="button" id="pe-save-selection" disabled title="Save this selection under a name so you can load it on any image">Save selection</button>
-              <button type="button" id="pe-delete-selection" disabled title="Delete the saved selection chosen above">Delete chosen selection</button>
-              </details>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Rotate &amp; flip</span>
-              <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>
-              <button type="button" id="pe-rotate-right" title="Rotate right">⟳ 90°</button>
-              <button type="button" id="pe-flip-h" title="Flip horizontal">⇋</button>
-              <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Straighten</span>
-              <label>Tilt <input type="range" id="pe-straighten-angle" min="-45" max="45" step="0.1" value="0" aria-valuetext="0.0 degrees" title="Tilt the image to level a horizon (positive turns it clockwise). Shows a live preview. Double-click or press Escape to reset."></label>
-              <label class="pe-straighten-number-label"><input type="number" id="pe-straighten-number" min="-45" max="45" step="0.1" value="0" aria-label="Tilt in degrees" title="Type an exact tilt in degrees (-45 to 45)"><span aria-hidden="true">°</span></label>
-              <button type="button" id="pe-apply-straighten" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
-              <span id="pe-straighten-note" class="pe-straighten-note" role="status" hidden>Too thin to straighten at this angle.</span>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Resize image</span>
-              <label>W <input type="number" id="pe-resize-width" min="1" max="2000" title="New image width in pixels"></label>
-              <label>H <input type="number" id="pe-resize-height" min="1" max="2000" title="New image height in pixels"></label>
-              <label title="Keep width and height proportional as you change one of them">Lock ratio <input type="checkbox" id="pe-resize-lock" checked></label>
-              <button type="button" id="pe-apply-resize" title="Scale the actual image pixels to the size above -- unlike Crop, this doesn't cut anything off, it stretches/shrinks the whole image">Resize image</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Canvas size</span>
-              <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
-              <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
-              <select id="pe-canvas-anchor" aria-label="Canvas anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
-                <option value="top-left">Top-left</option>
-                <option value="top-center">↑ Top-center</option>
-                <option value="top-right">Top-right</option>
-                <option value="middle-left">← Middle-left</option>
-                <option value="center" selected>• Center</option>
-                <option value="middle-right">→ Middle-right</option>
-                <option value="bottom-left">Bottom-left</option>
-                <option value="bottom-center">↓ Bottom-center</option>
-                <option value="bottom-right">Bottom-right</option>
-              </select>
-              <button type="button" id="pe-apply-canvas-resize" title="Resize the canvas itself without scaling the image -- growing adds transparent space, shrinking crops away edges, both anchored to the side picked above">Resize canvas</button>
-            </div>
-            <div class="pe-tool-group pe-adjust-group">
-              <span class="pe-group-label">Adjust</span>
-              <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
-              <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
-              <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
-            </div>
-            <div class="pe-tool-group" id="pe-color-group" role="group" aria-label="Colour and tone">
-              <span class="pe-group-label">Colour &amp; tone</span>
-              <label title="Warmer (orange) to the right, cooler (blue) to the left">Warmth <input type="range" id="pe-warmth" min="-100" max="100" value="0" aria-valuetext="0"></label>
-              <label title="Magenta to the right, green to the left">Tint <input type="range" id="pe-tint" min="-100" max="100" value="0" aria-valuetext="0"></label>
-              <label title="Turn every colour round the colour wheel, in degrees">Hue <input type="range" id="pe-hue" min="-180" max="180" value="0" aria-valuetext="0 degrees"></label>
-              <button type="button" id="pe-apply-color" title="Apply the warmth, tint and hue above to the whole active layer (or only inside the selection), then reset the sliders. One Undo step">Apply colour</button>
-              <label title="Right darkens the corners, left lightens them">Vignette <input type="range" id="pe-vignette" min="-100" max="100" value="40" aria-valuetext="40"></label>
-              <button type="button" id="pe-apply-vignette" title="Darken (or lighten) toward the corners across the whole active layer (or only inside the selection), by the amount set. One Undo step">Add vignette</button>
-            </div>
-            <div class="pe-tool-group" id="pe-levels-group" role="group" aria-label="Levels">
-              <span class="pe-group-label">Levels</span>
-              <label title="Every tone at or below this level becomes pure black (the left marker on the histogram)">Black point <input type="range" id="pe-levels-black" min="0" max="254" value="0" aria-valuetext="0"></label>
-              <label title="Right brightens the in-between tones, left darkens them, without moving black or white">Midtones <input type="range" id="pe-levels-mid" min="-100" max="100" value="0" aria-valuetext="1.00 (unchanged)"></label>
-              <label title="Every tone at or above this level becomes pure white (the right marker on the histogram)">White point <input type="range" id="pe-levels-white" min="1" max="255" value="255" aria-valuetext="255"></label>
-              <button type="button" id="pe-apply-levels" title="Apply the black point, midtones and white point above to the whole active layer (or only inside the selection), then reset the sliders. One Undo step. Open the Histogram to see where the points sit">Apply levels</button>
-            </div>
-            <details class="pe-tool-group pe-histogram" id="pe-histogram">
-              <summary>Histogram</summary>
-              <canvas id="pe-histogram-canvas" width="256" height="80" role="img" aria-label="Histogram of the picture's tones"></canvas>
-              <p id="pe-histogram-text" class="pe-histogram-text"></p>
-            </details>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Adjust presets</span>
-              <select id="pe-apply-preset" aria-label="Adjust preset" title="Apply a saved brightness/contrast/saturation preset">
-                <option value="">Apply preset…</option>
-              </select>
-              <button type="button" id="pe-save-preset" title="Save the current brightness/contrast/saturation as a named preset">Save preset</button>
-              <button type="button" id="pe-delete-preset" title="Delete the selected preset">Delete preset</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Filters</span>
-              <button type="button" id="pe-filter-grayscale">Grayscale</button>
-              <button type="button" id="pe-filter-sepia">Sepia</button>
-              <button type="button" id="pe-filter-invert">Invert</button>
-              <label title="How strong the applied grain looks -- higher is grainier">Grain <input type="range" id="pe-grain-amount" min="1" max="50" value="15"></label>
-              <button type="button" id="pe-filter-grain" title="Add film-style random noise across the whole image (or only inside the selection), using the amount set above">Add grain</button>
-              <label title="How strongly edges are crisped -- start low; a high amount makes halos and noise, and applying it again compounds">Sharpen <input type="range" id="pe-sharpen-amount" min="1" max="100" value="25" aria-valuetext="25"></label>
-              <button type="button" id="pe-filter-sharpen" title="Make edges crisper across the whole active layer (or only inside the selection), using the amount set above">Sharpen</button>
-              <button type="button" id="pe-filter-autolevels" title="Stretch the tones so the darkest shade becomes black and the lightest white (ignoring the extreme 0.5% of pixels at each end), across the whole active layer or only inside the selection">Auto levels</button>
-              <label title="Stretch red, green and blue separately. This removes a colour cast but can shift colours; off keeps colours as they are">Per channel <input type="checkbox" id="pe-autolevels-channels"></label>
-            </div>
-            <div class="pe-tool-group" id="pe-redact-group" role="group" aria-label="Redact the selection">
-              <span class="pe-group-label">Redact</span>
-              <label title="Pixelate: the size of each square block, in image pixels. Bigger blocks hide more">Block size <input type="range" id="pe-redact-size" min="4" max="96" value="24" aria-valuetext="24 pixels"></label>
-              <button type="button" id="pe-redact-pixelate" title="Replace the selected area with large flat blocks of its average colour. The detail is gone for good once saved">Pixelate selection</button>
-              <button type="button" id="pe-redact-blur" title="Blur the selected area heavily (strength follows the block size). A blur can sometimes be partly undone, so use a black box for anything sensitive">Blur selection</button>
-              <input type="color" id="pe-redact-color" value="#000000" aria-label="Black box colour" title="Colour of the box">
-              <button type="button" id="pe-redact-box" title="Cover the selected area with a solid, fully opaque box. This is the only method that cannot be reversed">Black box</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Brush</span>
-              <button type="button" class="pe-tool" data-tool="paint" title="Paint with a colour; Hardness sets how soft the edge is">Paint</button>
-              <button type="button" class="pe-tool" data-tool="pencil" title="Hard-edged, no antialiasing: every pixel is fully painted or untouched">Pencil</button>
-              <button type="button" class="pe-tool" data-tool="bucket" title="Fill: click to flood an area of similar colour on the active layer with the paint colour (Opacity applies; a selection limits it)">Fill</button>
-              <button type="button" class="pe-tool" data-tool="gradient" title="Gradient: drag from where it starts to where it ends. It runs from the paint colour to the end colour (or fades out), at the Opacity setting, inside any selection">Gradient</button>
-              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint, Pencil, Fill and Gradient tools (the eyedropper sets it too)">
-              <button type="button" class="pe-tool" data-tool="erase">Erase</button>
-              <button type="button" class="pe-tool" data-tool="blur">Blur</button>
-              <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
-              <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
-              <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
-              <span id="pe-gradient-options" class="pe-fill-options" hidden>
-                <label title="The colour the gradient ends in">To <input type="color" id="pe-gradient-end" value="#3050c0" aria-label="Gradient end colour"></label>
-                <label title="Fade the paint colour out to transparent instead of blending to the end colour">Fade out <input type="checkbox" id="pe-gradient-fade"></label>
-              </span>
-              <span id="pe-fill-options" class="pe-fill-options" hidden>
-                <label title="How different a pixel may be from the one you click and still be filled (0 = exact match only)">Tolerance <input type="range" id="pe-fill-tolerance" min="0" max="100" value="24" aria-valuetext="24"></label>
-                <label title="Widen the filled area by this many pixels, to cover the pale antialiased edge around a shape">Grow <input type="number" id="pe-fill-grow" min="0" max="3" step="1" value="0" style="width:3.2em"></label>
-                <label title="On: only the connected area around your click. Off: every similar pixel on the layer.">Connected only <input type="checkbox" id="pe-fill-contiguous" checked></label>
-              </span>
-              <label>Brush <input type="range" id="pe-brush-size" min="1" max="150" value="30"></label>
-              <label title="Paint only: 100 is a crisp edge, lower values feather it">Hardness <input type="range" id="pe-brush-hardness" min="0" max="100" value="100"></label>
-              <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
-              <label title="While ON, holding the pointer still keeps building the effect up over time -- like a real airbrush -- instead of only applying where you move">Airbrush <input type="checkbox" id="pe-airbrush-mode"></label>
-              <select id="pe-apply-brush-preset" aria-label="Brush preset" title="Apply a saved brush tool/size/opacity combo">
-                <option value="">Apply brush preset…</option>
-              </select>
-              <button type="button" id="pe-save-brush-preset" title="Save the current brush tool, size, and opacity as a named preset">Save brush preset</button>
-              <button type="button" id="pe-delete-brush-preset" title="Delete the selected brush preset">Delete brush preset</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">Draw &amp; annotate</span>
-              <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
-              <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
-              <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
-              <button type="button" class="pe-tool" data-tool="arrow" title="Arrow" aria-label="Arrow"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18 18 6"/><path d="M9 6h9v9"/></svg></button>
-              <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
-              <button type="button" class="pe-tool" data-tool="marker" title="Step marker: click to drop a numbered circle in the annotation colour; the number counts up with each click">① Step</button>
-              <button type="button" class="pe-tool" data-tool="highlight" title="Highlighter: drag along text or across an area for a see-through marker stroke in the annotation colour; Size sets the thickness">Highlight</button>
-              <button type="button" class="pe-tool" data-tool="spotlight" title="Spotlight: drag a box to keep it bright and dim everything else, to draw the eye to one spot">Spotlight</button>
-              <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image" aria-label="Eyedropper"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14.5 4.5 5 5"/><path d="M17 7 7.5 16.5 5 19l-1-1 2.5-2.5L16 6"/><path d="m13 5 6 6"/></svg></button>
-              <input type="color" id="pe-annotate-color" value="#ff7a45" aria-label="Annotation colour" title="Annotation color">
-              <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
-              <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
-              <label id="pe-marker-next-label" hidden>Next number <input type="number" id="pe-marker-next" min="1" max="99" step="1" value="1" inputmode="numeric"></label>
-              <label id="pe-spotlight-dim-label" hidden title="How dark everything outside the box becomes">Dim outside <input type="range" id="pe-spotlight-dim" min="10" max="90" value="60"></label>
-              <select id="pe-text-font" title="Font for the Text tool" hidden>
-                <option value="sans-serif">Sans-serif</option>
-                <option value="custom">Site's custom font</option>
-              </select>
-              <select id="pe-apply-text-style" title="Apply a saved font/color/size combo for the Text tool" hidden>
-                <option value="">Apply text style…</option>
-              </select>
-              <button type="button" id="pe-save-text-style" title="Save the current font/color/size as a reusable text style" hidden>Save text style</button>
-              <button type="button" id="pe-delete-text-style" title="Delete the text style currently selected above" hidden>Delete text style</button>
-            </div>
-            <div class="pe-tool-group">
-              <span class="pe-group-label">History</span>
-              <button type="button" id="pe-undo" title="Undo (Ctrl+Z)">Undo</button>
-              <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-              <button type="button" id="pe-reset">Reset</button>
-              <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
-              <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">Save snapshot</button>
-              <select id="pe-snapshot-select" aria-label="Named snapshots" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
-              <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
-              <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
-            </div>
-          </div>
-          <div class="pe-canvas-area">
-            <div id="pe-recovery-bar" class="pe-recovery-bar" role="alert" hidden>
-              <span id="pe-recovery-text"></span>
-              <button type="button" id="pe-recovery-restore" data-tier="primary">Restore</button>
-              <button type="button" id="pe-recovery-discard">Discard</button>
-            </div>
-            <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
-              <div id="pe-canvas-frame" class="pe-canvas-frame">
-                <div id="pe-canvas-stack" class="pe-canvas-stack">
-                  <canvas id="pe-canvas"></canvas>
-                  <canvas id="pe-mask-tint" aria-hidden="true"></canvas>
-                  <canvas id="pe-overlay"></canvas>
-                  <canvas id="pe-guides" aria-hidden="true"></canvas>
-                </div>
-              </div>
-            </div>
-            <div id="pe-navigator" class="pe-navigator" role="group" aria-label="Image overview. Click or drag to move the view; with focus here, arrow keys move it." tabindex="0" hidden>
-              <canvas id="pe-nav-canvas" aria-hidden="true"></canvas>
-              <div id="pe-nav-view" class="pe-nav-view" aria-hidden="true"></div>
-            </div>
-            <span id="pe-sel-status" class="pe-sel-status is-idle" role="status">No selection.</span>
-          </div>
-        </div>
-        <div class="pe-actions">
-          <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
-          <span id="pe-hint" class="pe-hint"></span>
-          <span id="pe-memory" class="pe-memory"></span>
-          <span id="pe-autosave-status" class="pe-autosave-status" role="status" title="Copies of your edits are kept in this browser for 7 days, or until you save, discard or log out."></span>
-          <span id="pe-limits-info" class="pe-limits-info" tabindex="0">Limits</span>
-          <button type="button" id="pe-shortcuts-btn" aria-expanded="false" aria-controls="pe-shortcuts-panel" title="See and change the one-key tool shortcuts">Keys</button>
-          <div id="pe-shortcuts-panel" class="pe-shortcuts-panel" role="group" aria-label="Tool shortcuts" hidden><div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p id="pe-shortcuts-msg" class="pe-shortcuts-msg" role="status"></p><div id="pe-shortcut-grid" class="pe-shortcut-grid"></div></div>
-          <button type="button" id="pe-view-rotate" title="Rotate the on-screen VIEW only -- doesn't touch the image's actual pixels, unlike the Rotate tool above">↻ View: 0°</button>
-          <label>Preview against<select id="pe-bg-preview" title="Change the background behind the canvas to check how transparent areas will look against different page backgrounds">
-            <option value="checkerboard">Checkerboard</option>
-            <option value="white">White</option>
-            <option value="black">Black</option>
-            <option value="gray">Gray</option>
-            <option value="site-light">Site (light theme)</option>
-            <option value="site-dark">Site (dark theme)</option>
-          </select></label>
-          <select id="pe-export-format" aria-label="Format for Save as new and Download" title="Format for &quot;Save as new&quot; -- &quot;Overwrite original&quot; always keeps the original file's own format">
-            <option value="image/png">PNG</option>
-            <option value="image/jpeg">JPEG</option>
-            <option value="image/webp">WebP</option>
-          </select>
-          <label id="pe-export-quality-label" hidden>Quality <input type="range" id="pe-export-quality" min="1" max="100" value="85"></label>
-          <span id="pe-export-size-estimate" class="pe-export-size-estimate" title="Estimated file size at the current format/quality"></span>
-          <button type="button" id="pe-save-new">Save as new</button>
-          <button type="button" id="pe-download" title="Save the picture to your computer instead of the library, in the format and quality chosen. The editor stays open and nothing is uploaded">Download</button>
-          <button type="button" id="pe-save-overwrite">Overwrite original</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <input type="file" id="import-file-input" hidden accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html">
-
-  <div id="conflict-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="conflict-modal-title">
-    <div class="modal-inner conflict-modal-inner">
-      <header>
-        <h1 id="conflict-modal-title" tabindex="-1">Compare and merge</h1>
-        <button type="button" id="close-conflict" aria-label="Close compare dialog">×</button>
-      </header>
-      <div class="conflict-body">
-        <p id="conflict-intro" class="redirects-hint"></p>
-        <div id="conflict-rows" class="conflict-rows"></div>
-        <p id="conflict-status" class="conflict-status" role="status"></p>
-        <div class="conflict-actions">
-          <button type="button" id="conflict-cancel">Cancel</button>
-          <button type="button" id="conflict-apply" class="primary">Save merged version</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="photo-editor-prompt-modal" class="modal" hidden role="dialog" aria-labelledby="photo-editor-prompt-title">
-    <div class="modal-inner pe-prompt-modal-inner">
-      <header>
-        <h1 id="photo-editor-prompt-title">Enter a value</h1>
-        <button type="button" id="close-photo-editor-prompt" aria-label="Close Photo Editor prompt dialog">×</button>
-      </header>
-      <form id="photo-editor-prompt-form" class="pe-prompt-form">
-        <label for="photo-editor-prompt-input" id="photo-editor-prompt-label">Value</label>
-        <input type="text" id="photo-editor-prompt-input" autocomplete="off" autofocus>
-        <div class="pe-prompt-actions">
-          <button type="button" id="pe-prompt-cancel">Cancel</button>
-          <button type="submit">Continue</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div id="simulations-modal" class="modal" hidden role="dialog" aria-labelledby="simulations-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="simulations-modal-title">Simulations</h1>
-        <button id="close-simulations" aria-label="Close Simulations dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Wire real chains — outlet → power supply → breadboard → Teensy, Teensy → breadboard — and only what's actually connected to a power source lights up. Build once, reuse in any article or page via the Simulation block. Saves are drafts; publish to update the public simulation and embeds.</p>
-        <div class="sim-new-row">
-          <button type="button" id="new-simulation-btn">New simulation</button>
-          <select id="sim-template-picker" aria-label="Template for a new simulation"><option value="">Blank</option></select>
-        </div>
-        <div id="simulations-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="simulation-builder-modal" class="modal" hidden role="dialog" aria-label="Simulation builder">
-    <div class="modal-inner simulation-builder-inner">
-      <header class="sim-toolbar">
-        <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
-        <button type="button" id="sim-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="sim-toolbar-groups" title="Checkpoints, views, import and export, build checklist, model notes and more">More <span class="sim-more-caret" aria-hidden="true">▾</span></button>
-        <button type="button" id="sim-toggle-palette" class="sim-panel-toggle" aria-pressed="true" title="Show or hide the list of parts, to give the canvas more room">Parts</button>
-        <button type="button" id="sim-toggle-inspector" class="sim-panel-toggle" aria-pressed="true" title="Show or hide the inspector, to give the canvas more room">Inspector</button>
-        <div id="sim-toolbar-groups" class="sim-toolbar-groups">
-          <div class="sim-toolbar-group" data-group="history">
-            <span class="sim-toolbar-group-label">History</span>
-            <div class="sim-toolbar-group-buttons">
-              <button type="button" class="sim-quick" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
-              <button type="button" class="sim-quick" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-              <button type="button" id="sim-reset" title="Discard all edits and go back to the last saved state">Reset</button>
-            </div>
-          </div>
-          <div class="sim-toolbar-group" data-group="checkpoints">
-            <span class="sim-toolbar-group-label">Checkpoints</span>
-            <div class="sim-toolbar-group-buttons">
-              <select id="sim-checkpoint-select" aria-label="Saved checkpoints" title="Named checkpoints saved with this simulation">
-                <option value="">Checkpoints…</option>
-              </select>
-              <button type="button" id="sim-checkpoint-restore" title="Restore the selected checkpoint" disabled>Restore</button>
-              <button type="button" id="sim-checkpoint-save" title="Save the current circuit as a named checkpoint">Save checkpoint</button>
-              <button type="button" id="sim-checkpoint-delete" title="Delete the selected checkpoint" disabled>Delete checkpoint</button>
-            </div>
-          </div>
-          <div class="sim-toolbar-group" data-group="views">
-            <span class="sim-toolbar-group-label">Views</span>
-            <div class="sim-toolbar-group-buttons">
-              <select id="sim-view-select" aria-label="Go to a saved view" title="Saved zoom levels and positions on the board, kept with this simulation">
-                <option value="">Go to view…</option>
-              </select>
-              <button type="button" id="sim-view-go" title="Return to the selected view" disabled>Go</button>
-              <button type="button" id="sim-view-save" title="Save the current zoom level and position as a named view">Save view</button>
-              <button type="button" id="sim-view-delete" title="Delete the selected view" disabled>Delete view</button>
-              <span id="sim-view-status" class="sim-sr-only" role="status" aria-live="polite"></span>
-            </div>
-          </div>
-          <div class="sim-toolbar-group" data-group="file">
-            <span class="sim-toolbar-group-label">File</span>
-            <div class="sim-toolbar-group-buttons">
-              <button type="button" id="sim-export" title="Download this circuit as a JSON file">Export</button>
-              <button type="button" id="sim-import" title="Load a circuit from a JSON file">Import</button>
-              <input type="file" id="sim-import-file" accept="application/json" hidden>
-            </div>
-          </div>
-          <div class="sim-toolbar-group" data-group="test">
-            <span class="sim-toolbar-group-label">Test &amp; view</span>
-            <div class="sim-toolbar-group-buttons">
-              <button type="button" class="sim-quick" id="sim-preview-power">Preview: power on</button>
-              <input type="search" id="sim-canvas-search" aria-label="Find on canvas" aria-describedby="sim-canvas-search-count" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type. Enter jumps to the next match, Shift+Enter to the previous one."><span id="sim-canvas-search-count" class="sim-canvas-search-count" role="status" aria-live="polite"></span>
-              <button type="button" class="sim-quick" id="sim-warnings-btn" title="Problems the simulator found in this circuit, in plain words">No warnings</button><span id="sim-warnings-live" class="sim-sr-only" role="status" aria-live="polite"></span>
-              <button type="button" id="sim-model-notes-btn" title="What the simulator assumes and can't do, and how each part in this circuit is modelled">Model notes</button>
-              <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
-              <button type="button" id="sim-sweep-btn" title="Chart what a reading does as one setting changes: a resistor from 100 Ω to 10 kΩ, a battery from 1 V to 12 V, a potentiometer from end to end">Sweep a setting…</button>
-              <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
-              <button type="button" id="sim-show-voltages" aria-pressed="false" title="Write the voltage at every part's pins on the canvas while Preview: power on is running. Voltages are measured from the power source's negative terminal.">Show voltages</button>
-              <button type="button" id="sim-schematic-toggle" aria-pressed="false" title="Draw the parts as standard schematic symbols (zigzag resistors, diode triangles and so on) instead of pictures. Only changes how the canvas looks; your choice is remembered in this browser.">Schematic view</button>
-              <button type="button" id="sim-show-ghost-wires" title="Draw every wire again on top of components, as a dashed outline -- reveals a wire routed underneath a breadboard or other opaque part">Show hidden wires</button>
-              <label class="sim-snap-label" title="How closely a dragged part snaps to an alignment grid. Doesn't affect parts that plug into a breadboard -- those always snap to the breadboard's own holes.">
-                Snap:
-                <select id="sim-grid-snap">
-                  <option value="0">Off</option>
-                  <option value="1">1px</option>
-                  <option value="5" selected>5px</option>
-                  <option value="10">10px</option>
-                  <option value="20">20px</option>
-                </select>
-              </label>
-              <button type="button" id="sim-continuity-test" title="Click two pins to check whether they're electrically connected (wire-tied), like a multimeter's continuity mode">Continuity test</button>
-              <span id="sim-continuity-result" class="sim-continuity-result" aria-live="polite"></span>
-            </div>
-          </div>
-        </div>
-        <div class="sim-toolbar-group sim-toolbar-group-save">
-          <span class="sim-toolbar-group-label">Save</span>
-          <div class="sim-toolbar-group-buttons">
-            <button type="button" class="sim-quick" id="save-simulation">Save</button>
-            <span id="sim-save-status" class="article-autosave-status" role="status"></span>
-            <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
-          </div>
-        </div>
-        <span class="editor-header-end">
-          <button type="button" class="editor-help-btn" data-help="simulation" aria-label="Help for the Simulation builder" title="Tips and shortcuts for this editor">?</button>
-          <button id="close-simulation-builder" aria-label="Close Simulation builder dialog">×</button>
-        </span>
-      </header>
-      <div id="sim-poster-row" class="sim-poster-row">
-        <label for="sim-poster-url" title="Shown when this simulation's link is shared, and as a fallback before the circuit loads">Share image</label>
-        <input id="sim-poster-url" type="text" placeholder="https://... (blank = site default)" spellcheck="false">
-        <button type="button" class="upload-trigger" data-target="#sim-poster-url">Upload image</button>
-        <button type="button" class="browse-trigger" data-target="#sim-poster-url">Browse…</button>
-        <button type="button" id="sim-generate-thumbnail" title="Render the current circuit view as a PNG and use it as the poster image">Generate from current view</button>
-      </div>
-      <div id="sim-hole-warning" class="sim-hole-warning" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-      <div class="sim-builder-body">
-        <aside class="sim-palette" aria-label="Simulation parts">
-          <h2>Add part</h2>
-          <input type="search" id="sim-palette-search" placeholder="Search parts…">
-          <div id="sim-palette-recent" class="sim-palette-recent" hidden></div>
-          <button type="button" class="sim-palette-btn" data-sim-type="outlet">Wall Outlet</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="power_supply">Power Supply</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="breadboard">Breadboard</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="led">LED</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="diode">Diode</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="lamp">Lamp</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="buzzer">Buzzer</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="transistor">Transistor</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="resistor">Resistor</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="potentiometer">Potentiometer</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="capacitor">Capacitor</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="inductor">Inductor</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="switch">Switch</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="switch_spdt">SPDT Switch</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="logic_gate">Logic Gate</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="ammeter">Ammeter</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="voltmeter">Voltmeter</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="ohmmeter">Ohmmeter</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="battery">Battery</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="mcu_teensy">Microcontroller (Teensy)</button>
-          <button type="button" class="sim-palette-btn" data-sim-type="tv">TV / Display</button>
-        </aside>
-        <div class="sim-canvas-wrap">
-          <div id="sim-builder-canvas" class="sim-builder-canvas" tabindex="0" role="region" aria-label="Circuit canvas (scrolls sideways when zoomed)"></div>
-          <div id="sim-minimap-dock" class="sim-minimap-dock" hidden>
-            <div id="sim-minimap" class="sim-minimap" hidden tabindex="0" role="group" aria-label="Board minimap. Click or drag to move the view; arrow keys scroll it."></div>
-            <button type="button" id="sim-minimap-toggle" class="sim-minimap-toggle" aria-controls="sim-minimap" aria-expanded="true" aria-label="Hide minimap" title="Hide minimap">×</button>
-            <span id="sim-minimap-status" class="sim-sr-only" role="status" aria-live="polite"></span>
-          </div>
-          <div class="sim-zoom-controls">
-            <button type="button" id="sim-zoom-out" aria-label="Zoom out">−</button>
-            <button type="button" id="sim-zoom-reset">100%</button>
-            <button type="button" id="sim-zoom-in" aria-label="Zoom in">+</button>
-          </div>
-        </div>
-        <aside class="sim-inspector-panel" aria-label="Part inspector">
-          <h2>Inspector</h2>
-          <button type="button" id="sim-connect-btn" title="Wire two pins together by choosing them from lists, instead of clicking them on the board">Connect pins…</button>
-          <div id="sim-inspector"></div>
-        </aside>
       </div>
     </div>
   </div>
@@ -2526,33 +826,6 @@
     </div>
   </div>
 
-  <div id="scans-modal" class="modal" hidden role="dialog" aria-labelledby="scans-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="scans-modal-title">3D Scans</h1>
-        <button id="close-scans" aria-label="Close 3D scans dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Upload a LiDAR/photogrammetry scan (.glb or .gltf, optionally a .usdz for iOS AR Quick Look) — from Polycam, Reality Composer, or similar. Reuse it in any page or article via the 3D Scan block.</p>
-        <button type="button" id="new-scan-btn">Upload new scan</button>
-        <div id="scans-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="shared-blocks-modal" class="modal" hidden role="dialog" aria-labelledby="shared-blocks-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="shared-blocks-modal-title">Reusable Blocks</h1>
-        <button id="close-shared-blocks" aria-label="Close Reusable blocks dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
-        <div id="shared-blocks-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
   <div id="song-audio-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="song-audio-title">
     <div class="modal-inner sim-checklist-inner">
       <header>
@@ -2603,350 +876,11 @@
     </div>
   </div>
 
-  <div id="sim-connect-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sim-connect-title">
-    <div class="modal-inner sim-checklist-inner">
-      <header>
-        <h1 id="sim-connect-title">Connect pins</h1>
-        <button id="close-sim-connect" aria-label="Close Connect pins dialog">×</button>
-      </header>
-      <div class="sim-checklist-body sim-connect-body">
-        <p class="sim-connect-help">Choose a pin on each end and press Connect. It does the same as clicking one pin and then the other on the board, and works from the keyboard.</p>
-        <div class="sim-connect-grid">
-          <label>From part <select id="sim-connect-from-part"></select></label>
-          <label>From pin <select id="sim-connect-from-pin"></select></label>
-          <label>To part <select id="sim-connect-to-part"></select></label>
-          <label>To pin <select id="sim-connect-to-pin"></select></label>
-        </div>
-        <button type="button" id="sim-connect-go">Connect</button>
-        <p id="sim-connect-status" class="sim-connect-status" role="status" aria-live="polite"></p>
-        <h2>Wires</h2>
-        <ul id="sim-connect-wires" class="sim-connect-wires"></ul>
-      </div>
-    </div>
-  </div>
-
-  <div id="sim-warnings-modal" class="modal" hidden role="dialog" aria-labelledby="sim-warnings-title">
-    <div class="modal-inner sim-checklist-inner">
-      <header>
-        <h1 id="sim-warnings-title">Circuit warnings</h1>
-        <button id="close-sim-warnings" aria-label="Close Circuit warnings dialog">×</button>
-      </header>
-      <div id="sim-warnings-body" class="sim-checklist-body sim-model-body"></div>
-    </div>
-  </div>
-
-  <div id="sim-sweep-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sim-sweep-title">
-    <div class="modal-inner sim-checklist-inner sim-sweep-inner">
-      <header>
-        <h1 id="sim-sweep-title">Sweep a setting</h1>
-        <button id="close-sim-sweep" aria-label="Close Sweep dialog">×</button>
-      </header>
-      <div class="sim-checklist-body sim-sweep-body">
-        <p id="sim-sweep-empty" class="sim-checklist-empty" hidden></p>
-        <form id="sim-sweep-form" class="sim-sweep-form" onsubmit="return false">
-          <label class="sim-sweep-wide">Change
-            <select id="sim-sweep-target"></select>
-          </label>
-          <label><span>From <span class="sim-sweep-unit" id="sim-sweep-unit-from"></span></span>
-            <input type="number" id="sim-sweep-from" step="any" inputmode="decimal">
-          </label>
-          <label><span>To <span class="sim-sweep-unit" id="sim-sweep-unit-to"></span></span>
-            <input type="number" id="sim-sweep-to" step="any" inputmode="decimal">
-          </label>
-          <label>Steps
-            <input type="number" id="sim-sweep-steps" min="2" max="101" step="1" value="21" inputmode="numeric">
-          </label>
-          <label>Scale
-            <select id="sim-sweep-scale"><option value="linear">Even steps</option><option value="log">Ratio steps (log)</option></select>
-          </label>
-          <label class="sim-sweep-wide">Watch
-            <select id="sim-sweep-watch"></select>
-          </label>
-        </form>
-        <p id="sim-sweep-error" class="sim-sweep-error" role="alert" hidden></p>
-        <div id="sim-sweep-result" hidden>
-          <div id="sim-sweep-chart" class="sim-sweep-chart"></div>
-          <p id="sim-sweep-summary" class="sim-sweep-summary" role="status"></p>
-          <div class="sim-checklist-actions">
-            <button type="button" id="sim-sweep-copy">Copy as CSV</button>
-            <span id="sim-sweep-copied" class="sim-checklist-progress" role="status"></span>
-          </div>
-          <details class="sim-sweep-table">
-            <summary>Show the numbers</summary>
-            <table id="sim-sweep-table"></table>
-          </details>
-        </div>
-        <p class="sim-sweep-note">Each point is the whole circuit solved again with that one setting changed, using the same rules as Preview: power on. Nothing in the circuit is changed.</p>
-      </div>
-    </div>
-  </div>
-
-  <div id="sim-model-modal" class="modal" hidden role="dialog" aria-labelledby="sim-model-title">
-    <div class="modal-inner sim-checklist-inner">
-      <header>
-        <h1 id="sim-model-title">Model notes</h1>
-        <button id="close-sim-model" aria-label="Close Model notes dialog">×</button>
-      </header>
-      <div id="sim-model-body" class="sim-checklist-body sim-model-body"></div>
-    </div>
-  </div>
-
-  <div id="sim-checklist-modal" class="modal" hidden role="dialog" aria-labelledby="sim-checklist-title">
-    <div class="modal-inner sim-checklist-inner">
-      <header>
-        <h1 id="sim-checklist-title">Build checklist</h1>
-        <button id="close-sim-checklist" aria-label="Close Build checklist dialog">×</button>
-      </header>
-      <div class="sim-checklist-body">
-        <p id="sim-checklist-progress" class="sim-checklist-progress" role="status"></p>
-        <div class="sim-checklist-actions">
-          <button type="button" id="sim-checklist-copy">Copy as text</button>
-          <button type="button" id="sim-checklist-print">Print</button>
-          <button type="button" id="sim-checklist-clear">Untick all</button>
-        </div>
-        <div id="sim-checklist-list" class="sim-checklist-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="preview-modal" class="modal" hidden role="dialog" aria-labelledby="preview-modal-title">
-    <div class="modal-inner preview-modal-inner">
-      <header>
-        <h1 id="preview-modal-title">Preview <span class="preview-live-badge" title="Editing a block's fields while this is open automatically refreshes the preview">● live</span></h1>
-        <div class="preview-device-buttons">
-          <button type="button" class="preview-device-btn is-active" data-width="100%">Desktop</button>
-          <button type="button" class="preview-device-btn" data-width="768px">Tablet</button>
-          <button type="button" class="preview-device-btn" data-width="390px">Mobile</button>
-        </div>
-        <button id="close-preview" aria-label="Close Preview dialog">×</button>
-      </header>
-      <div class="preview-stress-row">
-        <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" aria-pressed="false" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
-        <button type="button" id="stress-broken-images-btn" class="stress-toggle-btn" aria-pressed="false" title="Temporarily breaks every image in the preview to check how the layout holds up">Stress: missing images</button>
-      </div>
-      <div class="preview-stress-row">
-        <button type="button" id="force-hover-btn" class="stress-toggle-btn" aria-pressed="false" title="Shows the page's hover styles on every element at once (block lift, grow, glow and darken, link and button hover, menus that open on hover), so you can check them without holding the pointer over each one. Hover animations follow your system's reduced-motion setting, as on the live site.">Show hover states</button>
-        <button type="button" id="force-focus-btn" class="stress-toggle-btn" aria-pressed="false" title="Shows the page's keyboard focus styles on every element at once, to check they are visible against the page. A focus ring the browser draws by default, where the site has no style of its own, is not shown.">Show focus rings</button>
-        <span id="state-preview-note" class="state-preview-note" role="status"></span>
-      </div>
-      <div class="preview-motion-row" title="Scrub or auto-play through the page's scroll-driven effects (parallax, scroll-timeline animations) without manually scrolling the preview">
-        <span class="preview-motion-label">Motion audition</span>
-        <button type="button" id="motion-audition-play-btn">Play</button>
-        <input type="range" id="motion-audition-scrub" min="0" max="1000" value="0" step="1" aria-label="Scroll position">
-      </div>
-      <div class="preview-body">
-        <iframe id="preview-frame" title="Page preview"></iframe>
-        <span class="modal-focus-sentinel" data-modal-focus-sentinel="after" role="group" aria-label="End of Page Preview" tabindex="0"></span>
-      </div>
-    </div>
-  </div>
-
-  <div id="diagnostics-modal" class="modal" hidden role="dialog" aria-labelledby="diagnostics-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="diagnostics-modal-title">Diagnostics</h1>
-        <button id="close-diagnostics" aria-label="Close Diagnostics dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy, content overflow, and small tap targets, checked against the real rendered page. (Overlap can't happen — every drag/resize is already blocked from creating one.)</p>
-        <div id="diagnostics-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="seo-dashboard-modal" class="modal" hidden role="dialog" aria-labelledby="seo-dashboard-modal-title">
-    <div class="modal-inner settings-modal-inner">
-      <header>
-        <h1 id="seo-dashboard-modal-title">Site Health</h1>
-        <button id="close-seo-dashboard" aria-label="Close Site health dialog">×</button>
-      </header>
-      <div class="settings-body">
-        <section class="settings-group health-overview">
-          <h2>Overview</h2>
-          <p class="settings-hint">Runs the SEO, Accessibility, Link Checker, Orphan Pages, Content Health, and Content Integrity reports below all at once, merged into one severity-sorted list with a link to each affected page.</p>
-          <button type="button" id="run-site-health-btn" class="health-run-all">Run all checks</button>
-          <div id="site-health-summary"></div>
-          <div id="site-health-results" class="link-check-results"></div>
-        </section>
-        <h3 class="health-reports-label">Individual reports</h3>
-        <details class="panel-section health-report">
-          <summary>Sitemap Exclusions</summary>
-          <p class="settings-hint">Pages, articles, and projects currently left out of sitemap.xml (still fully live at their address, and search engines can still find them through links; use "noindex" on the item to ask them not to list it).</p>
-          <div id="sitemap-exclusions-list" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>SEO Report</summary>
-          <p class="settings-hint">Pages with no meta description, images missing alt text or with alt text that says nothing (a file name, "image", "image of…", over 125 characters), titles search results will cut off (over 60 characters), and meta descriptions or summaries that are too short or too long, across the whole site.</p>
-          <button type="button" id="check-seo-btn">Run report</button>
-          <div id="seo-report-results" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>Accessibility Report</summary>
-          <p class="settings-hint">Scans "Raw HTML" blocks for common keyboard-nav/focus issues, gallery images for missing alt text, and every block's custom text/background color pair for low contrast, site-wide. Heuristic, not exhaustive.</p>
-          <button type="button" id="check-accessibility-btn">Run report</button>
-          <div id="accessibility-report-results" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>Link Checker</summary>
-          <p class="settings-hint">This also runs automatically once a day in the background, so a link going dead doesn't wait to be noticed here. Links to other sites are checked 25 at a time, so a long list is covered over a few days.</p>
-          <button type="button" id="run-scheduled-link-check-btn" title="Manually trigger the same background check that otherwise runs once a day, and show its summary below">Update daily check now</button>
-          <div id="scheduled-link-check-status"></div>
-          <p class="settings-hint">Scans every button/project-card link and article link for broken URLs and lists each one.</p>
-          <button type="button" id="check-links-btn" title="Scan every link right now and list each one with its status">Scan all links (full list)</button>
-          <div id="link-check-results" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>Orphan Pages</summary>
-          <p class="settings-hint">Published pages/articles/projects nothing on the site links to internally, and that aren't in the header nav either — reachable only by someone who already has the URL.</p>
-          <button type="button" id="check-orphans-btn">Find orphans</button>
-          <div id="orphan-content-results" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>Content Health</summary>
-          <p class="settings-hint">Pages with no real content, and published articles/projects nobody has touched in over a year.</p>
-          <button type="button" id="check-content-health-btn">Run check</button>
-          <div id="content-health-results" class="link-check-results"></div>
-        </details>
-        <details class="panel-section health-report">
-          <summary>Content Integrity</summary>
-          <p class="settings-hint">Dangling references that don't break anything visibly at save time — a block pointing at a deleted simulation/scan/song, a project's "Related X" list still naming something that's gone, or a page nested under a deleted parent.</p>
-          <button type="button" id="check-content-integrity-btn">Run check</button>
-          <div id="content-integrity-results" class="link-check-results"></div>
-        </details>
-      </div>
-    </div>
-  </div>
-
-  <div id="topic-pages-modal" class="modal" hidden role="dialog" aria-labelledby="topic-pages-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="topic-pages-modal-title">Topic Pages</h1>
-        <button id="close-topic-pages" aria-label="Close Topic pages dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Every tag currently in use, with an optional custom intro blurb and share image for its <code>/topics/:tag</code> page. Leave both blank to fall back to the automatic title/description.</p>
-        <div id="topic-pages-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="topic-meta-edit-modal" class="modal" hidden role="dialog" aria-labelledby="topic-meta-edit-title">
-    <div class="modal-inner topic-meta-edit-modal-inner">
-      <header>
-        <h1 id="topic-meta-edit-title">Edit topic page</h1>
-        <button id="close-topic-meta-edit" aria-label="Close Topic page editor dialog">×</button>
-      </header>
-      <label>Intro blurb (shown under the "Tagged: X" heading, and used as the meta description)<textarea id="topic-meta-description" rows="3"></textarea></label>
-      <div class="input-with-upload">
-        <input id="topic-meta-og-image" placeholder="Share image URL (blank = site default)" spellcheck="false">
-        <button type="button" class="upload-trigger" data-target="#topic-meta-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#topic-meta-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#topic-meta-og-image">Edit / crop for social…</button>
-      </div>
-      <div class="article-actions">
-        <button id="save-topic-meta">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="keyframe-editor-modal" class="modal" hidden role="dialog" aria-labelledby="keyframe-editor-modal-title">
-    <div class="modal-inner keyframe-editor-modal-inner">
-      <header>
-        <h1 id="keyframe-editor-modal-title">Custom animation</h1>
-        <button id="close-keyframe-editor" aria-label="Close Custom animation dialog">×</button>
-      </header>
-      <p class="pe-new-doc-hint">Define how this block moves in as it scrolls into view. Each keyframe is a moment in the animation (0% = start, 100% = end) with the values it should have at that moment — anything left blank keeps its current/default value at that keyframe.</p>
-      <div id="keyframe-rows"></div>
-      <button type="button" id="keyframe-add-row">+ Add keyframe</button>
-      <label>Duration (ms) <input type="number" id="keyframe-duration" min="50" max="10000" value="600"></label>
-      <label>Easing
-        <select id="keyframe-easing">
-          <option value="ease">Ease (default)</option>
-          <option value="linear">Linear</option>
-          <option value="ease-in">Ease in</option>
-          <option value="ease-out">Ease out</option>
-          <option value="ease-in-out">Ease in-out</option>
-          <option value="overshoot">Overshoot (slight bounce past the end)</option>
-        </select>
-      </label>
-      <div class="keyframe-preview-row">
-        <div class="keyframe-preview-stage"><div id="keyframe-preview-box"></div></div>
-        <button type="button" id="keyframe-preview-play">Preview</button>
-      </div>
-      <div class="modal-actions">
-        <button type="button" id="cancel-keyframe-editor">Cancel</button>
-        <button type="button" id="save-keyframe-editor">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="layers-modal" class="modal" hidden role="dialog" aria-labelledby="layers-modal-title">
-    <div class="modal-inner redirects-modal-inner">
-      <header>
-        <h1 id="layers-modal-title">Layers</h1>
-        <button id="close-layers" aria-label="Close Layers dialog">×</button>
-      </header>
-      <div class="redirects-body">
-        <p class="redirects-hint">Every block on the current page, top to bottom. Jump to one, or toggle its visibility/lock without opening the canvas.</p>
-        <div id="layers-list" class="redirects-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="scan-editor-modal" class="modal" hidden role="dialog" aria-label="3D scan editor">
-    <div class="modal-inner simulation-builder-inner scan-editor-inner">
-      <header>
-        <input id="scan-name" class="simulation-name-input" placeholder="Scan name">
-        <button type="button" id="save-scan-btn" data-tier="primary">Save</button>
-        <span id="scan-save-status" class="article-autosave-status" role="status"></span>
-        <span class="editor-header-end">
-          <button type="button" class="editor-help-btn" data-help="scan" aria-label="Help for the 3D scan editor" title="Tips and shortcuts for this editor">?</button>
-          <button id="close-scan-editor" aria-label="Close 3D scan editor dialog">×</button>
-        </span>
-      </header>
-      <div class="scan-editor-body">
-        <aside class="scan-editor-fields" aria-label="Scan details">
-          <label>Model file (.glb or .gltf — 80MB max)
-            <input type="file" id="scan-glb-input" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
-          </label>
-          <div id="scan-glb-status" class="article-word-count"></div>
-          <label>USDZ for iOS AR (optional — 30MB max)
-            <input type="file" id="scan-usdz-input" accept=".usdz,model/vnd.usdz+zip">
-          </label>
-          <div id="scan-usdz-status" class="article-word-count"></div>
-          <label>Poster image (optional — shown before the model loads)
-            <input id="scan-poster-url" type="text" placeholder="https://..." spellcheck="false">
-          </label>
-          <div class="input-with-upload">
-            <button type="button" class="upload-trigger" data-target="#scan-poster-url">Upload image</button>
-            <button type="button" class="browse-trigger" data-target="#scan-poster-url">Browse…</button>
-          </div>
-          <button type="button" id="scan-use-current-view-btn">Use current view as default camera</button>
-          <p id="scan-camera-status" style="color:var(--text-dim);font-size:0.8rem;"></p>
-          <button type="button" id="delete-scan-btn" class="scripts-delete">Delete this scan</button>
-        </aside>
-        <div class="scan-editor-preview">
-          <model-viewer id="scan-preview-viewer" camera-controls auto-rotate shadow-intensity="1"></model-viewer>
-          <p id="scan-preview-hint" class="empty-hint">Upload a model file to preview it here.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div id="undo-toast" class="undo-toast" hidden>
     <span id="undo-toast-text">Block deleted.</span>
     <button id="undo-toast-btn">Undo</button>
   </div>
 
-<div id="editor-help-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="editor-help-title">
-  <div class="modal-inner editor-help-inner">
-    <header>
-      <h1 id="editor-help-title">Help</h1>
-      <button id="close-editor-help" aria-label="Close help dialog">×</button>
-    </header>
-    <div id="editor-help-body" class="editor-help-body"></div>
-  </div>
-</div>
-
-<script src="/admin/period-compare.js"></script>
 <script src="/admin/image-fit.js"></script>
 <script src="/admin/block-fit.js"></script>
 <script src="/admin/block-bar-model.js"></script>
@@ -2956,34 +890,6 @@
 <script src="/admin/dialog-resize.js"></script>
 <script src="/admin/reset-defaults.js"></script>
 <script src="/admin/outline-viewer.js"></script>
-<script src="/admin/prepublish.js"></script>
-<script src="/admin/script-policy.js"></script>
-<script src="/admin/script-runner.js"></script>
-<script src="/admin/script-editor.js"></script>
-<script src="/admin/script-templates.js"></script>
-<script src="/admin/node-defs.js"></script>
-<script src="/admin/node-compiler.js"></script>
-<script src="/admin/node-editor.js"></script>
-<script src="/admin/node-templates.js"></script>
 <script src="/admin/features-board.js"></script>
-<script src="/admin/photo-color.js"></script>
-<script src="/admin/photo-editor.js"></script>
-<script src="/sim-buzzer.js"></script>
-<script src="/admin/sim-solver.js"></script>
-  <script src="/admin/sim-schematic.js"></script>
-<script src="/admin/sim-components.js"></script>
-<script src="/admin/sim-sweep.js"></script>
-<script src="/admin/bulk-list.js"></script>
-<script src="/admin/simulation-builder.js"></script>
-<script src="/dial.js"></script>
-<script src="/song-engine.js"></script>
-<script src="/admin/song-patterns.js"></script>
-<script src="/admin/song-edit.js"></script>
-<script src="/admin/song-live.js"></script>
-<script src="/admin/song-files.js"></script>
-<script src="/admin/song-starters.js"></script>
-<script src="/admin/song-builder.js"></script>
-<script src="/admin/song-studio.js"></script>
-<script src="/admin/scan-builder.js"></script>
 </body>
 </html>

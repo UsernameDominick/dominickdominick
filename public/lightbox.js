@@ -5,16 +5,16 @@
 (function () {
   if (typeof HTMLDialogElement !== "function") return;
 
-  var SELECTOR = ".block-image, .gallery img, .body-figure img, .image-figure img";
+  var SELECTOR = ".block-image, .gallery img, .image-figure img";
   var dialog = null;
   var parts = {};
   var group = [];
   var index = 0;
   var opener = null;
 
-  // A picture that is a link to somewhere, or half of a before/after slider, already does something when pressed.
+  // A picture that is a link to somewhere already does something when pressed.
   function zoomable(img) {
-    return img.tagName === "IMG" && img.matches(SELECTOR) && !img.closest("a, button, .before-after") && !!(img.currentSrc || img.src);
+    return img.tagName === "IMG" && img.matches(SELECTOR) && !img.closest("a, button") && !!(img.currentSrc || img.src);
   }
 
   function groupFor(img) {

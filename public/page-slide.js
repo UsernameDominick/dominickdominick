@@ -47,14 +47,14 @@ window.addEventListener("pagereveal", function (e) {
 // it, following the finger. Every nav page (and its first pictures) is fetched ahead, so nothing waits on the network.
 // The address bar and the Back/Forward buttons work as usual (history.pushState + popstate). Anything this can't do safely, it hands back
 // to a normal page load (which the view-transition slide above still dresses up): an error or non-page response, or a page that needs
-// scripts this one doesn't run again (study, article extras). Scripts Cloudflare adds to pages (/cdn-cgi/, analytics) do not count, and
+// scripts this one doesn't run again (study). Scripts Cloudflare adds to pages (/cdn-cgi/, analytics) do not count, and
 // the addresses Cloudflare's email protection hides are put back here.
 (function () {
   if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) return;
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
   // Scripts a swapped-in page may bring: loaded once (in order) the first time a page needs them, and set up for each page by
-  // window.siteInitContent (song players, circuits, pictures), so these pages slide like the rest instead of loading from scratch.
-  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1, "/studio.js": 1, "/trainer.js": 1, "/backup-logic.js": 1, "/trainer-logic.js": 1, "/app-kit.js": 1, "/piceditor.js": 1, "/simulations.js": 1, "/scans.js": 1 };
+  // window.siteInitContent (pictures, the Studio), so these pages slide like the rest instead of loading from scratch.
+  var LOADABLE = { "/song-engine.js": 1, "/lightbox.js": 1, "/studio.js": 1, "/backup-logic.js": 1, "/app-kit.js": 1 };
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}
@@ -95,7 +95,7 @@ window.addEventListener("pagereveal", function (e) {
       return "needs " + src;
     }
     // Scripts inside the content, 3D models and code still need a real load.
-    if (doc.getElementById("main-content").querySelector("script, model-viewer, .mermaid, .katex-block, pre code")) return "content needs its scripts";
+    if (doc.getElementById("main-content").querySelector("script")) return "content needs its scripts";
     return "";
   }
   function swappable(doc) {
@@ -248,11 +248,6 @@ window.addEventListener("pagereveal", function (e) {
     });
     return chain;
   }
-  // The circuits' shared drawing definitions sit at the top of a page that has circuits; a page swapped in brings them if they are missing.
-  function copySimDefs(doc) {
-    var defs = doc.querySelector(".sim-defs-holder");
-    if (defs && !document.querySelector(".sim-defs-holder")) document.body.insertBefore(document.importNode(defs, true), document.body.firstChild);
-  }
   // The tabs between two stops, in travel order, as pages already fetched (a page not fetched yet, or one that can't be drawn, is skipped).
   function pagesBetween(fromPath, toPath) {
     var list = tabs();
@@ -283,9 +278,7 @@ window.addEventListener("pagereveal", function (e) {
       return Promise.all([loadScripts(res.doc), styles.ready]).then(function () { return res; });
     }).then(function (res) {
       if (opts.handover) opts.handover();
-      if (window.siteStopSongs) window.siteStopSongs();
-      document.dispatchEvent(new CustomEvent("site:leave")); // the app pages stop their sound (public/app-kit.js)
-      copySimDefs(res.doc);
+      document.dispatchEvent(new CustomEvent("site:leave")); // the Studio stops its sound (public/app-kit.js)
       var doc = res.doc;
       var oldMain = document.getElementById("main-content");
       var fresh = document.importNode(doc.getElementById("main-content"), true);
@@ -407,7 +400,7 @@ window.addEventListener("pagereveal", function (e) {
     if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
   };
   // And every page of the nav once the page has settled, so a tap slides at once even on a phone (no hover there to warm it).
-  // A page that holds an app (the Studio, PicEditor, Simulations, Scans) has the kit and the app's script loaded early too: on a page
+  // A page that holds an app (the Studio) has the kit and the app's script loaded early too: on a page
   // without it, it only fetches the editor in the background (public/app-kit.js, warm), so opening that tab does not wait for it.
   // Its first pictures are fetched too, so a page does not slide in with empty boxes that fill in after.
   var warmedPictures = {};
@@ -445,7 +438,7 @@ window.addEventListener("pagereveal", function (e) {
   document.addEventListener("touchstart", warm, { passive: true });
   // ---- A sideways swipe on the page (touch screens): the page follows the finger with the tab beside it coming in; let go past a quarter
   // of the screen (or flick) and it carries on there, otherwise it springs back. Not on things that use sideways drags themselves.
-  var SWIPE_OFF = 'input, textarea, select, [contenteditable], canvas, video, audio, iframe, model-viewer, .app-native, .song-embed, .sim-embed, [class^="sim-"], .tabs, .site-finder, [data-no-swipe]';
+  var SWIPE_OFF = 'input, textarea, select, [contenteditable], canvas, video, audio, iframe, .app-native, .tabs, .site-finder, [data-no-swipe]';
   function scrollsSideways(el) {
     for (; el && el !== document.body; el = el.parentElement) {
       if (el.scrollWidth > el.clientWidth + 2) {

@@ -68,21 +68,5 @@ export function pictureUrl(picture) {
   return picture.key ? `/media/${picture.key}` : picture.src;
 }
 
-// A line that is nothing but one picture (anything after it, such as ![icon](/i.png) and some words, makes it prose).
-export const PICTURE_ONLY_LINE = /^[ \t]*!\[[^\]\n]*\]\(\s*[^\s)]+(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)[ \t]*$/gm;
 
-// A text without its picture-only lines, for counting words (the alt text and caption are not part of the prose).
-export function stripPictureLines(text) {
-  return String(text || "").replace(PICTURE_ONLY_LINE, "");
-}
 
-// The address of every markdown link or picture in a text, for the link checker. A caption after a picture's address is not part of
-// the address, and a picture with no alt text still counts.
-export function markdownLinkTargets(text) {
-  const withoutTitles = String(text || "")
-    .replace(/\r\n?/g, "\n")
-    .replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, "") // links in a code example aren't links
-    .replace(/(\]\(\s*[^\s)]+)\s+(?:"[^"\n]*"|'[^'\n]*')(\s*\))/g, "$1$2");
-  // One line each: an unfinished link must not swallow the paragraphs below it and hide the next real link.
-  return [...withoutTitles.matchAll(/\[[^\]\n]*\]\(([^)\n]+)\)/g)].map((m) => m[1].trim()).filter(Boolean);
-}
