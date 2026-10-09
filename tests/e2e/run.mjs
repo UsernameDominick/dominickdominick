@@ -155,7 +155,11 @@ async function startWorker(i) {
   fs.mkdirSync(state, { recursive: true });
   const seed = path.join(root, ".wrangler/state/v3");
   for (const part of ["d1", "r2"]) {
-    if (!fs.existsSync(path.join(seed, part))) throw new Error("There is no local database to copy (.wrangler/state). Run `wrangler dev` once and add some content first.");
+    if (!fs.existsSync(path.join(seed, part))) {
+      // A fresh checkout has a database but nothing in R2 yet: the tests start from an empty bucket.
+      if (part === "r2") { fs.mkdirSync(path.join(state, part), { recursive: true }); continue; }
+      throw new Error("There is no local database to copy (.wrangler/state). Run `npm run db:local` first.");
+    }
     fs.cpSync(path.join(seed, part), path.join(state, part), { recursive: true });
   }
   tidySeed(state);
