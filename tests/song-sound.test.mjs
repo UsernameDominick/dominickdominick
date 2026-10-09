@@ -86,7 +86,9 @@ const drum = (row, kit, meta = {}) => play({ tempo: 120, kit, master_volume: 1, 
   ok(new Set(E.KITS.map((k) => kickStart(k))).size >= 12, "the kits really differ (twelve or more different kick pitches)");
   ok(drum("kick", "chip").nodes.find((n) => n.kind === "osc").type === "square" && drum("kick", "acoustic").nodes.find((n) => n.kind === "osc").type === "sine", "a chip kit's kick is a square wave");
   ok(count(drum("kick", "industrial"), "shaper") === 1 && count(drum("kick", "acoustic"), "shaper") === 0, "drive is built only for the kits that ask for it");
-  ok(count(drum("kick", "909"), "source") === 1 && count(drum("kick", "acoustic"), "source") === 0, "and so is a kick's click");
+  // every kick has its beater (a few milliseconds of noise); a kit that asks for more click has a louder one
+  const clickLevel = (kit) => drum("kick", kit).nodes.find((n) => n.kind === "source").out[0].out[0].gain.calls[0].v;
+  ok(count(drum("kick", "909"), "source") === 1 && count(drum("kick", "acoustic"), "source") === 1 && clickLevel("909") > clickLevel("acoustic"), "every kick has a beater, and a kit with a click has a louder one");
   ok(drum("kick", "nonsense").nodes.find((n) => n.kind === "osc").frequency.calls[0].v === kickStart("acoustic") && drum("kick", "constructor").nodes.length > 0, "an unknown kit is the acoustic one");
 }
 
@@ -96,7 +98,7 @@ const drum = (row, kit, meta = {}) => play({ tempo: 120, kit, master_volume: 1, 
   ok(Math.abs(start({ tune: 12 }) / start({}) - 2) < 1e-9 && Math.abs(start({ tune: -12 }) / start({}) - 0.5) < 1e-9, "tune is in semitones: twelve is an octave");
   const end = (meta) => Math.max(...drum("kick", "acoustic", meta).nodes.filter((n) => n.kind === "gain").flatMap((n) => n.gain.calls.map((c) => c.t)));
   ok(end({ decay: 2 }) > end({}) * 1.6 && end({ decay: 0.5 }) < end({}) * 0.7, "length stretches the decay");
-  const hatHP = (meta) => drum("hihat", "acoustic", meta).nodes.find((n) => n.kind === "filter").frequency.value;
+  const hatHP = (meta) => drum("hihat", "acoustic", meta).nodes.find((n) => n.kind === "filter" && n.type === "highpass").frequency.value;
   ok(hatHP({ tone: 1 }) > hatHP({}) * 2 && hatHP({ tone: -1 }) < hatHP({}) / 2, "tone moves a hi-hat's filter up or down");
   ok(start({ tone: 1 }) > start({}), "and on a kick it is the punch of the pitch drop");
   const d = E.drumShape({ tune: 99, decay: 0, tone: -9, volume: 0.5 });
@@ -104,8 +106,8 @@ const drum = (row, kit, meta = {}) => play({ tempo: 120, kit, master_volume: 1, 
   ok(start({ tune: NaN, decay: "x" }) === start({}), "a bad value changes nothing");
   // only that sound
   const two = play({ tempo: 120, kit: "acoustic", master_volume: 1, tracks: { kick: [true], snare: [true] }, trackMeta: { kick: { tune: 12 }, snare: {} }, melody: { notes: {} } });
-  const kicks = two.nodes.filter((n) => n.kind === "osc" && n.type === "sine");
-  ok(kicks.length === 1 && Math.abs(kicks[0].frequency.calls[0].v - 150 * 2.5 * 2) < 1e-9, "the tweak belongs to the sound it was made on");
+  const oscs = two.nodes.filter((n) => n.kind === "osc");
+  ok(Math.abs(oscs[0].frequency.calls[0].v - 150 * 2.5 * 2) < 1e-9 && Math.abs(oscs[1].frequency.calls[0].v - 200 * 1.35) < 1e-9, "the tweak belongs to the sound it was made on (the kick is an octave up, the snare is as the kit has it)");
   // saving and importing
   const meta = F.cleanSong({ tempo: 100, tracks: { kick: lane("x...............") }, trackMeta: { kick: { tune: 40, decay: 0.01, tone: 0.25, color: "#ff0000" }, snare: { tune: "x", decay: 2 } } }).trackMeta;
   ok(meta.kick.tune === 12 && meta.kick.decay === 0.3 && meta.kick.tone === 0.25 && meta.snare.tune === undefined && meta.snare.decay === 2 && meta.hihat.tune === undefined, "an imported song keeps them inside their ranges", meta);

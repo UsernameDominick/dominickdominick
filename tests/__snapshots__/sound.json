@@ -225,29 +225,29 @@
   "s": "gain x3, shaper x1, osc:triangle x1"
  },
  "drum:acoustic:kick": {
-  "h": "6b56d875",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "62a22693",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:acoustic:snare": {
-  "h": "a95303f0",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "37a3ea95",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:acoustic:hihat": {
-  "h": "d8adfe0c",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "deff166c",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:acoustic:clap": {
-  "h": "95c644a4",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "15ae04a8",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:acoustic:openhat": {
-  "h": "d6326d31",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "c03b9230",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:acoustic:rim": {
   "h": "487c38c4",
@@ -255,39 +255,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:acoustic:tom": {
-  "h": "1bc55dc9",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "054ee78e",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:acoustic:crash": {
-  "h": "ad00a09c",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "4ba5f59e",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:electronic:kick": {
-  "h": "7525afd5",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "41669f12",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:electronic:snare": {
-  "h": "ab59fcf7",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "d70e0a13",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:electronic:hihat": {
-  "h": "b4066442",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "fbb749d2",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:electronic:clap": {
-  "h": "9d900794",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "38ac3a66",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:electronic:openhat": {
-  "h": "6cbbf2c1",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "8bbe5925",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:electronic:rim": {
   "h": "3b5bd74c",
@@ -295,39 +295,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:electronic:tom": {
-  "h": "b54b39c0",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "a8765091",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:electronic:crash": {
-  "h": "0655b3e1",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "2715c34b",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:808:kick": {
-  "h": "b335674e",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "860516c5",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:808:snare": {
-  "h": "cd780680",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "80d6f12d",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:808:hihat": {
-  "h": "07470856",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "9bd7c4a8",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:808:clap": {
-  "h": "dbd034b1",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "eec3f9bf",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:808:openhat": {
-  "h": "fc635317",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "571ab8c4",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:808:rim": {
   "h": "b0546af6",
@@ -335,39 +335,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:808:tom": {
-  "h": "6ba9a994",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "caa6c7af",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:808:crash": {
-  "h": "a6f79e31",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "7fa67e6d",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:909:kick": {
-  "h": "44e3fa81",
+  "h": "b4399642",
   "n": 9,
   "s": "gain x4, shaper x2, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:909:snare": {
-  "h": "e7ac0363",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "a62baf0f",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:909:hihat": {
-  "h": "98b6aa4f",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "20f432a8",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:909:clap": {
-  "h": "d5a471d4",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "a1cdb1f2",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:909:openhat": {
-  "h": "03046935",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "9cd89e04",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:909:rim": {
   "h": "487c38c4",
@@ -375,39 +375,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:909:tom": {
-  "h": "95f3b792",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "b5f3bcc7",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:909:crash": {
-  "h": "2967d944",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "ba746195",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:house:kick": {
-  "h": "08764d53",
+  "h": "709462ad",
   "n": 8,
   "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:house:snare": {
-  "h": "7b41f78e",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "652286ba",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:house:hihat": {
-  "h": "ac964cb5",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "56cd135c",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:house:clap": {
-  "h": "a2f3e100",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "365bfc5d",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:house:openhat": {
-  "h": "b84f1f46",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "ac46d00c",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:house:rim": {
   "h": "487c38c4",
@@ -415,39 +415,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:house:tom": {
-  "h": "1bc55dc9",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "054ee78e",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:house:crash": {
-  "h": "ad00a09c",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "4ba5f59e",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:techno:kick": {
-  "h": "21674355",
+  "h": "9d9b49f5",
   "n": 9,
   "s": "gain x4, shaper x2, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:techno:snare": {
-  "h": "517f82a5",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "b1017f56",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:techno:hihat": {
-  "h": "3ec6ae80",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "b6426cea",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:techno:clap": {
-  "h": "98159e89",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "d9e6a473",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:techno:openhat": {
-  "h": "1a222377",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "78675d71",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:techno:rim": {
   "h": "5c9169de",
@@ -455,39 +455,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:techno:tom": {
-  "h": "00744065",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "f83b3686",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:techno:crash": {
-  "h": "106bbd83",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "4ec3e2d7",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:trap:kick": {
-  "h": "f2d2d602",
+  "h": "9f8d6a8b",
   "n": 8,
   "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:trap:snare": {
-  "h": "e7dcb421",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "1bcb0676",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:trap:hihat": {
-  "h": "5a895086",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "8d05fd76",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:trap:clap": {
-  "h": "87c0233b",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "a6a18664",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:trap:openhat": {
-  "h": "89d7fe67",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "6b05cfee",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:trap:rim": {
   "h": "487c38c4",
@@ -495,39 +495,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:trap:tom": {
-  "h": "5b35ffc8",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "57275257",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:trap:crash": {
-  "h": "9214190b",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "90c921f8",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:boombap:kick": {
-  "h": "feae451f",
+  "h": "b03b72c4",
   "n": 9,
   "s": "gain x4, shaper x2, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:boombap:snare": {
-  "h": "9aff8948",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "b006c392",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:boombap:hihat": {
-  "h": "a93da6d8",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "5656091c",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:boombap:clap": {
-  "h": "6f321e65",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "52671d21",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:boombap:openhat": {
-  "h": "39611892",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "75b2e554",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:boombap:rim": {
   "h": "487c38c4",
@@ -535,39 +535,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:boombap:tom": {
-  "h": "f18c65fd",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "154c7270",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:boombap:crash": {
-  "h": "e70bf1bd",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "9e05c06e",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:lofi:kick": {
-  "h": "1430b1ff",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:triangle x1"
+  "h": "b0ae54eb",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:triangle x1, source x1, filter:highpass x1"
  },
  "drum:lofi:snare": {
-  "h": "dda0fd05",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "e5654325",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:lofi:hihat": {
-  "h": "a805ba0e",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "a7bf31d0",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:lofi:clap": {
-  "h": "db1da50c",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "cf976b93",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:lofi:openhat": {
-  "h": "9867fc86",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "9cc5d9d3",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:lofi:rim": {
   "h": "24276e93",
@@ -575,39 +575,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:lofi:tom": {
-  "h": "e40fbb72",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "fa8a46dd",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:lofi:crash": {
-  "h": "de5f5527",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "431fef8e",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:rock:kick": {
-  "h": "510ea5ed",
+  "h": "cc82c08f",
   "n": 8,
   "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:rock:snare": {
-  "h": "09a563ea",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "4fb6318d",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:rock:hihat": {
-  "h": "cc16a23c",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "cfbadb68",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:rock:clap": {
-  "h": "93f63b2b",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "d4c6174f",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:rock:openhat": {
-  "h": "a9b74650",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "cd79103b",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:rock:rim": {
   "h": "487c38c4",
@@ -615,39 +615,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:rock:tom": {
-  "h": "dc4054d8",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "bfbaa6ad",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:rock:crash": {
-  "h": "9c8800b9",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "a3a9efce",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:jazz:kick": {
-  "h": "f0391ed2",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:triangle x1"
+  "h": "16653a27",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:triangle x1, source x1, filter:highpass x1"
  },
  "drum:jazz:snare": {
-  "h": "86a78818",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "c9a5308c",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:jazz:hihat": {
-  "h": "4b0cf924",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "b9b5d177",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:jazz:clap": {
-  "h": "8281cd01",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "15664ae4",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:jazz:openhat": {
-  "h": "2ae91a95",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "194d179d",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:jazz:rim": {
   "h": "37da589f",
@@ -655,39 +655,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:jazz:tom": {
-  "h": "f32e8cd0",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "e6201ab1",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:jazz:crash": {
-  "h": "60e29a41",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "677372cd",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:dnb:kick": {
-  "h": "49377c37",
+  "h": "23417969",
   "n": 8,
   "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:dnb:snare": {
-  "h": "fecccc22",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "4772960d",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:dnb:hihat": {
-  "h": "b3d29b3d",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "320887ff",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:dnb:clap": {
-  "h": "537f4fd1",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "3874d9c6",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:dnb:openhat": {
-  "h": "0dc5d266",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "e03f1d32",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:dnb:rim": {
   "h": "487c38c4",
@@ -695,39 +695,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:dnb:tom": {
-  "h": "98b8ec95",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "b606fed6",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:dnb:crash": {
-  "h": "ad00a09c",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "4ba5f59e",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:chip:kick": {
-  "h": "b104f56f",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:square x1"
+  "h": "ab2cc96c",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:square x1, source x1, filter:highpass x1"
  },
  "drum:chip:snare": {
-  "h": "df01f68b",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:square x1"
+  "h": "3964473c",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:square x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:chip:hihat": {
-  "h": "74685f61",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "585e29d2",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:chip:clap": {
-  "h": "71cf1743",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "8c401ca4",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:chip:openhat": {
-  "h": "9a6d175f",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "f9f5e5e5",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:chip:rim": {
   "h": "5d16e617",
@@ -735,39 +735,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:chip:tom": {
-  "h": "c6ad42c0",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "9f8c1ff1",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:chip:crash": {
-  "h": "03f313df",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "19fe5031",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:industrial:kick": {
-  "h": "826679dc",
+  "h": "4c4db651",
   "n": 9,
   "s": "gain x4, shaper x2, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:industrial:snare": {
-  "h": "d406afc9",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:sawtooth x1"
+  "h": "d4495315",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:sawtooth x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:industrial:hihat": {
-  "h": "9ace592e",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "f1cd22b2",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:industrial:clap": {
-  "h": "b88ae1f9",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "b266ba1d",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:industrial:openhat": {
-  "h": "03046935",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "9cd89e04",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:industrial:rim": {
   "h": "487c38c4",
@@ -775,39 +775,39 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:industrial:tom": {
-  "h": "515a24f4",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "3ae2e6cf",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:industrial:crash": {
-  "h": "ab50af33",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "6fc0e192",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "drum:soft:kick": {
-  "h": "9e182a51",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:triangle x1"
+  "h": "9042da90",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:triangle x1, source x1, filter:highpass x1"
  },
  "drum:soft:snare": {
-  "h": "942976d6",
-  "n": 8,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1, osc:triangle x1"
+  "h": "a2531ea2",
+  "n": 13,
+  "s": "gain x6, shaper x1, osc:triangle x1, osc:sine x1, source x2, filter:highpass x2"
  },
  "drum:soft:hihat": {
-  "h": "b0cf9ca7",
-  "n": 6,
-  "s": "gain x3, shaper x1, source x1, filter:highpass x1"
+  "h": "a67ce50d",
+  "n": 15,
+  "s": "gain x5, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:soft:clap": {
-  "h": "8281cd01",
-  "n": 12,
-  "s": "gain x5, shaper x1, source x3, filter:bandpass x3"
+  "h": "15664ae4",
+  "n": 18,
+  "s": "gain x7, shaper x1, source x5, filter:bandpass x5"
  },
  "drum:soft:openhat": {
-  "h": "022f272d",
-  "n": 7,
-  "s": "gain x4, shaper x1, source x1, filter:highpass x1"
+  "h": "1f3b06b3",
+  "n": 16,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, filter:highpass x1, source x1"
  },
  "drum:soft:rim": {
   "h": "5bb764db",
@@ -815,14 +815,14 @@
   "s": "gain x5, shaper x1, osc:triangle x2, source x1, filter:bandpass x1"
  },
  "drum:soft:tom": {
-  "h": "4fcf0a68",
-  "n": 5,
-  "s": "gain x3, shaper x1, osc:sine x1"
+  "h": "6a35f6fb",
+  "n": 8,
+  "s": "gain x4, shaper x1, osc:sine x1, source x1, filter:highpass x1"
  },
  "drum:soft:crash": {
-  "h": "93d3a532",
-  "n": 9,
-  "s": "gain x4, shaper x1, source x2, filter:highpass x2"
+  "h": "8e9854b5",
+  "n": 18,
+  "s": "gain x6, shaper x1, osc:square x6, filter:bandpass x1, source x2, filter:highpass x2"
  },
  "fx:space+echo": {
   "h": "7d553288",
@@ -830,8 +830,8 @@
   "s": "gain x5, shaper x1, convolver x1, delay x1, filter:lowpass x1"
  },
  "fx:pump": {
-  "h": "09c32e9c",
-  "n": 8,
-  "s": "gain x5, shaper x1, osc:sine x2"
+  "h": "22135d7b",
+  "n": 11,
+  "s": "gain x6, shaper x1, osc:sine x2, source x1, filter:highpass x1"
  }
 }

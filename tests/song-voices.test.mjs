@@ -112,7 +112,7 @@ for (const [name, want] of Object.entries(shape)) {
   for (const kit of ["acoustic", "electronic", "808"]) {
     const make = (name) => { const ctx = makeCtx(); E.scheduleStep(ctx, drums(hit(name), { kit }), 0, 0, () => 0.5); return ctx; };
     const open = make("openhat"), tom = make("tom"), rim = make("rim"), crash = make("crash");
-    ok(count(open, "source") === 1 && count(open, "filter") === 1 && count(tom, "osc") === 1 && count(rim, "osc") === 2 && count(rim, "source") === 1 && count(crash, "source") === 2 && count(crash, "filter") === 2, `${kit}: open hat is noise, tom one oscillator, rim two tones and a click, crash two noise layers`, { open: count(open, "source"), tom: count(tom, "osc"), rim: [count(rim, "osc"), count(rim, "source")], crash: count(crash, "source") });
+    ok(count(open, "osc") === 6 && count(open, "source") === 1 && count(open, "filter") === 2 && count(tom, "osc") === 1 && count(tom, "source") === 1 && count(rim, "osc") === 2 && count(rim, "source") === 1 && count(crash, "osc") === 6 && count(crash, "source") === 2 && count(crash, "filter") === 3, `${kit}: open hat is noise, tom one oscillator, rim two tones and a click, crash two noise layers`, { open: count(open, "source"), tom: count(tom, "osc"), rim: [count(rim, "osc"), count(rim, "source")], crash: count(crash, "source") });
   }
   // the open hat rings longer than the closed one, the crash longer still
   const lengthOf = (name) => { const ctx = makeCtx(); E.scheduleStep(ctx, drums(hit(name)), 0, 0, () => 0.5); return Math.max(...ctx.nodes.filter((n) => n.kind === "gain").flatMap((n) => n.gain.calls.filter((c) => c.kind === "exp").map((c) => c.t))); };
@@ -120,7 +120,7 @@ for (const [name, want] of Object.entries(shape)) {
 
   // a song without the extra rows never touches them, and a muted extra is silent
   const core = makeCtx(); E.scheduleStep(core, drums({ kick: Array(16).fill(true) }), 0, 0, () => 0.5);
-  ok(count(core, "source") === 0 && count(core, "osc") === 1, "a song with only the core rows plays only those");
+  ok(count(core, "source") === 1 && count(core, "osc") === 1, "a song with only the core rows plays only those (a kick is an oscillator and its beater)");
   const muted = makeCtx(); E.scheduleStep(muted, drums(hit("crash"), { trackMeta: { crash: { muted: true } } }), 0, 0, () => 0.5);
   ok(muted.nodes.filter((n) => n.kind === "source" || n.kind === "osc").length === 0, "a muted extra drum is silent");
   const unknown = makeCtx(); E.scheduleStep(unknown, drums({ cowbell: Array(16).fill(true) }), 0, 0, () => 0.5);

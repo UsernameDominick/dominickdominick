@@ -100,9 +100,10 @@ function drive(songData, options, bars) {
   ok(events.every((e) => e.data === s || e.data.tracks === s.patterns.B.tracks), "info.data is the song as that pattern plays it");
   const gaps = events.slice(1).map((e, i) => e.time - events[i].time);
   ok(gaps.every((g) => Math.abs(g - STEP) < 1e-9), "the steps stay evenly spaced across bar boundaries", gaps.filter((g) => Math.abs(g - STEP) > 1e-9).slice(0, 3));
-  // A has kicks on steps 0 and 8 (2 oscillators per bar, plus its melody note), B has a kick on step 4 and a melody note on 0
+  // A has kicks on steps 0 and 8, B has a kick on step 4 and a melody note on 0. A kick is five nodes (its oscillator and envelope, the beater's noise,
+  // its filter and its gain) and a plain melody note two (an oscillator and a gain).
   const perBar = [0, 1, 2].map((bar) => nodeCounts[bar * 16 + 15] - (bar === 0 ? 0 : nodeCounts[bar * 16 - 1]));
-  ok(perBar[1] === 6 && perBar[2] === 4, "a bar of A schedules its two kicks and melody note (6 nodes), the bar of B its one kick and melody note (4)", perBar);
+  ok(perBar[1] === 12 && perBar[2] === 7, "a bar of A schedules its two kicks and melody note (12 nodes), the bar of B its one kick and melody note (7)", perBar);
   ok(player.currentPattern() === "B" || player.currentPattern() === "A", "the player reports which pattern it is on", player.currentPattern());
 }
 {

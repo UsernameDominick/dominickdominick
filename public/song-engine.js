@@ -407,7 +407,7 @@ window.SongEngine = (function () {
     hihatDecay: 0.06, hihatHP: 7000, hihatLevel: 0.4,
     clapDecay: 0.12, clapBP: 1200, clapLevel: 0.5,
     openhatDecay: 0.3, openhatHP: 6500,
-    tomFreq: 120, tomDecay: 0.3, tomDrop: 1.9,
+    tomFreq: 120, tomDecay: 0.3, tomDrop: 1.9, tomDropTime: 0.07,
     rimDecay: 0.035, rimTune: 1, crashDecay: 1.2, crashHP: 1,
   };
   const KIT_LABELS = {
@@ -483,19 +483,39 @@ window.SongEngine = (function () {
     return driveCurves.get(key);
   }
 
-  function playKick(ctx, time, kit, random = Math.random, shape) {
+  // ---------- Drum voices ----------
+  // Every drum is called as (ctx, time, kit, random, shape, strength): `strength` (0 to 1, the step's level) shapes the tone as well as the loudness: a
+  // soft hit is duller, shorter and has less click; a hard one is brighter. `random` makes no two hits identical (a touch of pitch, length and brightness
+  // from the song's seeded stream, so an export repeats itself exactly).
+  const hitStrength = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1);
+  const around = (random, spread) => 1 + (random() - 0.5) * spread; // 1 give or take half the spread
+
+  function playKick(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
+    const wobble = around(random, 0.02);
+    // The pitch falls fast from `kickFreq * kickDrop` and settles on the kick's own note (the "body"), then droops a little as it dies, which is where a
+    // kick's weight is; it used to glide down over its whole length and never sat on a note.
+    const body = p.kickFreq * (0.6 + 0.4 * p.kickEnd) * wobble;
+    const top = Math.max(body * 1.2, p.kickFreq * p.kickDrop * wobble);
+    const dropTime = Math.min(0.09, Math.max(0.025, p.kickDecay * 0.16));
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = p.kickWave;
-    osc.frequency.setValueAtTime(p.kickFreq * p.kickDrop, time);
-    osc.frequency.exponentialRampToValueAtTime(p.kickFreq * p.kickEnd, time + p.kickDecay);
-    gain.gain.setValueAtTime(1, time);
+    osc.frequency.setValueAtTime(top, time);
+    osc.frequency.exponentialRampToValueAtTime(body * 1.3, time + dropTime * 0.4);
+    osc.frequency.exponentialRampToValueAtTime(body, time + dropTime);
+    osc.frequency.exponentialRampToValueAtTime(body * 0.86, time + p.kickDecay);
+    // a 2 ms rise (a sine that starts at full level clicks), a punchy first third, then the long tail
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.68, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.38, time + p.kickDecay * 0.28);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
     let tail = gain;
     if (p.kickDrive > 0) {
       const shaper = ctx.createWaveShaper();
       shaper.curve = driveCurve(p.kickDrive);
+      shaper.oversample = "2x"; // saturation makes harmonics above what the speakers carry; without oversampling they fold back down as a rasp
       gain.connect(shaper);
       tail = shaper;
     }
@@ -503,75 +523,136 @@ window.SongEngine = (function () {
     tail.connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + p.kickDecay + 0.05);
-    if (p.kickClick > 0) {
-      const click = ctx.createBufferSource();
-      click.buffer = noiseBuffer(ctx, 0.012, random);
-      const filter = ctx.createBiquadFilter();
-      filter.type = "highpass";
-      filter.frequency.value = 2500;
-      const clickGain = ctx.createGain();
-      clickGain.gain.setValueAtTime(p.kickClick * 0.6, time);
-      clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.012);
-      click.connect(filter).connect(clickGain).connect(voiceOut(ctx));
-      click.start(time);
-    }
-  }
-
-  function playSnare(ctx, time, kit, random = Math.random, shape) {
-    const p = kitParams(kit, shape);
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.snareDecay, random);
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = "highpass";
-    noiseFilter.frequency.value = p.snareHP;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(p.snareNoise, time);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay);
-    noise.connect(noiseFilter).connect(noiseGain).connect(voiceOut(ctx));
-    noise.start(time);
-
-    const osc = ctx.createOscillator();
-    const oscGain = ctx.createGain();
-    osc.type = p.snareWave;
-    osc.frequency.value = p.snareTone;
-    oscGain.gain.setValueAtTime(p.snareBody, time);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay * 0.8);
-    osc.connect(oscGain).connect(voiceOut(ctx));
-    osc.start(time);
-    osc.stop(time + p.snareDecay + 0.05);
-  }
-
-  function playHihat(ctx, time, kit, random = Math.random, shape) {
-    chokeOpenHat(ctx, time); // a closed hat steps on a ringing open one
-    const p = kitParams(kit, shape);
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.hihatDecay, random);
+    // the beater: a few milliseconds of high noise, harder with a harder hit
+    const click = (p.kickClick + 0.1) * (0.35 + 0.65 * v);
+    const beat = ctx.createBufferSource();
+    beat.buffer = noiseBuffer(ctx, 0.012, random);
     const filter = ctx.createBiquadFilter();
     filter.type = "highpass";
-    filter.frequency.value = p.hihatHP;
+    filter.frequency.value = 2200 + 1800 * v;
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(click * 0.6, time);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.012);
+    beat.connect(filter).connect(clickGain).connect(voiceOut(ctx));
+    beat.start(time);
+  }
+
+  function playSnare(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
+    const p = kitParams(kit, shape);
+    const wobble = around(random, 0.03);
+    const decay = p.snareDecay * (0.8 + 0.2 * v) * around(random, 0.08);
+    // The shell: two modes (the second a fifth and a bit above the first), each starting a third higher and dropping onto its note in 30 ms, which is the
+    // "pok" of a stick on a drum; a single fixed tone sounded like a beep.
+    [[1, 1, p.snareWave], [1.58, 0.45, "sine"]].forEach(([ratio, level, type]) => {
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      const f = p.snareTone * ratio * wobble;
+      osc.type = type;
+      osc.frequency.setValueAtTime(f * 1.35, time);
+      osc.frequency.exponentialRampToValueAtTime(f, time + 0.03);
+      oscGain.gain.setValueAtTime(0.0001, time);
+      oscGain.gain.linearRampToValueAtTime(p.snareBody * level * 0.82 * (0.6 + 0.4 * v), time + 0.001);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, time + decay * 0.8);
+      osc.connect(oscGain).connect(voiceOut(ctx));
+      osc.start(time);
+      osc.stop(time + decay + 0.05);
+    });
+    // The wires: noise through a high-pass, loud at first and then a long tail (two stages, not one curve), brighter the harder it is hit.
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer(ctx, decay, random);
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = "highpass";
+    noiseFilter.frequency.value = p.snareHP * (0.8 + 0.4 * v);
+    const noiseGain = ctx.createGain();
+    const wires = p.snareNoise * 0.82 * (0.55 + 0.45 * v);
+    noiseGain.gain.setValueAtTime(wires, time);
+    noiseGain.gain.exponentialRampToValueAtTime(wires * 0.4, time + Math.min(0.04, decay * 0.3));
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+    noise.connect(noiseFilter).connect(noiseGain).connect(voiceOut(ctx));
+    noise.start(time);
+    // the crack: the very start of the stick on the head
+    const crack = ctx.createBufferSource();
+    crack.buffer = noiseBuffer(ctx, 0.006, random);
+    const crackFilter = ctx.createBiquadFilter();
+    crackFilter.type = "highpass";
+    crackFilter.frequency.value = 1800;
+    const crackGain = ctx.createGain();
+    crackGain.gain.setValueAtTime(0.3 * v, time);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, time + 0.006);
+    crack.connect(crackFilter).connect(crackGain).connect(voiceOut(ctx));
+    crack.start(time);
+  }
+
+  // The six square waves of a cymbal. Their pitches are not harmonics of each other, so what comes out of the band-pass is a dense, metallic cluster of
+  // partials, not hiss (this is how the classic drum machines made cymbals).
+  const METAL_HAT = [205.3, 304.4, 369.6, 522.7, 540, 800];
+  const METAL_CRASH = [146.8, 219.1, 287.3, 391.4, 466.2, 612.9];
+  function metalBank(ctx, time, stopAt, freqs, scale, random, level) {
+    const bus = ctx.createGain();
+    bus.gain.value = level;
+    freqs.forEach((f) => {
+      const osc = ctx.createOscillator();
+      osc.type = "square";
+      osc.frequency.value = f * scale * around(random, 0.014);
+      osc.connect(bus);
+      // The squares are scattered over the first two and a half milliseconds: started together their edges coincide in one huge click and the cymbal is
+      // all peak and no body.
+      osc.start(time + random() * 0.0025);
+      osc.stop(stopAt);
+    });
+    return bus;
+  }
+
+  function playHihat(ctx, time, kit, random = Math.random, shape, strength) {
+    chokeOpenHat(ctx, time); // a closed hat steps on a ringing open one
+    const v = hitStrength(strength);
+    const p = kitParams(kit, shape);
+    const decay = p.hihatDecay * (0.75 + 0.25 * v) * around(random, 0.1);
+    const metal = metalBank(ctx, time, time + decay + 0.03, METAL_HAT, 1, random, 0.55);
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 9800 * (0.85 + 0.3 * v);
+    band.Q.value = 0.9;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = p.hihatHP * (0.85 + 0.25 * v);
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(p.hihatLevel, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.hihatDecay);
-    noise.connect(filter).connect(gain).connect(voiceOut(ctx));
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(p.hihatLevel * 2.2 * (0.55 + 0.45 * v), time + 0.0008);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+    metal.connect(band).connect(filter);
+    // a little noise on top for the sizzle
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer(ctx, decay, random);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.35;
+    noise.connect(noiseGain).connect(filter);
+    filter.connect(gain).connect(voiceOut(ctx));
     noise.start(time);
   }
 
-  function playClap(ctx, time, kit, random = Math.random, shape) {
+  function playClap(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
-    // Three quick, tightly-spaced bursts read as a "clap" rather than a
-    // single noise hit — a cheap, standard trick for synthesizing claps.
-    [0, 0.012, 0.024].forEach((offset) => {
+    const decay = p.clapDecay * around(random, 0.1);
+    const burst = (offset, length, level, bpScale, q) => {
       const noise = ctx.createBufferSource();
-      noise.buffer = noiseBuffer(ctx, p.clapDecay, random);
+      noise.buffer = noiseBuffer(ctx, length, random);
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = p.clapBP;
+      filter.frequency.value = p.clapBP * bpScale * (0.9 + 0.2 * v);
+      filter.Q.value = q;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(p.clapLevel, time + offset);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + offset + p.clapDecay);
+      gain.gain.setValueAtTime(level, time + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + offset + length);
       noise.connect(filter).connect(gain).connect(voiceOut(ctx));
       noise.start(time + offset);
-    });
+    };
+    // Four short, tightly spaced bursts (several hands that do not land together) and then the room: the same noise ringing on, narrower, to the clap's own
+    // length. A single burst, or three equal ones, sounded like a click.
+    [0, 0.009, 0.019, 0.031].forEach((offset, i) => burst(offset, 0.011 + i * 0.002, p.clapLevel * 2.3 * (0.6 + 0.4 * v) * (i === 3 ? 1 : 0.8), 1, 1.3));
+    burst(0.031, decay, p.clapLevel * 2.3 * 0.7 * (0.55 + 0.45 * v), 0.92, 1.8);
   }
 
   // ---------- Extra drum voices: open hat, tom, rim, crash ----------
@@ -585,46 +666,74 @@ window.SongEngine = (function () {
     open.choke.setTargetAtTime(0.0001, time, 0.004);
     open.until = time;
   }
-  function playOpenHat(ctx, time, kit, random = Math.random, shape) {
+  function playOpenHat(ctx, time, kit, random = Math.random, shape, strength) {
     chokeOpenHat(ctx, time);
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.openhatDecay, random);
+    const decay = p.openhatDecay * (0.8 + 0.2 * v) * around(random, 0.06);
+    const metal = metalBank(ctx, time, time + decay + 0.05, METAL_HAT, 1, random, 0.5);
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.frequency.value = 9000;
+    band.Q.value = 0.8;
     const filter = ctx.createBiquadFilter();
     filter.type = "highpass";
-    filter.frequency.value = p.openhatHP;
+    filter.frequency.value = p.openhatHP * (0.9 + 0.2 * v);
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.35, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.openhatDecay);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.84 * (0.6 + 0.4 * v), time + 0.0008);
+    gain.gain.exponentialRampToValueAtTime(0.28, time + Math.min(0.06, decay * 0.25));
+    gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
     const choke = ctx.createGain();
-    noise.connect(filter).connect(gain).connect(choke).connect(voiceOut(ctx));
+    metal.connect(band).connect(filter);
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer(ctx, decay, random);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0.3;
+    noise.connect(noiseGain).connect(filter);
+    filter.connect(gain).connect(choke).connect(voiceOut(ctx));
     noise.start(time);
-    openHats.set(ctx, { choke: choke.gain, from: time, until: time + p.openhatDecay });
+    openHats.set(ctx, { choke: choke.gain, from: time, until: time + decay });
   }
 
-  function playTom(ctx, time, kit, random = Math.random, shape) {
+  function playTom(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
+    const wobble = around(random, 0.02);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(p.tomFreq * p.tomDrop, time);
-    osc.frequency.exponentialRampToValueAtTime(p.tomFreq, time + 0.07);
-    gain.gain.setValueAtTime(0.9, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.tomDecay);
+    osc.frequency.setValueAtTime(p.tomFreq * p.tomDrop * wobble, time);
+    osc.frequency.exponentialRampToValueAtTime(p.tomFreq * wobble, time + p.tomDropTime);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.linearRampToValueAtTime(0.9, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + p.tomDecay * (0.8 + 0.2 * v));
     osc.connect(gain).connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + p.tomDecay + 0.05);
+    // the stick
+    const stick = ctx.createBufferSource();
+    stick.buffer = noiseBuffer(ctx, 0.008, random);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 1500;
+    const stickGain = ctx.createGain();
+    stickGain.gain.setValueAtTime(0.14 * v, time);
+    stickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.008);
+    stick.connect(filter).connect(stickGain).connect(voiceOut(ctx));
+    stick.start(time);
   }
 
   // A short, dry click: two pitched tones and a burst of band-passed noise, over in a few hundredths of a second.
-  function playRim(ctx, time, kit, random = Math.random, shape) {
+  function playRim(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
     [[1750, 0.35], [480, 0.45]].forEach(([freq, level]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "triangle";
-      osc.frequency.value = freq * p.rimTune;
-      gain.gain.setValueAtTime(level, time);
+      osc.frequency.value = freq * p.rimTune * around(random, 0.02);
+      gain.gain.setValueAtTime(level * (0.6 + 0.4 * v), time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
       osc.connect(gain).connect(voiceOut(ctx));
       osc.start(time);
@@ -636,24 +745,37 @@ window.SongEngine = (function () {
     filter.type = "bandpass";
     filter.frequency.value = 3200 * p.rimTune;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.3, time);
+    noiseGain.gain.setValueAtTime(0.3 * v, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
     noise.connect(filter).connect(noiseGain).connect(voiceOut(ctx));
     noise.start(time);
   }
 
-  // Two layers of noise at different brightness shimmer against each other and die away slowly.
-  function playCrash(ctx, time, kit, random = Math.random, shape) {
+  // A cymbal: the metal cluster under a band-pass that sweeps down as it rings (bright at the strike, darker as it dies), and two layers of noise on top.
+  function playCrash(ctx, time, kit, random = Math.random, shape, strength) {
+    const v = hitStrength(strength);
     const p = kitParams(kit, shape);
-    [[4500, 0.22, 1], [9000, 0.16, 0.7]].forEach(([cutoff, level, length]) => {
+    const decay = p.crashDecay * (0.85 + 0.15 * v) * around(random, 0.05);
+    const metal = metalBank(ctx, time, time + decay + 0.05, METAL_CRASH, 1, random, 0.5);
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 0.7;
+    band.frequency.setValueAtTime(11000 * p.crashHP, time);
+    band.frequency.exponentialRampToValueAtTime(5200 * p.crashHP, time + decay);
+    const metalGain = ctx.createGain();
+    metalGain.gain.setValueAtTime(0.45 * (0.5 + 0.5 * v), time);
+    metalGain.gain.exponentialRampToValueAtTime(0.16, time + decay * 0.25);
+    metalGain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+    metal.connect(band).connect(metalGain).connect(voiceOut(ctx));
+    [[4500, 0.2, 1], [9000, 0.14, 0.7]].forEach(([cutoff, level, length]) => {
       const noise = ctx.createBufferSource();
-      noise.buffer = noiseBuffer(ctx, p.crashDecay * length, random);
+      noise.buffer = noiseBuffer(ctx, decay * length, random);
       const filter = ctx.createBiquadFilter();
       filter.type = "highpass";
       filter.frequency.value = cutoff * p.crashHP;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(level, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + p.crashDecay * length);
+      gain.gain.setValueAtTime(level * (0.5 + 0.5 * v), time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + decay * length);
       noise.connect(filter).connect(gain).connect(voiceOut(ctx));
       noise.start(time);
     });
@@ -1295,7 +1417,7 @@ window.SongEngine = (function () {
         // caught this live (a silently broken peak scan).
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
-          withTrack(ctx, songData, "drums", () => withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track]))));
+          withTrack(ctx, songData, "drums", () => withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track]), stepLevel(songData.tracks[track][step]))));
           if (pump && track === "kick") duckMusic(ctx, hitTime, pump, songData.tempo);
         }
       });
