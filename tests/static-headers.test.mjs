@@ -18,7 +18,8 @@ for (const raw of text.split(/\r?\n/)) {
   }
 }
 const byPath = Object.fromEntries(rules.map((r) => [r.path, r.headers]));
-ok(rules.length === 3 && rules.every((r) => /^(\/|https:\/\/)/.test(r.path)), "three rules, each starting at a path or https:// host", rules.map((r) => r.path));
+ok(rules.length === 4 && rules.every((r) => /^(\/|https:\/\/)/.test(r.path)), "four rules, each starting at a path or https:// host", rules.map((r) => r.path));
+ok(/immutable/.test(byPath["/fonts/*"]["cache-control"] || "") && /max-age=31536000/.test(byPath["/fonts/*"]["cache-control"] || ""), "the pixel fonts are cached for a year");
 ok(byPath["https://dominickdominick.:subdomain.workers.dev/*"]["x-robots-tag"] === "noindex", "the workers.dev address is still kept out of search results");
 const all = byPath["/*"];
 ok(all && all["x-content-type-options"] === "nosniff", "every static file: no MIME sniffing");

@@ -12,7 +12,7 @@ const F = loadSongFiles();
 // the starters file needs SongFiles on its window, so load both into one context
 const window = {};
 const context = vm.createContext({ window, Math, Number, Object, Array, JSON, Set, String, Uint8Array, console });
-for (const f of ["song-files.js", "song-starters.js"]) vm.runInContext(fs.readFileSync(new URL(`../public/admin/${f}`, import.meta.url), "utf8"), context);
+for (const f of ["song-files.js", "song-starters.js"]) vm.runInContext(fs.readFileSync(new URL(`../public/studio/${f}`, import.meta.url), "utf8"), context);
 const S = window.SongStarters;
 
 ok(S.LIST.length >= 4 && S.LIST.every((s) => s.id && s.name && s.blurb.length > 20), "there are at least four starters, each with an id, a name and a description", S.LIST.map((s) => s.id));

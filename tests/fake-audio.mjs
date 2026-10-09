@@ -63,7 +63,7 @@ export function loadSongFiles() {
   const window = {};
   const context = sandbox();
   context.window = window;
-  vm.runInContext(fs.readFileSync(new URL("../public/admin/song-files.js", import.meta.url), "utf8"), context);
+  vm.runInContext(fs.readFileSync(new URL("../public/studio/song-files.js", import.meta.url), "utf8"), context);
   return window.SongFiles;
 }
 

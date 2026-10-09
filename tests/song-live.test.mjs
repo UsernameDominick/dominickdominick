@@ -3,7 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const window = {};
-vm.runInContext(fs.readFileSync(new URL("../public/admin/song-live.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array, Object, Boolean }));
+vm.runInContext(fs.readFileSync(new URL("../public/studio/song-live.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array, Object, Boolean }));
 const L = window.SongLive;
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };

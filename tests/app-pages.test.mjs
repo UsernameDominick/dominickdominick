@@ -1,14 +1,14 @@
 // The Studio is the site's one app page (built on public/app-kit.js). Everything that has to agree about it is checked here: its entry in
 // worker/app-pages.js, a script that exists and registers itself with the kit for the mount the page holds, the scripts it asks the kit
-// for, a page body its script can build into, and the admin dialogs it takes. The Studio lifts its dialogs out of /admin/index.html at
-// run time, so a dialog id removed from the admin page would break it without any error on the server.
+// for, a page body its script can build into, and the dialogs it takes. The Studio builds its page from public/studio/dialogs.txt
+// (its own file, not the admin's), so a dialog id missing there would break it without any error on the server.
 import fs from "node:fs";
 import { APP_PAGES, appPageFor, appPageBody } from "../worker/app-pages.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined && !c ? " " + JSON.stringify(extra) : ""}`); };
 const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const adminPage = fs.readFileSync("public/admin/index.html", "utf8");
+const dialogsFile = fs.readFileSync("public/studio/dialogs.txt", "utf8");
 
 ok(APP_PAGES.length === 1 && APP_PAGES[0].path === "/studio", "the Studio is the only app page", APP_PAGES.map((a) => a.path));
 for (const page of APP_PAGES) {
@@ -31,7 +31,7 @@ for (const page of APP_PAGES) {
   const scripts = list("scripts");
   const dialogs = list("dialogs");
   ok(scripts.length > 0 && scripts.every((s) => fs.existsSync("public" + s)), `${name}: every script it loads exists`, scripts.filter((s) => !fs.existsSync("public" + s)));
-  ok(dialogs.length > 0 && dialogs.every((d) => adminPage.includes(`id="${d}"`)), `${name}: every admin dialog it takes is on the admin page`, dialogs.filter((d) => !adminPage.includes(`id="${d}"`)));
+  ok(dialogs.length > 0 && dialogs.every((d) => dialogsFile.includes(`id="${d}"`)), `${name}: every dialog it takes is in public/studio/dialogs.txt`, dialogs.filter((d) => !dialogsFile.includes(`id="${d}"`)));
 }
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");

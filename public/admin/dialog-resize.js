@@ -6,7 +6,7 @@
   const KEY = "admin-dialog-widths:v1";
   const MIN = 420;
   const GAP = 48;
-  const SKIP = new Set(["command-modal", "song-builder-modal", "typed-confirm-modal"]);
+  const SKIP = new Set(["command-modal", "typed-confirm-modal"]);
 
   // The widest a dialog can be is the room beside the menu; the narrowest is MIN (or the room, if that is smaller).
   function clampDialogWidth(value, room) {

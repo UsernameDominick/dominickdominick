@@ -1,9 +1,10 @@
-// The kit the site's app page is built on (the Studio): an admin tool, taken from the admin page, built into a page of the site
-// instead of a dialog over the admin. It gives each app:
-// - the admin's stylesheet once, scoped under .app-native so it cannot touch the rest of the site, plus the app's own (app-kit.css);
-// - the admin markup (/admin/index.html, fetched once and shared) to take the tool's dialogs from;
+// The kit the site's app page is built on (the Studio): the song builder, built into a page of the site instead of a dialog. It gives the
+// app:
+// - the Studio's stylesheet once (/studio/studio.css, already scoped under .app-native so it cannot touch the rest of the site), plus the
+//   kit's own (app-kit.css);
+// - the Studio's dialogs (/studio/dialogs.txt, fetched once) to build the page from;
 // - script loading in order, each script once;
-// - answers for the tool's calls to the admin API (window.adminApi and fetch("/api/admin/…")) from handlers the app registers, which keep
+// - answers for the builder's calls to the old admin API (window.adminApi) from handlers the app registers, which keep
 //   everything in this browser: nothing a visitor makes is sent to the site;
 // - a small store (localStorage lists);
 // - the page life: build once, park hidden when another tab slides in (page-slide.js), come back as it was.
@@ -12,69 +13,6 @@
   if (window.SiteAppKit) return;
   const SCOPE = ".app-native";
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-
-  // ---------- the admin's stylesheet, scoped ----------
-  // Every selector goes under .app-native; `:root`/`html` rules keep their place and gain the scope after them; `body` means the app's shell.
-  function splitList(sel) {
-    const out = [];
-    let depth = 0;
-    let cur = "";
-    for (const ch of sel) {
-      if (ch === "(" || ch === "[") depth++;
-      else if (ch === ")" || ch === "]") depth--;
-      if (ch === "," && depth === 0) {
-        out.push(cur.trim());
-        cur = "";
-      } else cur += ch;
-    }
-    if (cur.trim()) out.push(cur.trim());
-    return out;
-  }
-  function scopeOne(sel) {
-    const m = /^((?::root|html)(?:\[[^\]]*\]|:[\w-]+(?:\([^)]*\))?|\.[\w-]+)*)(.*)$/.exec(sel);
-    if (m && m[1]) {
-      const rest = m[2].trim().replace(/^body(?=[\s.#:[>]|$)/, ".app-shell");
-      return `${m[1]} ${SCOPE}${rest ? " " + rest : ""}`;
-    }
-    if (/^body(?=[\s.#:[>]|$)/.test(sel)) return `${SCOPE} ${sel.replace(/^body/, ".app-shell")}`;
-    return `${SCOPE} ${sel}`;
-  }
-  function scopeRules(rules) {
-    let out = "";
-    for (const r of rules) {
-      if (r.type === 1) out += `${splitList(r.selectorText).map(scopeOne).join(", ")}{${r.style.cssText}}\n`;
-      else if (r.type === 4) out += `@media ${r.conditionText || r.media.mediaText}{${scopeRules(r.cssRules)}}\n`;
-      else if (r.type === 12) out += `@supports ${r.conditionText}{${scopeRules(r.cssRules)}}\n`;
-      else out += r.cssText + "\n"; // keyframes, font faces
-    }
-    return out;
-  }
-  // The scoped copy of a big stylesheet is kept in this browser, keyed by a hash of the source, so a later visit skips the parse.
-  function scopeCss(text) {
-    let key = "";
-    try {
-      let h = 5381;
-      for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-      key = "appkit.scoped.v1:" + text.length + ":" + (h >>> 0).toString(36);
-      const hit = localStorage.getItem(key);
-      if (hit) return hit;
-    } catch (e) {
-      key = "";
-    }
-    const out = scopeFresh(text);
-    if (key) {
-      try {
-        Object.keys(localStorage).filter((k) => k.indexOf("appkit.scoped.v1:") === 0).forEach((k) => localStorage.removeItem(k));
-        localStorage.setItem(key, out);
-      } catch (e) { /* full or blocked: just parse every time */ }
-    }
-    return out;
-  }
-  function scopeFresh(text) {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(text.replace(/@import[^;]+;/g, ""));
-    return scopeRules(sheet.cssRules);
-  }
 
   // ---------- the shared parts, fetched once ----------
   let parts = null;
@@ -91,11 +29,11 @@
       await wait(400 * (i + 1));
     }
   };
-  function adminParts() {
+  function studioParts() {
     if (!parts) {
-      parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/app-kit.css")]).then(([page, css, own]) => ({
-        doc: new DOMParser().parseFromString(page, "text/html"),
-        css: scopeCss(css) + "\n" + own,
+      parts = Promise.all([text("/studio/dialogs.txt"), text("/studio/studio.css"), text("/app-kit.css")]).then(([dialogs, css, own]) => ({
+        doc: new DOMParser().parseFromString(dialogs, "text/html"),
+        css: css + "\n" + own,
       }));
       parts.catch(() => { parts = null; });
     }
@@ -144,6 +82,19 @@
   }
   async function loadScripts(list) {
     for (const src of list) await loadScript(src);
+  }
+  // Starts every script downloading at once (they still run one after another, in order, from the cache), so the first visit is not a
+  // chain of one download after another.
+  function preload(list) {
+    list.forEach((src) => {
+      if (document.querySelector(`link[rel="preload"][href="${src}"]`) || loaded[src]) return;
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "script";
+      link.href = src;
+      link.dataset.addedBy = "app-kit";
+      document.head.appendChild(link);
+    });
   }
   function prefetch(list) {
     list.forEach((src) => {
@@ -288,7 +239,8 @@
     const editor = () => app.editor();
     async function boot(mount) {
       mount.innerHTML = `<p class="studio-loading app-loading" role="status">${esc(app.loadingText || "Loading…")}</p>`;
-      const { doc, css } = await adminParts();
+      preload(app.scripts);
+      const { doc, css } = await studioParts();
       ensureStyles(css);
       shell = document.createElement("div");
       shell.className = "app-native " + (app.shellClass || "");
@@ -362,12 +314,20 @@
       park();
       parking.appendChild(shell);
     });
-    const entry = { init, warm: () => { if (!shell && !booting) { adminParts().catch(() => {}); prefetch(app.scripts); } } };
+    const entry = { init, warm: () => { if (!shell && !booting) { studioParts().catch(() => {}); prefetch(app.scripts); } } };
     apps.push(entry);
-    // On another page the script was only loaded to get ready (page-slide.js warms the nav's pages): fetch what it needs while idle.
+    // On another page the script was only loaded to get ready (page-slide.js loads it for the nav's pages): fetch what the Studio needs
+    // only when someone points at, touches or tabs to its stop, not for every visitor of the home page.
     const start = () => {
       init(document);
-      if (!shell && !booting && !(navigator.connection && navigator.connection.saveData)) (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(entry.warm);
+      if (shell || booting || (navigator.connection && navigator.connection.saveData)) return;
+      const events = ["pointerover", "touchstart", "focusin"];
+      const interest = (e) => {
+        if (!e.target.closest || !e.target.closest('a[href="/studio"]')) return;
+        events.forEach((t) => document.removeEventListener(t, interest, true));
+        entry.warm();
+      };
+      events.forEach((t) => document.addEventListener(t, interest, { capture: true, passive: true }));
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
     else start();

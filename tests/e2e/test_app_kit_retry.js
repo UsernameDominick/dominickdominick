@@ -10,7 +10,7 @@ const { chromium } = require("./_pw.cjs");
     {
       const p = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
       let blocked = 0;
-      await p.route("**/admin/song-builder.js", (r) => (blocked++ < 2 ? r.abort() : r.continue()));
+      await p.route("**/studio/song-builder.js", (r) => (blocked++ < 2 ? r.abort() : r.continue()));
       const errs = []; p.on("pageerror", (e) => errs.push(e.message));
       await p.goto(E2E_BASE + "/studio");
       const built = await p.waitForSelector("#studio-mount #song-builder-modal:not([hidden])", { timeout: 30000 }).then(() => true).catch(() => false);
@@ -22,7 +22,7 @@ const { chromium } = require("./_pw.cjs");
     {
       const p = await (await b.newContext({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })).newPage();
       let down = true;
-      await p.route("**/admin/song-builder.js", (r) => (down ? r.abort() : r.continue()));
+      await p.route("**/studio/song-builder.js", (r) => (down ? r.abort() : r.continue()));
       await p.goto(E2E_BASE + "/studio");
       await p.waitForSelector("#studio-mount .app-retry", { timeout: 30000 });
       ok(/Could not load/.test(await p.textContent("#studio-mount [role=alert]")) && (await p.locator("#studio-mount .studio-native").count()) === 0, "when it keeps failing the page says so, with a Try again button");

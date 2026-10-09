@@ -16,3 +16,7 @@ https://dominickdominick.:subdomain.workers.dev/*
 # The admin shell is for one person: keep it out of search results even if something links to it.
 /admin/*
 	X-Robots-Tag: noindex, nofollow
+
+# The pixel fonts never change: let browsers keep them for a year.
+/fonts/*
+	Cache-Control: public, max-age=31536000, immutable

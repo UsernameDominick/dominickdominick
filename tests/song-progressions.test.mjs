@@ -4,7 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const window = {};
-vm.runInContext(fs.readFileSync(new URL("../public/admin/song-patterns.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array, Map, Object, String }));
+vm.runInContext(fs.readFileSync(new URL("../public/studio/song-patterns.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array, Map, Object, String }));
 const P = window.SongPatterns;
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };

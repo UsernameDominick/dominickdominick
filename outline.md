@@ -64,7 +64,6 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 - [ ] Tempo/time-signature settings: every module assumes 16 steps per pattern, so a signature other than 4/4 needs a variable pattern length in the engine, the step grids, cached peaks and saved data. Needs a decision on which signatures.
 - [ ] Per-track clipping attribution needs per-track metering; today only the master bus is logged.
 - [ ] A longer piano-roll range or per-track step length means changing the song format.
-- [ ] Decouple the Studio from the admin files: it fetches `/admin/index.html` and `/admin/style.css` at runtime and lifts its dialogs and styles out of them. Move that markup and CSS into `public/studio/` so the admin can change freely.
 - [ ] Reduced-motion sweep: the skip link's slide and `@view-transition` still need a check.
 
 - [ ] Re-create the browser tests for the song builder against `/studio`: the 18 `test_song_*` tests drove it through the admin's song library and were deleted with it (the pure `tests/song-*.test.mjs` still cover the logic).
