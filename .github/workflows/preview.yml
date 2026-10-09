@@ -33,7 +33,7 @@ jobs:
             echo "::notice title=Preview skipped::The Cloudflare secrets are not set (outline.md, section 0)."
           fi
       - if: steps.ready.outputs.ready == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - if: steps.ready.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
