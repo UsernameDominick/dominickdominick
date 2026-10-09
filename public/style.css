@@ -1411,6 +1411,14 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .dial-input:focus-visible + .dial-face { outline: 2px solid var(--accent); outline-offset: 3px; }
 .dial.is-disabled { opacity: 0.4; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
+/* The value bubble over a dial while it is turned, pointed at, or focused from the keyboard (only when the page told the dial what its numbers mean), and the box to type one into. */
+.dial-bubble { position: absolute; left: 50%; bottom: calc(100% + 3px); transform: translateX(-50%); z-index: 6; padding: 1px 6px; white-space: nowrap; pointer-events: none; font: 400 14px/16px var(--font-pixel, monospace); background: var(--text); color: var(--bg); visibility: hidden; }
+.dial-bubble:empty { display: none; }
+.dial.is-turning .dial-bubble, .dial:has(.dial-input:focus-visible) .dial-bubble { visibility: visible; }
+@media (hover: hover) { .dial.is-near .dial-bubble { visibility: visible; } }
+.dial.is-fine .dial-bubble { background: var(--orange, #ff6a1a); color: #2a2622; }
+.dial-def { fill: var(--text); }
+.dial-type { position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); z-index: 7; width: 9ch; min-height: 0; height: 24px; padding: 0 4px; text-align: center; font: 400 16px/20px var(--font-family, monospace); color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; }
 
 /* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
 

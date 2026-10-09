@@ -3397,3 +3397,11 @@
 @media (max-height: 500px) and (max-width: 1023px) and (orientation: landscape) {
   .app-native .studio-display .studio-toggles, .app-native .studio-keybar .studio-toggles { flex-wrap: wrap; overflow: visible; min-width: 0; row-gap: 4px; }
 }
+
+/* A knob's readout can be clicked to type a value (the dial's own typing box opens over it); the dial's own setting is a small dot on its face. */
+.app-native .studio-knob output { cursor: text; }
+.app-native .studio-knob output:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.app-native .dial-def { fill: var(--text); }
+.app-native .dial.is-fine .dial-disc { stroke-dasharray: 3 2; }
+.app-native .dial-bubble { font: 400 14px/16px var(--bb-px); }
+.app-native .dial-type { font: 400 20px/22px var(--bb-vt); height: 28px; }

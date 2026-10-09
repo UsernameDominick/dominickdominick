@@ -48,7 +48,7 @@
       const n = Number(raw[key]);
       if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
       const clamped = Math.max(SYNTH_RANGES[key][0], Math.min(SYNTH_RANGES[key][1], n));
-      out[key] = key === "unison" ? Math.round(clamped) : Math.round(clamped * 1000) / 1000;
+      out[key] = key === "unison" ? Math.round(clamped) : Number(clamped.toPrecision(4)); // four significant figures: a 3 ms attack keeps its detail
     });
     return Object.keys(out).length ? out : null;
   }

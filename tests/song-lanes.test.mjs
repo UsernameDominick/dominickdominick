@@ -91,7 +91,7 @@ const song = (extra = {}) => ({
 // ---- a track's own sound tweaks ----
 {
   const t = E.cleanSynth({ wave: "square", attack: 9, release: -1, cutoff: 800.12345, vibrato: "20", detune: "x", junk: 1, sustain: null });
-  ok(t.wave === "square" && t.attack === 2 && t.release === 0 && t.cutoff === 800.123 && t.vibrato === 20 && !("detune" in t) && !("junk" in t) && !("sustain" in t), "tweaks are clamped, rounded, and anything unknown is dropped", t);
+  ok(t.wave === "square" && t.attack === 2 && t.release === 0 && t.cutoff === 800.1 && t.vibrato === 20 && !("detune" in t) && !("junk" in t) && !("sustain" in t), "tweaks are clamped, rounded to four significant figures, and anything unknown is dropped", t);
   ok(E.cleanSynth(null) === null && E.cleanSynth([]) === null && E.cleanSynth({ wave: "noise" }) === null, "nothing valid means no tweaks");
   const clean = F.cleanSong({ melody: { voice: "pad", synth: { attack: 0.5, nope: 1 } }, bass: { notes: {}, synth: { cutoff: 50 } }, lead: { notes: {}, synth: { wave: "triangle" } } });
   ok(clean.melody.synth.attack === 0.5 && !clean.melody.synth.nope && clean.bass.synth.cutoff === 120 && clean.lead.synth.wave === "triangle", "a saved song keeps each track's tweaks, cleaned", [clean.melody.synth, clean.bass.synth]);

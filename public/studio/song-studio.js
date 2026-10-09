@@ -3202,6 +3202,58 @@
       box.querySelectorAll("[data-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pick === sel.value)));
     });
   }
+  // ---- what each dial's numbers mean (public/dial.js configure): the unit it reads in, the setting it goes back to, the values it is pulled onto ----
+  const dialsOn = () => Boolean(window.Dial && window.Dial.configure);
+  const turning = (el) => Boolean(el.closest && el.closest(".dial.is-turning")); // a dial that is being turned keeps its own position
+  const UNIT_SCALE = { "%": 100, sweep: 100, len: 100, tone: 100 }; // the number typed in, divided by this, is the knob's own value
+  // round values a knob is pulled onto while it is dragged (the knob's own setting is always one more)
+  const KNOB_DETENTS = {
+    attack: [0.005, 0.01, 0.05, 0.1, 0.5, 1], decay: [0.1, 0.25, 0.5, 1, 2], sustain: [0, 0.5, 1], release: [0.1, 0.25, 0.5, 1, 2],
+    cutoff: [200, 500, 1000, 2000, 5000, 10000], res: [1, 4], sweep: [0], detune: [0, 10, 20, 30], unison: [1, 2, 3, 5, 7],
+    sub: [0, 0.5, 1], noise: [0], drive: [0], fm: [0], fmratio: [1, 2, 3, 4], vibrato: [0, 10, 25], vrate: [3, 5.5, 8], tremolo: [0], trate: [3, 5, 8],
+  };
+  const sliderAt = (k, real) => Math.round(Math.max(0, Math.min(1, toSlider(k, real))) * 1000);
+  function configureKnob(input, k, def, detents, onReset) {
+    if (!dialsOn()) return;
+    window.Dial.configure(input, {
+      format: (sv) => fmt(k, fromSlider(k, sv / 1000)),
+      parse: (text, n) => sliderAt(k, n / (UNIT_SCALE[k.unit] || 1)),
+      def: sliderAt(k, def),
+      detents: [def].concat(detents || []).map((v) => sliderAt(k, v)),
+      reset: () => {
+        host().group(true);
+        onReset();
+        host().group(false);
+        input.value = String(sliderAt(k, def));
+        refresh();
+      },
+    });
+  }
+  // volume reads in decibels (the slider stays 0 to 100 percent of full level)
+  const dbText = (percent) => (percent <= 0 ? "-inf dB" : `${(20 * Math.log10(percent / 100)).toFixed(1)} dB`);
+  function configureLevel(input, ownAria) {
+    if (!dialsOn() || !input) return;
+    input.setAttribute("data-default", "100");
+    window.Dial.configure(input, {
+      format: (v) => dbText(Number(v)),
+      parse: (text, n) => (/%/.test(text) ? n : 100 * Math.pow(10, Math.min(0, n) / 20)),
+      def: 100,
+      detents: [0, 50, 100],
+      aria: ownAria !== false,
+    });
+  }
+  // the mix dials of the Song pane: a value bubble in percent, back to zero on a double-click, notches at the ends and the middle
+  function configureMixDials() {
+    if (!dialsOn()) return;
+    ["song-humanize", "song-swing", "song-space", "song-echo", "song-pump"].forEach((id) => {
+      const input = $(id);
+      if (!input) return;
+      input.setAttribute("data-default", "0");
+      window.Dial.configure(input, { format: (v) => `${Math.round(Number(v))}%`, parse: (_t, n) => n, def: 0, detents: [0, 50, 100], aria: false });
+    });
+    const master = $("song-master-volume");
+    if (master) configureLevel(master, false);
+  }
   function renderSound() {
     const pane = panes.sound;
     const s = song();
@@ -3226,12 +3278,14 @@
     if (track.kind === "drums") {
       pane.querySelectorAll("[data-sound]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sound === soundRow)));
       const vol = pane.querySelector("#studio-sound-vol");
-      if (vol && document.activeElement !== vol) vol.value = Math.round(Engine.volumeOf(meta(s, soundRow)) * 100);
+      if (vol && !turning(vol)) vol.value = Math.round(Engine.volumeOf(meta(s, soundRow)) * 100);
+      configureLevel(vol);
       const shape = host().drum(soundRow);
       pane.querySelectorAll("[data-dknob]").forEach((input) => {
         const k = DRUM_KNOBS.find((x) => x.key === input.dataset.dknob);
         const value = shape[k.key] !== undefined ? shape[k.key] : k.def;
-        if (document.activeElement !== input) input.value = String(Math.round(toSlider(k, value) * 1000));
+        if (!turning(input)) input.value = String(Math.round(toSlider(k, value) * 1000));
+        configureKnob(input, k, k.def, k.key === "tune" ? [-12, -7, -5, 5, 7, 12] : k.key === "decay" ? [0.5, 2] : [-0.5, 0.5], () => host().setDrum(soundRow, { [k.key]: null }));
         const out = pane.querySelector(`[data-dout="${k.key}"]`);
         if (out) {
           out.textContent = fmt(k, value);
@@ -3269,7 +3323,8 @@
     pane.querySelectorAll("[data-knob]").forEach((input) => {
       const k = KNOBS.find((x) => x.key === input.dataset.knob);
       const value = knobValue(k, voice, synth);
-      if (document.activeElement !== input) input.value = String(Math.round(toSlider(k, value) * 1000));
+      if (!turning(input)) input.value = String(Math.round(toSlider(k, value) * 1000));
+      configureKnob(input, k, knobValue(k, voice, {}), KNOB_DETENTS[k.key], () => host().setSynth(trackId, { [k.key]: null }));
       input.disabled = basic;
       const out = pane.querySelector(`[data-out="${k.key}"]`);
       if (out) {
@@ -3282,7 +3337,8 @@
     const wave = pane.querySelector("#studio-synth-wave");
     if (wave) wave.value = track.part === "melody" && basic ? (s.melody && s.melody.waveform) || "sine" : synth.wave || (voice && Engine.MELODY_VOICES[voice].wave) || "sine";
     const vol = pane.querySelector("#studio-sound-vol");
-    if (vol && document.activeElement !== vol) vol.value = Math.round(Engine.volumeOf(part) * 100);
+    if (vol && !turning(vol)) vol.value = Math.round(Engine.volumeOf(part) * 100);
+    configureLevel(vol);
     const reset = pane.querySelector("#studio-synth-reset");
     if (reset) reset.disabled = !Object.keys(synth).length;
     const note = pane.querySelector("#studio-synth-note");
@@ -3374,7 +3430,7 @@
       let raw = fromSlider(k, Number(t.value) / 1000);
       if (k.int) raw = Math.round(raw);
       else if (k.key === "sweep" && Math.abs(raw) < 0.03) raw = 0;
-      host().setSynth(trackId, { [k.key]: Math.round(raw * 1000) / 1000 });
+      host().setSynth(trackId, { [k.key]: Number(raw.toPrecision(4)) }); // four significant figures (three decimals threw away a short attack's detail)
       const out = panes.sound.querySelector(`[data-out="${k.key}"]`);
       if (out) {
         out.textContent = fmt(k, raw);
@@ -3416,6 +3472,16 @@
     }
   });
   onSound("click", (e) => {
+    const readout = e.target.closest && e.target.closest(".studio-knob output");
+    if (readout && window.Dial) {
+      // The knob is a <label>, and a click anywhere on it (the dial, its name) is handed on to its first labelable part, the readout: only a click that
+      // really lands on the readout types a value.
+      const r = readout.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      const input = readout.closest(".studio-knob").querySelector('input[type="range"]');
+      if (inside && input && !input.disabled) window.Dial.edit(input);
+      return;
+    }
     const t = e.target.closest && e.target.closest("button");
     if (!t) return;
     const track = trackOf(trackId);
@@ -3597,4 +3663,5 @@
     openSheet,
     tracks: TRACKS,
   };
+  configureMixDials();
 })();

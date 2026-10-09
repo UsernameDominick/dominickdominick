@@ -695,7 +695,7 @@ function setMasterVolume(ctx, value) {
       if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
       const [lo, hi] = SYNTH_RANGES[key];
       const clamped = Math.max(lo, Math.min(hi, n));
-      out[key] = key === "unison" ? Math.round(clamped) : Math.round(clamped * 1000) / 1000;
+      out[key] = key === "unison" ? Math.round(clamped) : Number(clamped.toPrecision(4)); // four significant figures: a 3 ms attack keeps its detail
     });
     return Object.keys(out).length ? out : null;
   }
