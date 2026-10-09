@@ -3061,6 +3061,7 @@
     { title: "Tone", hint: "width, weight and grit", keys: ["detune", "unison", "sub", "noise", "drive", "fm", "fmratio"] },
     { title: "Movement", hint: "vibrato and tremolo", keys: ["vibrato", "vrate", "tremolo", "trate"] },
   ];
+  let knobGroup = KNOB_GROUPS.some((g) => g.title === lsGet("studioKnobGroup", "")) ? lsGet("studioKnobGroup", "") : KNOB_GROUPS[0].title; // the part of the sound the knobs show
   const SYNTH_KEYS_ALL = ["wave", "ftype"].concat(KNOBS.map((k) => k.key));
   const DRUM_KNOBS = [
     { key: "tune", label: "Tune", min: -12, max: 12, unit: "st", def: 0, hint: "The pitch of this sound, in semitones" },
@@ -3234,41 +3235,50 @@
     const knob = (k) =>
       `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-out="${k.key}"></output>` +
       `<input type="range" min="0" max="1000" step="1" data-knob="${k.key}" data-no-reset aria-label="${k.label}: ${esc(k.hint)}"></label>`;
-    const folds = KNOB_GROUPS.map((g) => {
+    // One group of knobs at a time (Envelope, Filter, Tone, Movement), the one the visitor was last in: the knobs stay in the same place and
+    // the pane is short, instead of four folds one under another.
+    const tabs = KNOB_GROUPS.map((g) => `<button type="button" role="tab" class="studio-seg-tab" data-knob-group="${g.title}" data-no-history aria-selected="${g.title === knobGroup}" title="${esc(g.hint)}">${g.title}</button>`).join("");
+    const panes = KNOB_GROUPS.map((g) => {
       const filterType = g.filter
         ? `<label class="studio-field studio-field-wide">Filter type<select id="studio-synth-ftype" aria-label="Filter type"><option value="lowpass">Low-pass (darken)</option><option value="highpass">High-pass (thin)</option><option value="bandpass">Band-pass (hollow)</option></select></label>`
         : "";
       return (
-        `<details class="studio-fold"${g.open ? " open" : ""}><summary>${g.title}<small>${g.hint}</small></summary>${filterType}` +
-        `<div class="studio-knobs">${g.keys.map((key) => knob(KNOBS.find((k) => k.key === key))).join("")}</div></details>`
+        `<div role="tabpanel" class="studio-knob-pane" data-knob-pane="${g.title}"${g.title === knobGroup ? "" : " hidden"}><p class="studio-section-hint">${g.hint}</p>${filterType}` +
+        `<div class="studio-knobs">${g.keys.map((key) => knob(KNOBS.find((k) => k.key === key))).join("")}</div></div>`
       );
     }).join("");
     const waves = Engine.SYNTH_WAVES.map((w) => `<option value="${w}">${w.charAt(0).toUpperCase() + w.slice(1)}</option>`).join("");
     return (
+      `<div class="studio-sound-bar" role="group" aria-label="${esc(track.name)} level and preview">` +
+      `<label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="${esc(track.name)} volume"></label>` +
+      `<button type="button" class="studio-mini" data-hear data-no-history>Preview</button>` +
+      `<button type="button" class="studio-mini" data-mute-track data-no-history>Mute ${esc(track.name)}</button></div>` +
       `<section class="studio-section"><h3>Instrument</h3>` +
       `<div class="studio-browser" data-browse="studio-voice" role="group" aria-label="${esc(track.name)} instruments"></div>` +
       `<div class="studio-section-row"><label class="studio-field studio-browse-select">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
       `<label class="studio-field">Wave<select id="studio-synth-wave" aria-label="Wave shape">${waves}</select></label></div>` +
-      `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p>` +
-      `<div class="studio-section-row"><button type="button" class="studio-mini" data-hear data-no-history>Preview</button>` +
-      `<button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button></div></section>` +
-      `<section class="studio-section studio-folds"><h3>Shape the sound</h3>${folds}</section>` +
-      `<section class="studio-section"><h3>Level</h3><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="${esc(track.name)} volume"></label>` +
-      `<button type="button" class="studio-mini" data-mute-track data-no-history>Mute ${esc(track.name)}</button></section>`
+      `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p></section>` +
+      `<section class="studio-section studio-folds"><h3>Shape the sound</h3><div class="studio-seg" role="tablist" aria-label="Part of the sound">${tabs}</div>${panes}` +
+      `<div class="studio-section-row"><button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button></div></section>`
     );
   }
   function drumSoundHtml(rows) {
     const chips = rows.map((r) => `<button type="button" class="studio-chip" data-sound="${r}" data-no-history aria-pressed="false">${ROW_LABELS[r]}</button>`).join("");
+    // The sound being shaped comes first (pick it, hear it, set it); the kit swaps the whole set and the extras are rarer, so both are folded.
     return (
-      `<section class="studio-section"><h3>Drum kit</h3><div class="studio-browser" data-browse="studio-kit" role="group" aria-label="Drum kits"></div><div class="studio-section-row"><label class="studio-field studio-browse-select">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></section>` +
-      `<section class="studio-section"><h3>Each sound</h3><p class="studio-section-hint">Pick a sound, then set its volume, tune, length and tone, or mute it.</p>` +
-      `<div class="studio-chips" role="group" aria-label="Drum sound">${chips}</div>` +
-      `<div class="studio-section-row"><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label></div>` +
-      `<div class="studio-knobs">${DRUM_KNOBS.map((k) => `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-dout="${k.key}"></output><input type="range" min="0" max="1000" step="1" data-dknob="${k.key}" data-no-reset aria-label="${k.label} of the chosen drum sound: ${esc(k.hint)}"></label>`).join("")}</div>` +
-      `<div class="studio-section-row"><button type="button" id="studio-sound-reset" class="studio-mini" data-no-history title="Back to the kit's own tune, length and tone for this sound">Reset this sound</button></div>` +
-      `<div class="studio-section-row"><button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button><button type="button" class="studio-mini" data-hear-drum data-no-history>Preview</button><button type="button" id="studio-sound-remove" class="studio-mini" data-no-history title="Take this sound out of the song (undoable)">Remove this sound</button></div>` +
-      `<div class="studio-section-row"><label class="studio-field studio-field-small">Colour<input type="color" id="studio-sound-color" aria-label="Colour of the chosen drum sound"></label><label class="studio-field">Note<input type="text" id="studio-sound-note" maxlength="60" placeholder="A note about this sound" aria-label="Note about the chosen drum sound"></label></div></section>` +
-      `<section class="studio-section"><h3>Add a sound</h3><div class="studio-section-row"><label class="studio-field">Sound<select id="studio-add" aria-label="Drum sound to add"></select></label><button type="button" id="studio-add-btn" class="studio-mini" data-no-history>Add</button></div></section>`
+      `<section class="studio-section"><h3>Each sound</h3>` +
+      `<div class="studio-chips" role="group" aria-label="Drum sound">${chips}</div></section>` +
+      `<div class="studio-sound-bar" role="group" aria-label="Level and preview of the chosen drum sound">` +
+      `<label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label>` +
+      `<button type="button" class="studio-mini" data-hear-drum data-no-history>Preview</button>` +
+      `<button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button></div>` +
+      `<section class="studio-section"><div class="studio-knobs">${DRUM_KNOBS.map((k) => `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-dout="${k.key}"></output><input type="range" min="0" max="1000" step="1" data-dknob="${k.key}" data-no-reset aria-label="${k.label} of the chosen drum sound: ${esc(k.hint)}"></label>`).join("")}</div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-sound-reset" class="studio-mini" data-no-history title="Back to the kit's own tune, length and tone for this sound">Reset this sound</button></div></section>` +
+      `<details class="studio-fold studio-fold-kit"><summary>Drum kit<small>swap the whole set</small></summary><div class="studio-browser" data-browse="studio-kit" role="group" aria-label="Drum kits"></div><div class="studio-section-row"><label class="studio-field studio-browse-select">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></details>` +
+      `<details class="studio-fold"><summary>More<small>colour, a note, add or remove a sound</small></summary>` +
+      `<div class="studio-section-row"><label class="studio-field studio-field-small">Colour<input type="color" id="studio-sound-color" aria-label="Colour of the chosen drum sound"></label><label class="studio-field">Note<input type="text" id="studio-sound-note" maxlength="60" placeholder="A note about this sound" aria-label="Note about the chosen drum sound"></label></div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-sound-remove" class="studio-mini" data-no-history title="Take this sound out of the song (undoable)">Remove this sound</button></div>` +
+      `<div class="studio-section-row"><label class="studio-field">Add a sound<select id="studio-add" aria-label="Drum sound to add"></select></label><button type="button" id="studio-add-btn" class="studio-mini" data-no-history>Add</button></div></details>`
     );
   }
   onSound("change", (e) => {
@@ -3351,7 +3361,12 @@
     const t = e.target.closest && e.target.closest("button");
     if (!t) return;
     const track = trackOf(trackId);
-    if (t.dataset.sound) {
+    if (t.dataset.knobGroup) {
+      knobGroup = t.dataset.knobGroup;
+      lsSet("studioKnobGroup", knobGroup);
+      panes.sound.querySelectorAll("[data-knob-group]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.knobGroup === knobGroup)));
+      panes.sound.querySelectorAll("[data-knob-pane]").forEach((p) => (p.hidden = p.dataset.knobPane !== knobGroup));
+    } else if (t.dataset.sound) {
       soundRow = t.dataset.sound;
       host().hearDrum(soundRow);
     } else if (t.id === "studio-sound-mute") {

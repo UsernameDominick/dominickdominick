@@ -3336,3 +3336,16 @@
 @media (max-width: 640px) {
   .app-native .studio-display .studio-play { width: 54px; height: 44px; min-height: 44px; }
 }
+
+/* The Sound pane: the volume, Preview and Mute stay at the top as you scroll; the knobs show one part of the sound at a time (a segmented switch);
+   the instrument menu repeats the browser above it, so the docked panel leaves it out. */
+.app-native .studio-sound-bar { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; padding: 8px 0; background: var(--bg); border-bottom: 2px solid var(--text); }
+.app-native .studio-sound-bar .studio-vol-inline { flex: 1 1 150px; min-width: 0; }
+.app-native .studio-seg { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.app-native .studio-seg-tab { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 8px; font: 400 20px/1 var(--bb-vt); text-transform: lowercase; color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; cursor: pointer; }
+.app-native .studio-seg-tab:hover { background: color-mix(in srgb, var(--text) 12%, var(--bg)); }
+.app-native .studio-seg-tab[aria-selected="true"] { box-shadow: inset 0 -4px 0 var(--bb-orange); }
+.app-native .studio-seg-tab:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 2px; }
+.app-native .studio-knob-pane[hidden] { display: none; }
+.app-native .studio-knob-pane > .studio-section-hint { margin: 0 0 8px; }
+.app-native #studio-sound-panel .studio-browse-select { display: none; }

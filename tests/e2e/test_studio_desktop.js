@@ -85,9 +85,15 @@ const axeSrc = axeSource();
     await p.evaluate(() => { const r = document.querySelector('#studio-sound-panel [data-knob="attack"]'); r.value = "700"; r.dispatchEvent(new Event("input", { bubbles: true })); r.dispatchEvent(new Event("change", { bubbles: true })); });
     const attack = await p.evaluate(() => window.SongStudioHost.synth("bass").attack);
     ok(attack > 0.1, "a knob in the panel shapes the sound", attack);
+    ok(await p.locator('#studio-sound-panel [data-knob-pane="Envelope"]').isVisible() && !(await p.locator('#studio-sound-panel [data-knob-pane="Filter"]').isVisible()), "the knobs show one part of the sound at a time (Envelope first)");
+    await p.click('#studio-sound-panel [data-knob-group="Filter"]');
+    ok(await p.locator('#studio-sound-panel [data-knob-pane="Filter"]').isVisible() && !(await p.locator('#studio-sound-panel [data-knob-pane="Envelope"]').isVisible()) && (await p.locator('#studio-sound-panel [data-knob-group="Filter"]').getAttribute("aria-selected")) === "true", "and the switch moves to the part you pick (Filter)");
+    ok(await p.locator('#studio-sound-panel .studio-sound-bar [data-hear]').isVisible() && await p.locator("#studio-sound-panel #studio-sound-vol").isVisible(), "while the volume and Preview stay in the bar at the top");
     await p.click("#studio-stack .studio-card >> nth=0");
     await settle(p);
     ok((await p.textContent("#studio-sound-panel-title")) === "Drums sound" && (await p.locator("#studio-sound-panel .studio-pick").count()) >= 10, "the Drums track shows the kits to choose from");
+    ok(await p.locator('#studio-sound-panel .studio-sound-bar [data-hear-drum]').isVisible() && (await p.locator('#studio-sound-panel [data-dknob="tune"]').count()) === 1, "with the volume, Preview and Mute in a bar at the top and the sound's own knobs under the sounds");
+    await p.click("#studio-sound-panel .studio-fold-kit > summary"); // the kits are folded under the sounds
     await p.click('#studio-sound-panel .studio-pick[data-pick="808"]');
     await settle(p);
     ok((await p.evaluate(() => window.SongStudioHost.song().kit)) === "808", "choosing a kit in the panel changes the drum kit");
