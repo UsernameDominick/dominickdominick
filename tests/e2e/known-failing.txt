@@ -3,7 +3,6 @@
 # Fix the test (or the site) and delete the line; the runner says when a listed test starts passing.
 # Below: failing on 20ec3c5 (before the Bit bento look) in this sandbox: the public site is cut down to Home/Studio/Search and the
 # local database has no articles, projects or scans. Not caused by the redesign (checked against that commit).
-test_backup
 test_footer_share
 test_mouse_swipe
 test_nav_dial
