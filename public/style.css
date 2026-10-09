@@ -1564,11 +1564,9 @@ body {
 }
 :root:not([data-theme="light"]) body { --text-dim: #a39d91; }
 
-/* The page ground is a faint grid of single dots (a tint of the ink, not the ink itself, so it does not shimmer); the menu bar and the footer are plain paper. The Studio page has its own ground. */
+/* The page ground is one flat tint of the ink (no pattern, so nothing shimmers as the page scrolls); the windows sit on it in plain paper. The menu bar and the footer are plain paper. The Studio page has its own ground. */
 body:not(:has(.studio-canvas)) .page {
-  background-color: color-mix(in srgb, var(--border) 16%, var(--bg));
-  background-image: linear-gradient(90deg, transparent 1px, var(--bg) 0), linear-gradient(180deg, transparent 1px, var(--bg) 0);
-  background-size: 4px 4px;
+  background-color: color-mix(in srgb, var(--border) 8%, var(--bg));
 }
 .page { font-size: 1.2rem; line-height: 1.2; }
 
@@ -1706,6 +1704,17 @@ hr, .block hr {
   pointer-events: none;
 }
 
+/* A content block has no title, so it gets no title bar: a plain window, one ink line along the top instead of the striped bar, with the same stepped corners
+   and dithered shadow. (A window that does have a title, the Settings dialog, keeps its bar.) The two dots in ::after fill the top corners' steps, as the
+   bar's own drawing does. The orange "active window" mark went with the bar's close box. */
+.canvas > .block { --bt: 2px; border-top-color: var(--border); }
+.canvas > .block::after {
+  height: 4px;
+  background-color: transparent;
+  background-image: linear-gradient(var(--border), var(--border)), linear-gradient(var(--border), var(--border));
+  background-position: 2px 2px, right 2px top 2px;
+  background-size: 2px 2px;
+}
 /* The first window is the active one (an orange mark in its close box) until the pointer or the keyboard is in another. */
 .canvas > .block:first-of-type { --cb-dot: var(--orange); }
 .canvas:has(.block:is(:hover, :focus-within), .home-tool:is(:hover, :focus-within)) > .block:first-of-type:not(:hover, :focus-within) { --cb-dot: var(--bg); }
@@ -1713,7 +1722,7 @@ hr, .block hr {
 
 /* The page: windows laid out on the grid. */
 .canvas:not(.article-canvas, .studio-canvas) { max-width: 1376px; padding: 28px 32px 40px; gap: 16px; }
-.canvas > .block { padding: 12px 18px 18px; font-size: 1.2rem; line-height: 1.2; min-height: 0; }
+.canvas > .block { padding: 16px 18px 18px; font-size: 1.2rem; line-height: 1.2; min-height: 0; }
 .canvas > .block p { margin: 0 0 0.6em; }
 .canvas > .block p:last-child { margin-bottom: 0; }
 
@@ -1722,7 +1731,7 @@ hr, .block hr {
 
 @media (max-width: 640px) {
   .canvas:not(.article-canvas, .studio-canvas) { padding: 18px 14px 28px; gap: 16px 8px; }
-  .canvas > .block { padding: 10px 14px 16px; }
+  .canvas > .block { padding: 14px 14px 16px; }
 }
 
 /* Whatever a block holds is ink on paper. */
@@ -1734,7 +1743,7 @@ hr, .block hr {
   border-radius: 0 !important;
 }
 .block-image { border: 2px solid var(--border); }
-figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; margin-top: 6px; }
+figcaption, .image-figure figcaption { font: 14px/1.4 var(--font-pixel); text-transform: uppercase; margin-top: 6px; }
 .block-quote {
   margin: 0;
   padding: 2px 0 2px 18px;
@@ -1747,7 +1756,7 @@ figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-tr
 }
 .block-quote, .block-quote * { font-style: normal; }
 .block-quote p:first-child { font-size: inherit; font-weight: 400; }
-.block-quote footer { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin-top: 8px; }
+.block-quote footer { font: 14px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin-top: 8px; }
 .block-quote footer::before { content: "- "; }
 .block-quote-large { font-size: 2.1rem; padding-left: 22px; }
 .block-quote-large::before { content: none; }
@@ -1757,7 +1766,7 @@ figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-tr
   padding: 0 8px;
   border: 2px solid var(--border);
   border-radius: 0;
-  font: 12px/18px var(--font-pixel);
+  font: 14px/20px var(--font-pixel);
   text-transform: uppercase;
   color: var(--text);
   background: var(--bg);
@@ -1769,9 +1778,9 @@ pre { border: 2px solid var(--border); border-radius: 0; background: var(--bg); 
 pre code { font-family: var(--font-family); background: transparent !important; color: var(--text) !important; padding: 0; }
 
 :not(pre) > code { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-family: var(--font-family); font-size: 1em; padding: 0 0.3em; }
-kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
+kbd { font: 14px/16px var(--font-pixel); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
 
-.admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); text-transform: uppercase; }
+.admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 14px/18px var(--font-pixel); text-transform: uppercase; }
 
 .empty-hint-admin, .canvas > .block > .empty-hint:not(.empty-hint-admin) { border: 2px dashed var(--border); border-radius: 0; font-style: normal; font-size: 1.1rem; padding: 10px 14px; }
 
@@ -1841,7 +1850,7 @@ button:disabled, .btn[aria-disabled="true"] { border-style: dashed; opacity: 1; 
 }
 
 #finder-input::placeholder { color: var(--text-dim); opacity: 1; }
-.field > .field-label { font: 12px/1.3 var(--font-pixel); text-transform: uppercase; font-weight: 400; }
+.field > .field-label { font: 14px/1.3 var(--font-pixel); text-transform: uppercase; font-weight: 400; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 20px; height: 20px; }
 
 /* ---- The page furniture: 404, footer ---- */
@@ -1851,7 +1860,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 
   align-items: center;
   gap: 10px;
   margin: 20px 0 8px;
-  font: 400 12px/14px var(--font-pixel);
+  font: 400 14px/16px var(--font-pixel);
   letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text);
@@ -1863,7 +1872,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 
 .search-results li p { color: var(--text-dim); font-size: 1.2rem; margin: 4px 0 0; line-height: 1.15; }
 mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radius: 0; }
 
-.not-found-code { font: 12px/14px var(--font-pixel); letter-spacing: 0; color: var(--text); }
+.not-found-code { font: 14px/16px var(--font-pixel); letter-spacing: 0; color: var(--text); }
 .not-found-trace { color: var(--text); shape-rendering: crispEdges; }
 .not-found-trace path { stroke-linecap: butt; stroke-width: 3; }
 .not-found-trace path[stroke="var(--accent)"] { stroke: var(--text); }
@@ -1874,16 +1883,16 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
   border-top: 2px solid var(--border);
   padding: 14px 32px 16px;
   color: var(--text);
-  font: 400 12px/1.5 var(--font-pixel);
+  font: 400 14px/1.5 var(--font-pixel);
   text-transform: uppercase;
 }
 .site-footer p { margin: 0 0 4px; }
-.site-footer .footer-mono { font: 400 12px/1.5 var(--font-pixel); letter-spacing: 0; }
+.site-footer .footer-mono { font: 400 14px/1.5 var(--font-pixel); letter-spacing: 0; }
 .site-footer a, .site-footer .footer-share { color: var(--text); }
 .site-footer .footer-share { font: inherit; text-decoration: underline var(--orange) 3px; text-underline-offset: 4px; }
 .site-footer .footer-share:hover { background: var(--text); color: var(--bg); text-decoration: none; }
 .site-footer .footer-share-note { font: inherit; color: var(--text); }
-.site-footer .footer-column h2 { font: 400 12px/14px var(--font-pixel); color: var(--text); letter-spacing: 0; }
+.site-footer .footer-column h2 { font: 400 14px/16px var(--font-pixel); color: var(--text); letter-spacing: 0; }
 
 /* ---- Nav dropdown (a stop with children) ---- */
 .tab-caret { color: var(--text); }
@@ -1909,7 +1918,7 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
 
 /* ---- The home tiles ---- */
 .home-tools { grid-column: 1 / -1; width: 100%; max-width: none; margin: 8px 0 0; padding: 0; }
-.home-tools-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 400 12px/14px var(--font-pixel); text-transform: uppercase; }
+.home-tools-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 400 14px/16px var(--font-pixel); text-transform: uppercase; }
 .home-tools-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
 .home-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px 18px; }
 .home-tool { display: flex; flex-direction: column; gap: 6px; min-height: 210px; padding: 16px 20px 14px; color: var(--text); text-decoration: none; }
@@ -1936,13 +1945,13 @@ html.finder-on { overflow: hidden; }
 .finder-glass svg { width: 22px; height: 22px; }
 #site-finder .finder-form input { flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; padding: 0; min-height: 44px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: 400 1.5rem/1 var(--font-family); outline: none; }
 #site-finder .finder-form input::-webkit-search-cancel-button { display: none; }
-.finder-esc { flex: 0 0 auto; min-height: 28px; padding: 0 8px; border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 400 12px/1 var(--font-pixel); text-transform: uppercase; box-shadow: none; cursor: pointer; }
+.finder-esc { flex: 0 0 auto; min-height: 28px; padding: 0 8px; border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 400 14px/1 var(--font-pixel); text-transform: uppercase; box-shadow: none; cursor: pointer; }
 .finder-esc:hover { background: var(--text); color: var(--bg); }
 .finder-esc:focus-visible { outline-offset: 2px; }
 .finder-results { overflow-y: auto; overscroll-behavior: contain; padding: 0; border-top: 2px solid var(--border); }
 #site-finder .finder-group { display: flex; flex-direction: column; position: static; width: auto; min-width: 0; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; }
 #site-finder .finder-group[hidden] { display: none; }
-.finder-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px 6px; font: 400 12px/14px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text); }
+.finder-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px 6px; font: 400 14px/16px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text); }
 .finder-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
 #site-finder .finder-item {
   display: flex;
@@ -1973,9 +1982,9 @@ html.finder-on { overflow: hidden; }
 .finder-ico svg { width: 20px; height: 20px; }
 #site-finder .finder-ico .icon-text { font: 400 14px/1 var(--font-pixel); letter-spacing: 0; }
 .finder-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#site-finder .finder-hint { flex: 0 0 auto; display: inline; margin: 0; font: 400 12px/1 var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text-dim); }
+#site-finder .finder-hint { flex: 0 0 auto; display: inline; margin: 0; font: 400 14px/1 var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text-dim); }
 .finder-empty { margin: 0; padding: 14px 16px; font-size: 1.2rem; color: var(--text); }
-.finder-foot { display: flex; justify-content: flex-end; gap: 16px; margin: 0; padding: 10px 16px; border-top: 2px solid var(--border); background: var(--text); color: var(--bg); font: 400 12px/16px var(--font-pixel); text-transform: uppercase; }
+.finder-foot { display: flex; justify-content: flex-end; gap: 16px; margin: 0; padding: 10px 16px; border-top: 2px solid var(--border); background: var(--text); color: var(--bg); font: 400 14px/18px var(--font-pixel); text-transform: uppercase; }
 .finder-foot kbd { margin-right: 6px; padding: 0 4px; border: 2px solid currentColor; border-radius: 0; font: inherit; }
 @media (max-width: 640px) {
   .site-finder { padding: 14px 10px 10px; }
