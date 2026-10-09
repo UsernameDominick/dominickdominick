@@ -497,7 +497,7 @@ body {
 }
 
 .icon-text {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -785,7 +785,7 @@ body {
   border-radius: 999px;
   background: var(--bg-elevated);
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -801,7 +801,7 @@ h2[id], h3[id] {
   border: 1px solid var(--border);
   color: var(--accent);
   text-decoration: none;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   padding: 3px 10px;
   border-radius: var(--control-radius);
   transition: border-color 0.2s ease;
@@ -1192,7 +1192,7 @@ pre code {
   letter-spacing: 0.01em;
 }
 .site-footer .footer-mono {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 
@@ -1206,13 +1206,13 @@ pre code {
 
 /* ---- 404: a trace with a gap ---- */
 .not-found-trace { display: block; margin: 0 0 var(--space-4); color: var(--text-dim); max-width: 100%; height: auto; }
-.not-found-code { margin: 0 0 var(--space-1); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.not-found-code { margin: 0 0 var(--space-1); font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
 /* Light theme: the accent-coloured tag text sat just under AA at this size, so darken it there. */
 :root[data-theme="light"] .tag { color: color-mix(in srgb, var(--accent) 78%, #000); }
 
 /* ---- Footer layout: link columns and social links ---- */
 .site-footer .footer-columns { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-5, 24px) var(--space-6, 32px); margin: 0 0 var(--space-4, 16px); text-align: left; }
-.site-footer .footer-column h2 { margin: 0 0 var(--space-2, 8px); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
+.site-footer .footer-column h2 { margin: 0 0 var(--space-2, 8px); font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
 .site-footer .footer-column ul, .site-footer .footer-social { list-style: none; margin: 0; padding: 0; }
 .site-footer .footer-column li { margin: 0 0 4px; }
 .site-footer .footer-social { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--space-4, 16px); margin: 0 0 var(--space-3, 12px); }
@@ -1303,7 +1303,7 @@ html.lightbox-open { overflow: hidden; }
 .site-footer .footer-share[hidden] { display: none; }
 .site-footer .footer-share:hover { text-decoration-thickness: 2px; }
 .site-footer .footer-share:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
-.site-footer .footer-share-note { min-height: 1em; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem; }
+.site-footer .footer-share-note { min-height: 1em; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.85rem; }
 .site-footer .footer-share-note:empty { display: none; }
 
 /* ---------- Quality pass: contrast, focus, touch targets, small screens ---------- */
@@ -1384,7 +1384,7 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
    <label class="field"><span class="field-label">Username</span><input ...></label> */
 .field { position: relative; display: block; margin-top: 0.7em; }
 .field > .field-label {
-  position: absolute; top: -0.72em; left: 0.9em; z-index: 1; padding: 0 0.4em; font-size: 0.8rem; font-weight: 600; line-height: 1.3;
+  position: absolute; top: -0.72em; left: 0.9em; z-index: 1; padding: 0 0.4em; font-size: 0.85rem; font-weight: 600; line-height: 1.3;
   color: var(--btn-ink); background: var(--field-notch-bg, var(--bg)); pointer-events: none;
 }
 .field > input, .field > textarea, .field > select { width: 100%; padding-top: 0.8em; }
@@ -1399,7 +1399,7 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .dial.is-disabled { opacity: 0.4; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
 /* The value bubble over a dial while it is turned, pointed at, or focused from the keyboard (only when the page told the dial what its numbers mean), and the box to type one into. */
-.dial-bubble { position: absolute; left: 50%; bottom: calc(100% + 3px); transform: translateX(-50%); z-index: 6; padding: 1px 6px; white-space: nowrap; pointer-events: none; font: 400 14px/16px var(--font-pixel, monospace); background: var(--text); color: var(--bg); visibility: hidden; }
+.dial-bubble { position: absolute; left: 50%; bottom: calc(100% + 3px); transform: translateX(-50%); z-index: 6; padding: 1px 6px; white-space: nowrap; pointer-events: none; font: 400 16px/16px var(--font-pixel, monospace); background: var(--text); color: var(--bg); visibility: hidden; }
 .dial-bubble:empty { display: none; }
 .dial.is-turning .dial-bubble, .dial:has(.dial-input:focus-visible) .dial-bubble { visibility: visible; }
 @media (hover: hover) { .dial.is-near .dial-bubble { visibility: visible; } }
@@ -1433,11 +1433,12 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 @font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/silkscreen-400.woff2") format("woff2"); }
 @font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/silkscreen-700.woff2") format("woff2"); }
 @font-face { font-family: "VT323"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/vt323-400.woff2") format("woff2"); }
-/* JetBrains Mono is the reading font. size-adjust 70% makes it sit at the size VT323 did (VT323 is small for its size, which is why the root is 20px
-   and why every size in the Studio was set for it): a 20px root reads as 14px of JetBrains Mono, and each letter is 0.42em wide against VT323's 0.4em,
-   so no layout had to be redone. Latin letters only; anything else (arrows, triangles) falls back to the system font. */
-@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap; size-adjust: 70%; src: url("/fonts/jetbrains-mono-400.woff2") format("woff2"); }
-@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 700; font-display: swap; size-adjust: 70%; src: url("/fonts/jetbrains-mono-700.woff2") format("woff2"); }
+/* JetBrains Mono is the reading font. size-adjust 80% (it was 70%, which drew a 20px root as 14px text and was too small to read comfortably): a 20px
+   root reads as 16px of JetBrains Mono and a size written as 22px is drawn at 17.6px. Sizes in this file were set for a smaller face, so none is
+   drawn under 13.6px (0.85rem) and the pixel face (Silkscreen) is only used at 16px and up, where its pixels divide evenly. Latin letters only;
+   anything else (arrows, triangles) falls back to the system font. */
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap; size-adjust: 80%; src: url("/fonts/jetbrains-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 700; font-display: swap; size-adjust: 80%; src: url("/fonts/jetbrains-mono-700.woff2") format("woff2"); }
 
 /* The look is "Bit bento" (the owner's pick): black, white and dither only, Mac-style windows, VT323 for text and Silkscreen for labels, and ONE tiny orange accent
    (--orange) that marks function (the playhead, the current stop, the active window, the lit controls) and is never used for text. Light is black ink on white; dark is the
@@ -1452,11 +1453,11 @@ body {
   --bg-elevated: #f5f0e6;
   --border: #2a2622;
   --text: #2a2622;
-  --text-dim: #675f55;
+  --text-dim: #564e45;
   --accent: #2a2622;
   --accent-secondary: #2a2622;
   --accent-gradient: linear-gradient(#2a2622, #2a2622);
-  --accent-dim: #675f55;
+  --accent-dim: #564e45;
   --on-accent: #f5f0e6;
   --error-text: #b3261e;
   --success: #2a2622;
@@ -1502,11 +1503,11 @@ body {
   --bg-elevated: #18161b;
   --border: #e3ded2;
   --text: #e3ded2;
-  --text-dim: #a39d91;
+  --text-dim: #b9b3a7;
   --accent: #e3ded2;
   --accent-secondary: #e3ded2;
   --accent-gradient: linear-gradient(#e3ded2, #e3ded2);
-  --accent-dim: #a39d91;
+  --accent-dim: #b9b3a7;
   --on-accent: #18161b;
   --error-text: #ff7a70;
   --success: #e3ded2;
@@ -1555,9 +1556,9 @@ body {
   --tone-50: repeating-conic-gradient(var(--border) 0 25%, var(--bg) 0 50%) 0 0 / 2px 2px;
   --tone-hatch: repeating-linear-gradient(45deg, var(--border) 0 1px, var(--bg) 1px 4px);
   --tone-stripes: repeating-linear-gradient(var(--border) 0 1px, var(--bg) 1px 2px);
-  --text-dim: #675f55;
+  --text-dim: #564e45;
 }
-:root:not([data-theme="light"]) body { --text-dim: #a39d91; }
+:root:not([data-theme="light"]) body { --text-dim: #b9b3a7; }
 
 /* The page ground is one flat tint of the ink (no pattern, so nothing shimmers as the page scrolls); the windows sit on it in plain paper. The menu bar and the footer are plain paper. The Studio page has its own ground. */
 body:not(:has(.studio-canvas)) .page {
@@ -1738,7 +1739,7 @@ hr, .block hr {
   border-radius: 0 !important;
 }
 .block-image { border: 2px solid var(--border); }
-figcaption, .image-figure figcaption { font: 14px/1.4 var(--font-pixel); text-transform: uppercase; margin-top: 6px; }
+figcaption, .image-figure figcaption { font: 700 17px/1.4 var(--font-family); text-transform: uppercase; margin-top: 6px; }
 .block-quote {
   margin: 0;
   padding: 2px 0 2px 18px;
@@ -1751,7 +1752,7 @@ figcaption, .image-figure figcaption { font: 14px/1.4 var(--font-pixel); text-tr
 }
 .block-quote, .block-quote * { font-style: normal; }
 .block-quote p:first-child { font-size: inherit; font-weight: 400; }
-.block-quote footer { font: 14px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin-top: 8px; }
+.block-quote footer { font: 700 17px/1.4 var(--font-family); text-transform: uppercase; color: var(--text); margin-top: 8px; }
 .block-quote footer::before { content: "- "; }
 .block-quote-large { font-size: 2.1rem; padding-left: 22px; }
 .block-quote-large::before { content: none; }
@@ -1761,7 +1762,7 @@ figcaption, .image-figure figcaption { font: 14px/1.4 var(--font-pixel); text-tr
   padding: 0 8px;
   border: 2px solid var(--border);
   border-radius: 0;
-  font: 14px/20px var(--font-pixel);
+  font: 700 17px/20px var(--font-family);
   text-transform: uppercase;
   color: var(--text);
   background: var(--bg);
@@ -1773,9 +1774,9 @@ pre { border: 2px solid var(--border); border-radius: 0; background: var(--bg); 
 pre code { font-family: var(--font-family); background: transparent !important; color: var(--text) !important; padding: 0; }
 
 :not(pre) > code { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-family: var(--font-family); font-size: 1em; padding: 0 0.3em; }
-kbd { font: 14px/16px var(--font-pixel); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
+kbd { font: 700 17px/16px var(--font-family); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
 
-.admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 14px/18px var(--font-pixel); text-transform: uppercase; }
+.admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 700 17px/18px var(--font-family); text-transform: uppercase; }
 
 .empty-hint-admin, .canvas > .block > .empty-hint:not(.empty-hint-admin) { border: 2px dashed var(--border); border-radius: 0; font-style: normal; font-size: 1.1rem; padding: 10px 14px; }
 
@@ -1845,7 +1846,7 @@ button:disabled, .btn[aria-disabled="true"] { border-style: dashed; opacity: 1; 
 }
 
 #finder-input::placeholder { color: var(--text-dim); opacity: 1; }
-.field > .field-label { font: 14px/1.3 var(--font-pixel); text-transform: uppercase; font-weight: 400; }
+.field > .field-label { font: 700 17px/1.3 var(--font-family); text-transform: uppercase; font-weight: 400; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 20px; height: 20px; }
 
 /* ---- The page furniture: 404, footer ---- */
@@ -1855,7 +1856,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 
   align-items: center;
   gap: 10px;
   margin: 20px 0 8px;
-  font: 400 14px/16px var(--font-pixel);
+  font: 700 17px/16px var(--font-family);
   letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text);
@@ -1867,7 +1868,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 
 .search-results li p { color: var(--text-dim); font-size: 1.2rem; margin: 4px 0 0; line-height: 1.15; }
 mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radius: 0; }
 
-.not-found-code { font: 14px/16px var(--font-pixel); letter-spacing: 0; color: var(--text); }
+.not-found-code { font: 700 17px/16px var(--font-family); letter-spacing: 0; color: var(--text); }
 .not-found-trace { color: var(--text); shape-rendering: crispEdges; }
 .not-found-trace path { stroke-linecap: butt; stroke-width: 3; }
 .not-found-trace path[stroke="var(--accent)"] { stroke: var(--text); }
@@ -1878,16 +1879,16 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
   border-top: 2px solid var(--border);
   padding: 14px 32px 16px;
   color: var(--text);
-  font: 400 14px/1.5 var(--font-pixel);
+  font: 700 17px/1.5 var(--font-family);
   text-transform: uppercase;
 }
 .site-footer p { margin: 0 0 4px; }
-.site-footer .footer-mono { font: 400 14px/1.5 var(--font-pixel); letter-spacing: 0; }
+.site-footer .footer-mono { font: 700 17px/1.5 var(--font-family); letter-spacing: 0; }
 .site-footer a, .site-footer .footer-share { color: var(--text); }
 .site-footer .footer-share { font: inherit; text-decoration: underline var(--orange) 3px; text-underline-offset: 4px; }
 .site-footer .footer-share:hover { background: var(--text); color: var(--bg); text-decoration: none; }
 .site-footer .footer-share-note { font: inherit; color: var(--text); }
-.site-footer .footer-column h2 { font: 400 14px/16px var(--font-pixel); color: var(--text); letter-spacing: 0; }
+.site-footer .footer-column h2 { font: 700 17px/16px var(--font-family); color: var(--text); letter-spacing: 0; }
 
 /* ---- Nav dropdown (a stop with children) ---- */
 .tab-caret { color: var(--text); }
@@ -1914,7 +1915,7 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
 
 /* ---- The home tiles ---- */
 .home-tools { grid-column: 1 / -1; width: 100%; max-width: none; margin: 8px 0 0; padding: 0; }
-.home-tools-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 400 14px/16px var(--font-pixel); text-transform: uppercase; }
+.home-tools-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 700 17px/16px var(--font-family); text-transform: uppercase; }
 .home-tools-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
 .home-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px 18px; }
 .home-tool { display: flex; flex-direction: column; gap: 6px; min-height: 210px; padding: 16px 20px 14px; color: var(--text); text-decoration: none; }
@@ -1933,7 +1934,7 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
 html.finder-on { overflow: hidden; }
 .site-finder { position: fixed; top: var(--finder-top, 0px); left: 0; right: 0; bottom: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 28px 18px 16px; }
 .site-finder[hidden] { display: none; }
-.finder-backdrop { position: absolute; inset: 0; background: conic-gradient(var(--border) 25%, transparent 0) 0 0 / 2px 2px; }
+.finder-backdrop { position: absolute; inset: 0; background: rgba(20, 18, 22, 0.6); } /* a flat veil: the dither it used to be turned the page behind into grain */
 .finder-panel { display: flex; flex-direction: column; width: min(720px, 100%); max-height: min(calc(100dvh - var(--finder-top, 0px) - 52px), 640px); padding: 0; }
 .finder-form { display: flex; align-items: center; gap: 10px; margin: 14px 16px; padding: 0 8px 0 12px; min-height: 48px; border: 2px solid var(--border); background: var(--bg); }
 .finder-form:focus-within { outline: 3px dotted var(--orange); outline-offset: 2px; }
@@ -1941,13 +1942,13 @@ html.finder-on { overflow: hidden; }
 .finder-glass svg { width: 22px; height: 22px; }
 #site-finder .finder-form input { flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; padding: 0; min-height: 44px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: 400 1.5rem/1 var(--font-family); outline: none; }
 #site-finder .finder-form input::-webkit-search-cancel-button { display: none; }
-.finder-esc { flex: 0 0 auto; min-height: 28px; padding: 0 8px; border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 400 14px/1 var(--font-pixel); text-transform: uppercase; box-shadow: none; cursor: pointer; }
+.finder-esc { flex: 0 0 auto; min-height: 28px; padding: 0 8px; border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 700 17px/1 var(--font-family); text-transform: uppercase; box-shadow: none; cursor: pointer; }
 .finder-esc:hover { background: var(--text); color: var(--bg); }
 .finder-esc:focus-visible { outline-offset: 2px; }
 .finder-results { overflow-y: auto; overscroll-behavior: contain; padding: 0; border-top: 2px solid var(--border); }
 #site-finder .finder-group { display: flex; flex-direction: column; position: static; width: auto; min-width: 0; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; }
 #site-finder .finder-group[hidden] { display: none; }
-.finder-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px 6px; font: 400 14px/16px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text); }
+.finder-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px 6px; font: 700 17px/16px var(--font-family); letter-spacing: 0; text-transform: uppercase; color: var(--text); }
 .finder-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
 #site-finder .finder-item {
   display: flex;
@@ -1976,11 +1977,11 @@ html.finder-on { overflow: hidden; }
 #site-finder .finder-item:hover .finder-hint, #site-finder .finder-item:focus .finder-hint, #site-finder .finder-item:hover .finder-ico, #site-finder .finder-item:focus .finder-ico { color: inherit; }
 .finder-ico { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0; background: none; color: inherit; font: 400 16px/1 var(--font-pixel); }
 .finder-ico svg { width: 20px; height: 20px; }
-#site-finder .finder-ico .icon-text { font: 400 14px/1 var(--font-pixel); letter-spacing: 0; }
+#site-finder .finder-ico .icon-text { font: 700 17px/1 var(--font-family); letter-spacing: 0; }
 .finder-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#site-finder .finder-hint { flex: 0 0 auto; display: inline; margin: 0; font: 400 14px/1 var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text-dim); }
+#site-finder .finder-hint { flex: 0 0 auto; display: inline; margin: 0; font: 700 17px/1 var(--font-family); letter-spacing: 0; text-transform: uppercase; color: var(--text-dim); }
 .finder-empty { margin: 0; padding: 14px 16px; font-size: 1.2rem; color: var(--text); }
-.finder-foot { display: flex; justify-content: flex-end; gap: 16px; margin: 0; padding: 10px 16px; border-top: 2px solid var(--border); background: var(--text); color: var(--bg); font: 400 14px/18px var(--font-pixel); text-transform: uppercase; }
+.finder-foot { display: flex; justify-content: flex-end; gap: 16px; margin: 0; padding: 10px 16px; border-top: 2px solid var(--border); background: var(--text); color: var(--bg); font: 700 17px/18px var(--font-family); text-transform: uppercase; }
 .finder-foot kbd { margin-right: 6px; padding: 0 4px; border: 2px solid currentColor; border-radius: 0; font: inherit; }
 @media (max-width: 640px) {
   .site-finder { padding: 14px 10px 10px; }
