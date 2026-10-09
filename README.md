@@ -1,14 +1,22 @@
 # dominickdominick.com
 
-Empty on purpose. On 2026-10-09 the owner deleted the whole site (the code, the tests, the build and deploy pipeline and the git history) to start over. What is left in this repository:
+Almost empty on purpose: one page with a heading, live on Cloudflare, ready to be built on. The owner deleted the earlier site, its tests and its git history on 2026-10-09 to start over.
 
-- `README.md`: this file.
-- `CLAUDE.md`: the working notes for Claude.
+## What is here
+
+- `public/index.html`: the whole site, a heading. Everything in `public/` is served exactly as it is.
+- `wrangler.jsonc`: the Cloudflare config (the Worker's name and the folder to serve).
+- `.github/workflows/deploy.yml`: puts the site live.
 - `schema.sql` and `migrations/`: the shape of the D1 database.
+- `CLAUDE.md`: the working notes for Claude.
+
+## How it goes live
+
+A push to `main` runs the Deploy workflow, which runs `wrangler deploy` and publishes `public/` at dominickdominick.com. Watch it in the repository's Actions tab. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (a token that can edit Workers Scripts) and `CLOUDFLARE_ACCOUNT_ID`; without them it skips itself with a notice and nothing is published. There are no tests or other checks: what is on `main` is what ships.
 
 ## Cloudflare
 
-The site runs on Cloudflare (a Worker with static files, and D1). These resources exist in the Cloudflare account and were left untouched:
+These resources exist in the Cloudflare account and are left untouched:
 
 | What | Name | Id |
 |---|---|---|
@@ -17,17 +25,19 @@ The site runs on Cloudflare (a Worker with static files, and D1). These resource
 | R2 bucket, production | `dominickdominick-media` | |
 | R2 bucket, preview | `dominickdominick-media-preview` | |
 
-The production database still holds the tables and rows of the old site (nothing reads them). The Worker that was deployed last is still running in Cloudflare and serves a blank page until it is replaced or deleted in the dashboard (Workers & Pages > dominickdominick).
+The production database still holds the tables and rows of the old site (nothing reads them). The site is not connected to it right now, because a site made only of files has no code to use it. To connect it, add a Worker script (`"main": "worker/index.js"` in `wrangler.jsonc`) and the binding:
+
+```jsonc
+"d1_databases": [
+	{ "binding": "DB", "database_name": "dominickdominick", "database_id": "f49fb038-9dfb-419e-acfb-7d8babc9d509", "migrations_dir": "migrations" }
+]
+```
 
 ## The database files
 
-`schema.sql` is the bootstrap for a fresh database. The numbered files in `migrations/` add columns on top of it: apply the bootstrap first and then the migrations in order. With a Wrangler config that binds the database as `DB`:
+`schema.sql` is the bootstrap for a fresh database. The numbered files in `migrations/` add columns on top of it: apply the bootstrap first and then the migrations in order. With the binding above:
 
 ```bash
 npx wrangler d1 execute DB --local --file=schema.sql
 npx wrangler d1 migrations apply DB --local
 ```
-
-## Starting again
-
-There is no code, no test, no `wrangler.jsonc` and no GitHub Actions workflow here any more, so a new site needs its own config, its own `public/` folder and a new pipeline.
