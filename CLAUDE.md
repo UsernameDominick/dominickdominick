@@ -7,18 +7,19 @@ A personal site on Cloudflare. **It is almost empty on purpose.** On 2026-10-09 
 | Path | What it is |
 |---|---|
 | `public/index.html` | The whole site: a heading (`dominickdominick.com`). Everything in `public/` is served as is. |
-| `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings yet. |
-| `.github/workflows/deploy.yml` | A push to `main` (or a manual run) deploys to Cloudflare with `npx wrangler@4.149.0 deploy`, using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (it skips with a notice when they are missing). |
+| `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings yet. Cloudflare's build reads it, so keep it valid. |
 | `schema.sql`, `migrations/` | The D1 database shape: the bootstrap, then the numbered migrations. The production database still holds the old site's tables and rows; nothing reads them. |
 | `README.md` | The Cloudflare resources (database and bucket names and ids), how to bind the database, how to apply the database files. |
 
-There is no `package.json`, no test and no other CI. A push to `main` ships, so look carefully before pushing, or use a branch and a pull request.
+## How it goes live
+
+**Cloudflare publishes `main`, not GitHub.** The Worker `dominickdominick` is connected to this repository through Cloudflare's own GitHub integration (Workers Builds): each push to `main` is built and deployed with `wrangler deploy` and is live within about a minute (the owner confirmed it is Cloudflare doing it). There is no GitHub Actions workflow, no repository secret, no test and no other CI. A push to `main` ships, so look carefully before pushing, or use a branch and a pull request. A broken `wrangler.jsonc` fails the build and Cloudflare emails the owner. After a push, `https://dominickdominick.com/` shows the new page when the build is done.
 
 ## Working here
 
 - **Never force-push without the owner's explicit instruction** (history was rewritten on 2026-10-08 and wiped on 2026-10-09, both on their say-so).
 - **Commit messages are a plain bulleted list of the changes and nothing else**: no attribution or co-author lines, no session links, no tool or model names, in commits, code comments or any file. Commit only files you changed for the task (`git add <paths>`, not `-A`).
-- **The owner's computer does not run `wrangler dev` or browser tests** (they open windows and popups). `wrangler deploy --dry-run` is fine. Browser tests, if they come back, run in CI on Linux.
+- **The owner's computer does not run `wrangler dev` or browser tests** (they open windows and popups). `npx wrangler@4.149.0 deploy --dry-run` is fine for checking the config. Browser tests, if they come back, run in CI on Linux.
 - **Production database changes** (migrations, data fixes) need the owner's explicit say-so each time. Never touch the live site or call external services from tests.
 - **Windows:** the repo is developed on Windows and Linux. Do not use `new URL(...).pathname` for file paths (use `fileURLToPath`), and start `npx`/`npm` from node with `shell` and `windowsHide: true`.
 

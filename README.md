@@ -6,13 +6,12 @@ Almost empty on purpose: one page with a heading, live on Cloudflare, ready to b
 
 - `public/index.html`: the whole site, a heading. Everything in `public/` is served exactly as it is.
 - `wrangler.jsonc`: the Cloudflare config (the Worker's name and the folder to serve).
-- `.github/workflows/deploy.yml`: puts the site live.
 - `schema.sql` and `migrations/`: the shape of the D1 database.
 - `CLAUDE.md`: the working notes for Claude.
 
 ## How it goes live
 
-A push to `main` runs the Deploy workflow, which runs `wrangler deploy` and publishes `public/` at dominickdominick.com. Watch it in the repository's Actions tab. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (a token that can edit Workers Scripts) and `CLOUDFLARE_ACCOUNT_ID`; without them it skips itself with a notice and nothing is published. There are no tests or other checks: what is on `main` is what ships.
+Cloudflare publishes it. The Worker `dominickdominick` is connected to this GitHub repository (Cloudflare dashboard > Workers & Pages > dominickdominick > Settings > Builds): every push to `main` is built and deployed there with `wrangler deploy`, which publishes `public/` at dominickdominick.com within a minute or so. Builds and their logs are under Deployments in the same place, and a failed build is emailed to the owner by Cloudflare. No GitHub workflow or repository secret is involved, and there are no tests or other checks: what is on `main` is what ships.
 
 ## Cloudflare
 
