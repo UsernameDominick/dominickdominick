@@ -69,12 +69,14 @@ function typeReport() {
     const bg = background(el);
     const c = ratio([fg[0], fg[1], fg[2], 1], bg.col);
     const key = [Math.round(size * 2) / 2, family, weight, caps ? "CAPS" : "case"].join("|");
-    const g = groups.get(key) || { key, size: Math.round(size * 2) / 2, family, weight, caps, n: 0, chars: 0, minContrast: 99, samples: [], gradient: false };
+    const g = groups.get(key) || { key, size: Math.round(size * 2) / 2, family, weight, caps, n: 0, chars: 0, minContrast: 99, samples: [], sel: [], gradient: false };
     g.n += 1;
     g.chars += text.length;
     g.gradient = g.gradient || bg.gradient;
     if (c < g.minContrast) g.minContrast = c;
     if (g.samples.length < 3 && !g.samples.includes(text.slice(0, 22))) g.samples.push(text.slice(0, 22));
+    const sel = el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + [...el.classList].slice(0, 2).map((c) => "." + c).join("");
+    if (g.sel.length < 4 && !g.sel.includes(sel)) g.sel.push(sel);
     groups.set(key, g);
     chars += text.length;
   }
@@ -125,7 +127,7 @@ function typeReport() {
         report.groups.forEach((g) => { buckets[g.size < 12 ? "under 12" : g.size < 14 ? "12 to 13.9" : g.size < 16 ? "14 to 15.9" : "16 and up"] += g.chars; });
         const pct = (n) => Math.round((100 * n) / Math.max(1, report.chars));
         say(`\n=== ${tag}: ${report.chars} letters of visible text; drawn size: ` + Object.entries(buckets).map(([k, v]) => `${k}px ${pct(v)}%`).join(", "));
-        report.groups.filter((g) => g.size < 18).forEach((g) => say(`  ${String(g.size).padStart(4)}px ${g.family.padEnd(15)} ${g.weight.padEnd(7)} ${g.caps ? "CAPS" : "case"} x${String(g.n).padEnd(3)} ${String(g.chars).padStart(4)} letters  contrast>=${g.minContrast}${g.gradient ? "~" : " "}  ${g.samples.join(" | ")}`));
+        report.groups.filter((g) => g.size < 18).forEach((g) => say(`  ${String(g.size).padStart(4)}px ${g.family.padEnd(15)} ${g.weight.padEnd(7)} ${g.caps ? "CAPS" : "case"} x${String(g.n).padEnd(3)} ${String(g.chars).padStart(4)} letters  contrast>=${g.minContrast}${g.gradient ? "~" : " "}  ${g.samples.join(" | ")}  [${g.sel.join(" ")}]`));
         summary.push({ tag, ...report, buckets });
         // the search dialog
         await tap("#finder-open");
