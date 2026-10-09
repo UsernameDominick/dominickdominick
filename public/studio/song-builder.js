@@ -3335,7 +3335,8 @@
     currentSongId = id;
     if (id) {
       $("song-name").value = song.name;
-      songData = backfillSongData(song.data && song.data.tracks ? song.data : defaultSongData());
+      // a song kept by an earlier build is brought up to the current format first (song-files.js migrateSong), as an imported one is
+      songData = backfillSongData(window.SongFiles.migrateSong(song.data && song.data.tracks ? song.data : defaultSongData()));
     } else if (starterId && window.SongStarters && window.SongStarters.build(starterId)) {
       // A built-in starter: a whole little song, named for what it is (rename it before saving, or leave it).
       const starter = window.SongStarters.LIST.find((x) => x.id === starterId);
@@ -3347,7 +3348,7 @@
       // own name is just a label for picking it in the dropdown, not
       // something that should carry over onto every song created from it.
       $("song-name").value = "New song";
-      songData = backfillSongData(t && t.data && t.data.tracks ? JSON.parse(JSON.stringify(t.data)) : defaultSongData());
+      songData = backfillSongData(window.SongFiles.migrateSong(t && t.data && t.data.tracks ? JSON.parse(JSON.stringify(t.data)) : defaultSongData()));
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();
@@ -3655,130 +3656,9 @@
   const audioModal = $("song-audio-modal");
   const AUDIO_DEPTHS = { "16": { bytes: 2, label: "16-bit" }, "24": { bytes: 3, label: "24-bit" }, "32f": { bytes: 4, label: "32-bit float" } };
 
-  function encodeWavMono(samples, sampleRate, depth, dither) {
-    const bytesPer = AUDIO_DEPTHS[depth].bytes;
-    const isFloat = depth === "32f";
-    const dataBytes = samples.length * bytesPer;
-    const pad = dataBytes % 2; // RIFF chunks sit on even boundaries; an odd 24-bit data chunk gets one pad byte
-    const factBytes = isFloat ? 12 : 0; // float WAVs carry a 'fact' chunk with the frame count
-    const buffer = new ArrayBuffer(44 + factBytes + dataBytes + pad);
-    const view = new DataView(buffer);
-    const text = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
-    text(0, "RIFF");
-    view.setUint32(4, 36 + factBytes + dataBytes + pad, true);
-    text(8, "WAVE");
-    text(12, "fmt ");
-    view.setUint32(16, 16, true);
-    view.setUint16(20, isFloat ? 3 : 1, true); // 1 = integer PCM, 3 = IEEE float
-    view.setUint16(22, 1, true); // mono
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * bytesPer, true);
-    view.setUint16(32, bytesPer, true);
-    view.setUint16(34, bytesPer * 8, true);
-    let at = 36;
-    if (isFloat) {
-      text(at, "fact");
-      view.setUint32(at + 4, 4, true);
-      view.setUint32(at + 8, samples.length, true);
-      at += 12;
-    }
-    text(at, "data");
-    view.setUint32(at + 4, dataBytes, true);
-    at += 8;
-    let peak = 0;
-    let clipped = 0;
-    let state = 0x9e3779b9 ^ samples.length; // fixed seed: the same song always exports the same file
-    const noise = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 4294967296; };
-    const full = isFloat ? 0 : Math.pow(2, bytesPer * 8 - 1);
-    for (let i = 0; i < samples.length; i++) {
-      const x = samples[i];
-      const mag = Math.abs(x);
-      if (mag > peak) peak = mag;
-      if (mag > 1) clipped++;
-      if (isFloat) {
-        view.setFloat32(at, x, true);
-      } else {
-        let v = Math.max(-1, Math.min(1, x)) * (full - 1);
-        if (dither && mag > 1e-9) v += noise() + noise() - 1;
-        v = Math.max(-full, Math.min(full - 1, Math.round(v)));
-        if (bytesPer === 2) view.setInt16(at, v, true);
-        else {
-          const u = v < 0 ? v + 0x1000000 : v;
-          view.setUint8(at, u & 0xff);
-          view.setUint8(at + 1, (u >> 8) & 0xff);
-          view.setUint8(at + 2, (u >> 16) & 0xff);
-        }
-      }
-      at += bytesPer;
-    }
-    return { blob: new Blob([buffer], { type: "audio/wav" }), bytes: new Uint8Array(buffer), peak, clipped };
-  }
-
-  // A minimal ZIP writer (stored, no compression: WAV doesn't compress usefully
-  // and this keeps it dependency-free). File names are flagged as UTF-8.
-  const CRC_TABLE = (() => {
-    const table = new Uint32Array(256);
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      table[n] = c >>> 0;
-    }
-    return table;
-  })();
-  function crc32(bytes) {
-    let c = 0xffffffff;
-    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  }
-  function buildZip(files) {
-    const enc = new TextEncoder();
-    const now = new Date();
-    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
-    const dosDate = ((Math.max(1980, now.getFullYear()) - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
-    const parts = [];
-    const central = [];
-    let offset = 0;
-    for (const file of files) {
-      const name = enc.encode(file.name);
-      const crc = crc32(file.bytes);
-      const local = new DataView(new ArrayBuffer(30));
-      local.setUint32(0, 0x04034b50, true);
-      local.setUint16(4, 20, true);
-      local.setUint16(6, 0x0800, true); // UTF-8 names
-      local.setUint16(8, 0, true); // stored
-      local.setUint16(10, dosTime, true);
-      local.setUint16(12, dosDate, true);
-      local.setUint32(14, crc, true);
-      local.setUint32(18, file.bytes.length, true);
-      local.setUint32(22, file.bytes.length, true);
-      local.setUint16(26, name.length, true);
-      local.setUint16(28, 0, true);
-      parts.push(local.buffer, name, file.bytes);
-      const entry = new DataView(new ArrayBuffer(46));
-      entry.setUint32(0, 0x02014b50, true);
-      entry.setUint16(4, 20, true);
-      entry.setUint16(6, 20, true);
-      entry.setUint16(8, 0x0800, true);
-      entry.setUint16(10, 0, true);
-      entry.setUint16(12, dosTime, true);
-      entry.setUint16(14, dosDate, true);
-      entry.setUint32(16, crc, true);
-      entry.setUint32(20, file.bytes.length, true);
-      entry.setUint32(24, file.bytes.length, true);
-      entry.setUint16(28, name.length, true);
-      entry.setUint32(42, offset, true);
-      central.push(entry.buffer, name);
-      offset += 30 + name.length + file.bytes.length;
-    }
-    const centralSize = central.reduce((n, part) => n + (part.byteLength !== undefined ? part.byteLength : part.length), 0);
-    const end = new DataView(new ArrayBuffer(22));
-    end.setUint32(0, 0x06054b50, true);
-    end.setUint16(8, files.length, true);
-    end.setUint16(10, files.length, true);
-    end.setUint32(12, centralSize, true);
-    end.setUint32(16, offset, true);
-    return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
-  }
+  // The WAV and ZIP writers are pure and live in song-files.js (encodeWav, buildZip), where a test reaches them.
+  const encodeWavMono = (samples, sampleRate, depth, dither) => window.SongFiles.encodeWav([samples], sampleRate, depth, dither);
+  const buildZip = (files) => window.SongFiles.buildZip(files);
 
   // One copy of the song per stem, with every other track, the melody, the bass, the chords and the lead muted
   // (a muted track in the song itself is left out). Stems are rendered on their
