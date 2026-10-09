@@ -3308,5 +3308,7 @@
   .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) var(--detail-h) auto; }
   .app-native .song-studio.studio-docked-deck[data-detail-h]:not(.studio-editor-folded) { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) var(--detail-h) auto auto; }
   .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-detail { min-height: 0; }
+  /* a short open track gives the playlist room to grow, as when it is folded: its rows get taller, up to 72px */
+  .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 37px); }
 }
 .app-native .studio-split.is-snapped i { width: 78px; margin-left: -39px; background: repeating-linear-gradient(90deg, var(--bb-orange) 0 2px, var(--bg) 2px 4px); }

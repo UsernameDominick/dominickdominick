@@ -501,7 +501,7 @@
     const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     const rows = [".studio-top", ".studio-controls", ".studio-deck-dial", ".studio-keyboard"].map((q) => (studio.querySelector(q) || {}).offsetHeight || 0);
     const others = rows.reduce((n, h) => n + h, 0);
-    if (wideMQ.matches) return studio.clientHeight - pad - others - gap * rows.filter(Boolean).length; // a gap above each other row, and the one between ours
+    if (wideMQ.matches) return studio.clientHeight - pad - others - gap * (rows.filter(Boolean).length + 1); // a gap above each of the other rows' neighbours: n other rows and our two make n + 1 gaps
     // (the phone's handle overlaps its neighbours by 6 px each side, which is why 12 comes back)
     return studio.clientHeight - pad - others - splitEl.offsetHeight + 12 - gap * 6;
   }
@@ -527,9 +527,10 @@
     const lo = editorFloor();
     const hi = editorMax();
     const pts = [{ h: lo, name: "as short as it goes" }, { h: hi, name: "as tall as it goes" }, { h: autoH, name: "at its automatic height", auto: true }];
-    // the playlist showing all five tracks at their own height: the 1.5 rows it always keeps become 5
+    // the playlist showing all five tracks at their own height: the 1.5 rows it always keeps become 5 (when that is also the automatic
+    // height, as it is on a wide screen, the automatic point is the one)
     const all = hi - 3.5 * cssPx("--pl-row", 30);
-    if (all > lo + 4 && all < hi - 4) pts.push({ h: all, name: "with the playlist showing all five tracks" });
+    if (all > lo + 4 && all < hi - 4 && Math.abs(all - autoH) > MAGNET_PX * 2) pts.push({ h: all, name: "with the playlist showing all five tracks" });
     return pts;
   }
   function magnet(raw, points) {
