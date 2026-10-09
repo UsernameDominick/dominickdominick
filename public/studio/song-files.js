@@ -676,6 +676,21 @@
     // Pump (the music ducks on each kick) is optional: it is only written once it is above 0, so a song without it keeps its keys.
     const pump = clampNum(src.pump, 0, 100, 0);
     if (pump > 0) song.pump = pump;
+    // The mixer: a pan and a level per track, kept only for a track that has either (song._solo is never saved)
+    if (isObj(src.mix)) {
+      const mix = {};
+      LANE_KEYS.forEach((id) => {
+        const m = src.mix[id];
+        if (!isObj(m)) return;
+        const pan = Math.round(clampNum(m.pan, -1, 1, 0) * 1000) / 1000;
+        const level = Math.round(clampNum(m.level, 0, 1, 1) * 1000) / 1000;
+        if (pan === 0 && level >= 1) return;
+        mix[id] = {};
+        if (pan !== 0) mix[id].pan = pan;
+        if (level < 1) mix[id].level = level;
+      });
+      if (Object.keys(mix).length) song.mix = mix;
+    }
     const meta = src.trackMeta && typeof src.trackMeta === "object" ? src.trackMeta : {};
     const tracks = src.tracks && typeof src.tracks === "object" ? src.tracks : {};
     DRUMS.forEach((t) => {

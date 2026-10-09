@@ -140,8 +140,9 @@ window.SongEngine = (function () {
   // track's volume instead of straight to the master bus.
   let voiceDest = null;
   let busDest = null; // the music bus while the melody and the other melodic parts are being scheduled with Pump on (see "Pump" below)
+  let stripDest = null; // the channel strip of the track being scheduled, when it has its own pan or level (see "The mixer" below)
   function voiceOut(ctx) {
-    return voiceDest || busDest || getMasterGain(ctx);
+    return voiceDest || stripDest || busDest || getMasterGain(ctx);
   }
   function volumeOf(meta) {
     const v = meta && Number(meta.volume);
@@ -155,7 +156,7 @@ window.SongEngine = (function () {
     if (volume >= 1) return fn();
     const gain = ctx.createGain();
     gain.gain.value = volume;
-    gain.connect(busDest || getMasterGain(ctx));
+    gain.connect(stripDest || busDest || getMasterGain(ctx));
     voiceDest = gain;
     try {
       return fn();
@@ -164,7 +165,63 @@ window.SongEngine = (function () {
     }
   }
 
-function setMasterVolume(ctx, value) {
+// ---------- The mixer: pan, level and solo per track ----------
+  // song.mix[track] = { pan: -1 to 1, level: 0 to 1 } for the five tracks (drums, bass, chords, melody, lead), written only when set. A track with a pan or a
+  // level below 1 sends its voices through a channel strip (a gain, then a stereo panner) on the way to the master; a track with neither is routed
+  // exactly as before and builds nothing. song._solo (a track name, never saved with the song) silences every other track.
+  const MIX_TRACKS = ["drums", "bass", "chords", "melody", "lead"];
+  function mixOf(songData, id) {
+    const m = songData && isObj(songData.mix) && isObj(songData.mix[id]) ? songData.mix[id] : null;
+    if (!m) return null;
+    const pan = Number(m.pan);
+    const level = Number(m.level);
+    return {
+      pan: Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0,
+      level: Number.isFinite(level) && m.level !== null && m.level !== "" ? Math.max(0, Math.min(1, level)) : 1,
+    };
+  }
+  function soloSilences(songData, id) {
+    const s = songData && songData._solo;
+    return typeof s === "string" && MIX_TRACKS.includes(s) && s !== id;
+  }
+  const strips = new WeakMap(); // ctx -> Map(key -> { input, panner })
+  function getStrip(ctx, id, m) {
+    let map = strips.get(ctx);
+    if (!map) strips.set(ctx, (map = new Map()));
+    const key = id + (busDest ? "#bus" : ""); // a melodic track goes on to the music bus when Pump is on, and the bus is not the master
+    let strip = map.get(key);
+    if (!strip) {
+      const input = ctx.createGain();
+      let out = input;
+      let panner = null;
+      if (typeof ctx.createStereoPanner === "function") {
+        panner = ctx.createStereoPanner();
+        input.connect(panner);
+        out = panner;
+      }
+      out.connect(busDest || getMasterGain(ctx));
+      strip = { input, panner };
+      map.set(key, strip);
+    }
+    // a glide, so a pan turned or a level moved while the song plays does not click
+    const now = ctx.currentTime;
+    strip.input.gain.setTargetAtTime(m.level, now, 0.02);
+    if (strip.panner) strip.panner.pan.setTargetAtTime(m.pan, now, 0.02);
+    return strip.input;
+  }
+  // Runs fn (which schedules a track's voices) with the track's strip in the way, if it has one.
+  function withTrack(ctx, songData, id, fn) {
+    const m = mixOf(songData, id);
+    if (!m || (m.pan === 0 && m.level >= 1)) return fn();
+    stripDest = getStrip(ctx, id, m);
+    try {
+      return fn();
+    } finally {
+      stripDest = null;
+    }
+  }
+
+  function setMasterVolume(ctx, value) {
     const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
     const gainParam = getMasterGain(ctx).gain;
     const now = ctx.currentTime;
@@ -1227,7 +1284,7 @@ function setMasterVolume(ctx, value) {
     setEcho(ctx, songData.echo, songData.tempo);
     const kit = songData.kit || "acoustic";
     const pump = pumpAmount(songData.pump);
-    if (songData.tracks) {
+    if (songData.tracks && !soloSilences(songData, "drums")) {
       Object.keys(songData.tracks).sort().forEach((track) => {
         // Clamped to 0 rather than passed through raw -- a negative jitter
         // draw on step 0 of an OfflineAudioContext render (renderWaveformPeaks
@@ -1238,7 +1295,7 @@ function setMasterVolume(ctx, value) {
         // caught this live (a silently broken peak scan).
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
-          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track])));
+          withTrack(ctx, songData, "drums", () => withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track]))));
           if (pump && track === "kick") duckMusic(ctx, hitTime, pump, songData.tempo);
         }
       });
@@ -1248,7 +1305,7 @@ function setMasterVolume(ctx, value) {
 
   // The melody and the other melodic parts of one step (split out of scheduleStep so Pump can route them through the music bus).
   function scheduleMusic(ctx, songData, step, time, random) {
-    if (songData.melody && !isMelodyMuted(songData)) {
+    if (songData.melody && !isMelodyMuted(songData) && !soloSilences(songData, "melody")) {
       const waveform = songData.melody.waveform || "sine";
       const voice = melodyVoiceOf(songData);
       const duration = stepDurationFor(songData.tempo);
@@ -1257,13 +1314,13 @@ function setMasterVolume(ctx, value) {
         if (songData.melody.notes[note][step] && !isTiedContinuation(songData, note, step)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step);
-          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () =>
-            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData.melody.synth, random) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
+          withTrack(ctx, songData, "melody", () => withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () =>
+            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData.melody.synth, random) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length)));
         }
       });
     }
     PART_KEYS.forEach((key) => {
-      if (!(isObj(songData[key]) && isObj(songData[key].notes)) || isPartMuted(songData, key)) return;
+      if (!(isObj(songData[key]) && isObj(songData[key].notes)) || isPartMuted(songData, key) || soloSilences(songData, key)) return;
       const voice = partVoiceOf(songData, key);
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData[key].notes).sort().forEach((note) => {
@@ -1271,7 +1328,7 @@ function setMasterVolume(ctx, value) {
         if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, key)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step, key);
-          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData[key].synth, random));
+          withTrack(ctx, songData, key, () => withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData[key].synth, random)));
         }
       });
     });
@@ -1515,7 +1572,8 @@ function setMasterVolume(ctx, value) {
     const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * totalSteps * sampleRate));
     const tailSamples = Math.round(tail * sampleRate);
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    const ctx = new OfflineCtx(1, loopSamples * 2 + tailSamples, sampleRate);
+    const stereo = options.stereo === true;
+    const ctx = new OfflineCtx(stereo ? 2 : 1, loopSamples * 2 + tailSamples, sampleRate);
     // The master gain starts at 1 and setMasterVolume only ramps towards the
     // song's volume over 30 ms, which would leave the first moments too loud;
     // start it at the right level so the whole render is at the song's volume.
@@ -1530,12 +1588,19 @@ function setMasterVolume(ctx, value) {
         for (let step = 0; step < STEPS; step++) scheduleStep(ctx, view, step, (pass * totalSteps + bar * STEPS + step) * stepSeconds, random);
       }
     }
-    const rendered = (await ctx.startRendering()).getChannelData(0);
-    const samples = new Float32Array(loopSamples * loops + tailSamples);
-    const oneLoop = rendered.subarray(loopSamples, loopSamples * 2);
-    for (let loop = 0; loop < loops; loop++) samples.set(oneLoop, loop * loopSamples);
-    if (tailSamples) samples.set(rendered.subarray(loopSamples * 2, loopSamples * 2 + tailSamples), loopSamples * loops);
-    return { samples, sampleRate, loopSamples, loops };
+    const buffer = await ctx.startRendering();
+    // the second pass is the loop (so what rings over the end of the first lands at the start of it), repeated, and then the tail
+    const keep = (rendered) => {
+      const out = new Float32Array(loopSamples * loops + tailSamples);
+      const oneLoop = rendered.subarray(loopSamples, loopSamples * 2);
+      for (let loop = 0; loop < loops; loop++) out.set(oneLoop, loop * loopSamples);
+      if (tailSamples) out.set(rendered.subarray(loopSamples * 2, loopSamples * 2 + tailSamples), loopSamples * loops);
+      return out;
+    };
+    const samples = keep(buffer.getChannelData(0));
+    // stereo: `right` is the second channel (`samples` is the left); a mono render has no `right`
+    const right = stereo ? keep(buffer.getChannelData(1)) : undefined;
+    return { samples, right, sampleRate, loopSamples, loops };
   }
 
   return {
@@ -1594,6 +1659,10 @@ function setMasterVolume(ctx, value) {
     melodyVoiceOf,
     MELODY_VOICES,
     withVolume,
+    mixOf,
+    withTrack,
+    soloSilences,
+    MIX_TRACKS,
     stepLevel,
     volumeOf,
     createPlayer,

@@ -125,6 +125,45 @@
     // Holds a note of a track for as long as the caller wants (a knob is being turned), with the track's sound as it is, and lets the knobs move it
     // while it sounds. Never recorded. Returns { off() }, or null when there is nothing to hold.
     holdHear: (id, name) => holdHearNote(id, name),
+    // The mixer: a pan and a level per track (song.mix, written only when it differs from the default), and solo (song._solo, a track name, never saved).
+    // The level of the four melodic tracks is the track's own volume; the drums, which have one volume per sound, get a level for the whole track.
+    mix: {
+      get: (id) => {
+        const m = Engine.mixOf(songData, id);
+        const part = id === "melody" ? songData.melody : songData[id];
+        return { pan: m ? m.pan : 0, level: id === "drums" ? (m ? m.level : 1) : Engine.volumeOf(part) };
+      },
+      setPan: (id, pan) => {
+        if (!Engine.MIX_TRACKS.includes(id)) return;
+        const mix = (songData.mix = songData.mix && typeof songData.mix === "object" ? songData.mix : {});
+        const entry = (mix[id] = Object.assign({}, mix[id]));
+        const v = Math.max(-1, Math.min(1, Number(pan) || 0));
+        if (v === 0) delete entry.pan;
+        else entry.pan = Math.round(v * 1000) / 1000;
+        if (!Object.keys(entry).length) delete mix[id];
+        if (!Object.keys(mix).length) delete songData.mix;
+        scheduleAutosave();
+      },
+      setLevel: (id, level) => {
+        if (!Engine.MIX_TRACKS.includes(id)) return;
+        const v = Math.max(0, Math.min(1, Number(level)));
+        if (!Number.isFinite(v)) return;
+        if (id === "drums") {
+          const mix = (songData.mix = songData.mix && typeof songData.mix === "object" ? songData.mix : {});
+          const entry = (mix.drums = Object.assign({}, mix.drums));
+          if (v >= 1) delete entry.level;
+          else entry.level = Math.round(v * 1000) / 1000;
+          if (!Object.keys(entry).length) delete mix.drums;
+          if (!Object.keys(mix).length) delete songData.mix;
+        } else setVolume(id === "melody" ? songData.melody : ensurePart(id), v);
+        scheduleAutosave();
+      },
+      solo: (id) => {
+        if (id && Engine.MIX_TRACKS.includes(id)) songData._solo = id;
+        else delete songData._solo;
+      },
+      soloId: () => songData._solo || "",
+    },
     hearDrum: (row) => soundDrum(row),
     // One drum sound's own tweaks (tune in semitones, decay as a multiplier, tone from -1 to 1). A null value takes a tweak back to the kit's.
     drum: (row) => Engine.drumShape(songData.trackMeta && songData.trackMeta[row]),
@@ -325,7 +364,9 @@
   let tapStatusTimer = null;
 
   function captureSongHistoryState(name = $("song-name").value) {
-    return { name, data: JSON.parse(JSON.stringify(songData)) };
+    const data = JSON.parse(JSON.stringify(songData));
+    delete data._solo; // solo is not an edit: it never makes an undo step, and undoing never brings it back
+    return { name, data };
   }
   function sameSongHistoryState(a, b) {
     return a.name === b.name && JSON.stringify(a.data) === JSON.stringify(b.data);
@@ -468,8 +509,10 @@
   }
   function applySongHistoryState(state) {
     const restored = JSON.parse(JSON.stringify(state.data));
+    const solo = songData._solo;
     Object.keys(songData).forEach((key) => delete songData[key]);
     Object.assign(songData, restored);
+    if (solo) songData._solo = solo;
     $("song-name").value = state.name;
     songHistoryKnownName = state.name;
     $("song-tempo").value = songData.tempo || 120;
@@ -557,6 +600,7 @@
     const id = currentSongId;
     const dirtyGen = songDirtyGeneration;
     const data = pruneParts(JSON.parse(JSON.stringify(songData)));
+    delete data._solo; // solo is for listening: it is never saved
     try {
       await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while this PATCH was in flight
@@ -1001,7 +1045,7 @@
     const myOpenGeneration = openGeneration;
     const myEditGeneration = songEditGeneration;
     try {
-      const peaks = await Engine.renderWaveformPeaks(songData, 400);
+      const peaks = await Engine.renderWaveformPeaks(Object.assign({}, songData, { _solo: undefined }), 400);
       if (myOpenGeneration !== openGeneration || myEditGeneration !== songEditGeneration) return;
       const peakAmp = Math.max(0.0001, ...peaks.flatMap((p) => [Math.abs(p[0]), Math.abs(p[1])]));
       const TARGET_PEAK = 0.98; // a hair under full scale, not 1.0 exactly, for a small safety margin
@@ -3805,7 +3849,8 @@
   const AUDIO_DEPTHS = { "16": { bytes: 2, label: "16-bit" }, "24": { bytes: 3, label: "24-bit" }, "32f": { bytes: 4, label: "32-bit float" } };
 
   // The WAV and ZIP writers are pure and live in song-files.js (encodeWav, buildZip), where a test reaches them.
-  const encodeWavMono = (samples, sampleRate, depth, dither) => window.SongFiles.encodeWav([samples], sampleRate, depth, dither);
+  // one or two channels (a mono render has no right channel)
+  const encodeRender = (render, depth, dither) => window.SongFiles.encodeWav(render.right ? [render.samples, render.right] : [render.samples], render.sampleRate, depth, dither);
   const buildZip = (files) => window.SongFiles.buildZip(files);
 
   // One copy of the song per stem, with every other track, the melody, the bass, the chords and the lead muted
@@ -3816,6 +3861,7 @@
     const jobs = [];
     const copyFor = (solo) => {
       const copy = JSON.parse(JSON.stringify(songData));
+      delete copy._solo;
       copy.trackMeta = copy.trackMeta || {};
       trackList().forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
       copy.melody = copy.melody || { waveform: "sine", notes: {} };
@@ -3848,6 +3894,7 @@
       tailSeconds: Number($("song-audio-tail").value),
       dither: $("song-audio-dither").checked && $("song-audio-depth").value !== "32f",
       stems: $("song-audio-stems").checked,
+      channels: $("song-audio-channels").value === "1" ? 1 : 2,
     };
   }
   function refreshAudioSummary() {
@@ -3857,7 +3904,7 @@
     const repeats = Math.min(o.loops, Engine.maxExportLoops(songData));
     const seconds = loopSeconds * repeats + o.tailSeconds;
     const files = o.stems ? stemJobs().length : 1;
-    const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes * Math.max(1, files);
+    const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes * o.channels * Math.max(1, files);
     const size = bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
     $("song-audio-dither").disabled = o.depth === "32f";
     $("song-audio-summary").textContent = o.stems
@@ -3870,7 +3917,7 @@
     // Not while a render is running: Cancel is showing and Export must stay disabled.
     if ($("song-audio-cancel").hidden) $("song-audio-go").disabled = o.stems && !files;
   }
-  ["song-audio-rate", "song-audio-depth", "song-audio-loops", "song-audio-tail", "song-audio-dither", "song-audio-stems"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
+  ["song-audio-rate", "song-audio-depth", "song-audio-channels", "song-audio-loops", "song-audio-tail", "song-audio-dither", "song-audio-stems"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
   $("song-export-audio").addEventListener("click", () => {
     $("song-audio-status").textContent = "";
     refreshAudioSummary();
@@ -3915,16 +3962,16 @@
     $("song-audio-cancel").focus(); // Export just disabled itself; keep keyboard users in the dialog
     status.textContent = "Rendering… long exports at a high sample rate can take a while. Cancel stops waiting for it.";
     try {
-      const jobs = o.stems ? stemJobs() : [{ id: "", label: "", data: songData }];
+      const jobs = o.stems ? stemJobs() : [{ id: "", label: "", data: Object.assign({}, songData, { _solo: undefined }) }]; // an export is the whole mix, whatever is soloed
       if (!jobs.length) {
         status.textContent = "Nothing to export as stems: no unmuted track has any notes.";
         return;
       }
       const results = [];
       for (const job of jobs) {
-        const render = await window.SongEngine.renderLoopAudio(job.data, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds });
+        const render = await window.SongEngine.renderLoopAudio(job.data, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds, stereo: o.channels === 2 });
         if (token !== audioRenderToken) return; // cancelled while rendering
-        results.push({ job, ...encodeWavMono(render.samples, render.sampleRate, o.depth, o.dither) });
+        results.push({ job, ...encodeRender(render, o.depth, o.dither) });
       }
       // Letters and numbers of any language survive; everything else becomes one dash; capped so the file name stays usable.
       const name = ($("song-name").value.trim().replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/-{2,}/g, "-").replace(/^[-_]+|[-_]+$/g, "").slice(0, 80)) || "song";

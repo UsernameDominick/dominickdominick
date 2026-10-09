@@ -3405,3 +3405,14 @@
 .app-native .dial.is-fine .dial-disc { stroke-dasharray: 3 2; }
 .app-native .dial-bubble { font: 400 14px/16px var(--bb-px); }
 .app-native .dial-type { font: 400 20px/22px var(--bb-vt); height: 28px; }
+
+/* The mixer (Song pane): a row for each of the five tracks, its level and pan dials and a Solo; the tracks left silent by a Solo are dimmed. */
+.app-native .studio-mixer { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.app-native .studio-mixer-row { display: grid; grid-template-columns: minmax(64px, 84px) auto auto 1fr; align-items: center; gap: 6px 12px; padding: 6px 0; border-bottom: 2px dotted var(--text); }
+.app-native .studio-mixer-row:last-child { border-bottom: 0; }
+.app-native .studio-mixer-name { font: 400 22px/1 var(--bb-vt); }
+.app-native .studio-mixer-dial { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; font: 400 14px/16px var(--bb-px); text-transform: uppercase; }
+.app-native .studio-mixer-row .studio-mini { justify-self: end; }
+.app-native .studio-mixer-row .studio-mini[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); }
+.app-native .studio-mixer-row.is-quiet .studio-mixer-name, .app-native .studio-mixer-row.is-quiet .studio-mixer-dial { opacity: 0.55; }
+@media (max-width: 420px) { .app-native .studio-mixer-row { grid-template-columns: auto auto 1fr; } .app-native .studio-mixer-name { grid-column: 1 / -1; } }

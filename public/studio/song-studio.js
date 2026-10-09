@@ -2587,6 +2587,66 @@
     return el;
   };
   const labelOf = (id) => ($(id) ? $(id).closest("label") || $(id) : null);
+  // ---- the mixer: a level, a pan and a Solo for each of the five tracks ----
+  const MIXER_TRACKS = [["drums", "Drums"], ["bass", "Bass"], ["chords", "Chords"], ["melody", "Melody"], ["lead", "Lead"]];
+  function buildMixer() {
+    const wrap = document.createElement("div");
+    wrap.className = "studio-mixer";
+    wrap.id = "studio-mixer";
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Mixer");
+    wrap.innerHTML = MIXER_TRACKS.map(([id, name]) =>
+      `<div class="studio-mixer-row" data-mix-row="${id}"><span class="studio-mixer-name">${name}</span>` +
+      `<label class="studio-mixer-dial"><span>Level</span><input type="range" min="0" max="100" value="100" data-mix-level="${id}" data-no-reset aria-label="${name} level"></label>` +
+      `<label class="studio-mixer-dial"><span>Pan</span><input type="range" min="-100" max="100" value="0" data-mix-pan="${id}" data-no-reset aria-label="${name} pan"></label>` +
+      `<button type="button" class="studio-mini" data-mix-solo="${id}" data-no-history aria-pressed="false" title="Hear only ${name}">Solo</button></div>`
+    ).join("");
+    wrap.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!t.dataset) return;
+      if (t.dataset.mixLevel) host().mix.setLevel(t.dataset.mixLevel, Number(t.value) / 100);
+      else if (t.dataset.mixPan) host().mix.setPan(t.dataset.mixPan, Number(t.value) / 100);
+    });
+    wrap.addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("[data-mix-solo]");
+      if (!b) return;
+      const id = b.dataset.mixSolo;
+      host().mix.solo(host().mix.soloId() === id ? "" : id);
+      renderMixer();
+      say(host().mix.soloId() ? `Solo: ${b.closest("[data-mix-row]").querySelector(".studio-mixer-name").textContent} only` : "Solo off");
+    });
+    // what the dials mean
+    if (dialsOn()) {
+      wrap.querySelectorAll("[data-mix-level]").forEach((i) => configureLevel(i));
+      wrap.querySelectorAll("[data-mix-pan]").forEach((i) => {
+        i.setAttribute("data-default", "0");
+        window.Dial.configure(i, {
+          format: (v) => (Number(v) === 0 ? "centre" : `${Math.abs(Math.round(Number(v)))}% ${Number(v) < 0 ? "left" : "right"}`),
+          parse: (text, n) => (/l/i.test(text) ? -Math.abs(n) : /c/i.test(text) ? 0 : n),
+          def: 0,
+          detents: [0, -50, 50],
+        });
+      });
+    }
+    return wrap;
+  }
+  function renderMixer() {
+    const wrap = $("studio-mixer");
+    if (!wrap || !host().mix) return;
+    const solo = host().mix.soloId();
+    wrap.querySelectorAll("[data-mix-row]").forEach((row) => {
+      const id = row.dataset.mixRow;
+      const m = host().mix.get(id);
+      const level = row.querySelector("[data-mix-level]");
+      const pan = row.querySelector("[data-mix-pan]");
+      if (!turning(level)) level.value = String(Math.round(m.level * 100));
+      if (!turning(pan)) pan.value = String(Math.round(m.pan * 100));
+      const b = row.querySelector("[data-mix-solo]");
+      b.setAttribute("aria-pressed", String(solo === id));
+      row.classList.toggle("is-solo", solo === id);
+      row.classList.toggle("is-quiet", Boolean(solo) && solo !== id);
+    });
+  }
   function buildSheet() {
     if (sheetBuilt) return;
     sheetBuilt = true;
@@ -2623,11 +2683,13 @@
     );
     const metroSec = section("Metronome");
     metroSec.append(row($("song-metronome-sound"), labelOf("song-metronome-accent")));
+    const mixer = section("Mixer", "The level and pan of each track, and Solo to hear one track on its own (Solo is for listening: it is not saved or exported).");
+    mixer.append(buildMixer());
     const mix = section("Mix", "A level for the whole song. Normalize sets a safe volume from one pass of the real sound.");
     mix.append(row($("song-normalize-peak")), row(document.querySelector(".song-meter-group")));
     const notes = section("Notes and templates");
     notes.append(row(document.querySelector(".song-notes-section")), row($("save-song-template-btn")));
-    panes.song.append(feel, metroSec, mix, notes);
+    panes.song.append(feel, metroSec, mixer, mix, notes);
 
     // Patterns: the builder's own arrangement section (patterns, song order, copy).
     const arrange = section("Patterns and song order", "Every pattern holds one bar for each track. The song order plays patterns one after another. A track's own bars (the strip under its name) can differ from it.");
@@ -3085,6 +3147,7 @@
     const bars = $("studio-song-bars");
     if (bars && document.activeElement !== bars) bars.value = s.bars ? String(s.bars) : "";
     if (sheetTab === "sound") renderSound();
+    if (sheetTab === "song") renderMixer();
     $("studio-sheet-title").textContent = panes[sheetTab] ? (sheetTab === "sound" || sheetTab === "tools" ? `${track.name} ${sheetTab === "sound" ? "sound" : "tools"}` : PANES.find((p) => p.id === sheetTab).label) : "Tools";
   }
 

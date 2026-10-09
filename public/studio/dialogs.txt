@@ -362,13 +362,19 @@
         <button id="close-song-audio" aria-label="Close Export audio dialog">×</button>
       </header>
       <div class="sim-checklist-body song-audio-body">
-        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize, space and mutes applied. Every repeat is exactly one loop long, and notes still ringing at the end carry into the start of the next repeat, so the file loops without a click.</p>
+        <p class="song-audio-help">Renders this song's loop to a WAV file (stereo, or mono if you choose), with its master volume, humanize, space and mutes applied. Every repeat is exactly one loop long, and notes still ringing at the end carry into the start of the next repeat, so the file loops without a click.</p>
         <div class="song-audio-grid">
           <label>Sample rate
             <select id="song-audio-rate">
               <option value="44100" selected>44.1 kHz (CD)</option>
               <option value="48000">48 kHz (video)</option>
               <option value="96000">96 kHz</option>
+            </select>
+          </label>
+          <label>Channels
+            <select id="song-audio-channels">
+              <option value="2" selected>Stereo</option>
+              <option value="1">Mono</option>
             </select>
           </label>
           <label>Bit depth
