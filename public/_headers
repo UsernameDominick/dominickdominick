@@ -3,11 +3,14 @@
 https://dominickdominick.:subdomain.workers.dev/*
 	X-Robots-Tag: noindex
 
-# Files sent straight from the asset store never pass through the Worker, so they do not get the Worker's security headers. These are the
-# ones that are safe for every static file: no MIME sniffing, no framing on other sites, less referrer leakage, https only. (No page-wide
-# CSP here: the Worker already sets the site's CSP on every response it sends.)
+# The headers on every file the asset store sends. The index page, the stylesheet and every other file in this folder are answered by the asset
+# store itself and never reach the Worker, so these are the headers they get: this block is the one that matters for pages. worker/security-headers.js
+# carries the same list for what the Worker answers (a missing address, an error); tests/site.test.mjs fails if the two drift apart.
+# Policy: no inline script or style, no eval, nothing from another site, no framing by another site. Loosen it in both places when the new site needs to.
 /*
 	X-Content-Type-Options: nosniff
 	X-Frame-Options: SAMEORIGIN
 	Referrer-Policy: strict-origin-when-cross-origin
 	Strict-Transport-Security: max-age=31536000; includeSubDomains
+	Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+	Content-Security-Policy: default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'

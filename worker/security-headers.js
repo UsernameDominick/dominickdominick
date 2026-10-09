@@ -1,6 +1,7 @@
-// The headers every response from the site carries: no MIME sniffing, no framing on other sites, a trimmed referrer, https only, and a content
-// security policy with no inline script and no eval. Loosen the policy here when the new site needs something it forbids (a script from a CDN,
-// an inline style, a frame), and keep the same list in public/_headers in step: that file covers what the asset store sends without the Worker.
+// The headers on what the Worker answers itself (a missing address, an error): no MIME sniffing, no framing on other sites, a trimmed referrer, https
+// only, and a content security policy with no inline script and no eval. The pages and files in public/ never reach the Worker (the asset store
+// answers them), so their headers are the `/*` block of public/_headers: it must stay identical to this list (tests/site.test.mjs checks). Loosen
+// the policy in both places when the new site needs something it forbids (a script from a CDN, an inline style, a frame).
 export const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "SAMEORIGIN",

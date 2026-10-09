@@ -7,9 +7,9 @@ A personal site on a Cloudflare Worker (static files in `public/`, a small Worke
 | Path | What it is |
 |---|---|
 | `public/index.html`, `style.css`, `robots.txt` | The index page and its stylesheet. No scripts, no inline styles (the CSP forbids both). `style.css` is dark ink on soft paper (the reverse for a dark system theme), system fonts at 18px, a column no wider than 40rem. |
-| `public/_headers` | The headers the asset store sends by itself for static files (no sniffing, no framing, https only) and the `workers.dev` noindex rule. Keep it in step with `worker/security-headers.js`. |
-| `worker/index.js` | The Worker: every request is answered from `public/` (`env.ASSETS`) with the security headers on top, and a failure is a plain 500. The main module may **only export handlers**: put anything else in its own file. |
-| `worker/security-headers.js` | The headers and the content security policy (`default-src 'self'`, no inline script, no eval). Loosen it here when the new site needs something it forbids. |
+| `public/_headers` | The headers the asset store sends with the index page and every other file in `public/` (they never reach the Worker): the security headers and the content security policy in the `/*` block, and the `workers.dev` noindex rule. The `/*` block must equal `worker/security-headers.js` (a test checks). |
+| `worker/index.js` | The Worker. The asset store answers a request for a file that exists in `public/` by itself; the Worker answers the rest (a missing address is a 404, a failure a plain 500) with the security headers on top, from `env.ASSETS`. The main module may **only export handlers**: put anything else in its own file. |
+| `worker/security-headers.js` | The headers and the content security policy (`default-src 'self'`, no inline script, no eval) for what the Worker answers. Loosen it here **and** in `public/_headers` when the new site needs something it forbids. |
 | `wrangler.jsonc` | The Worker's config: the assets folder, the D1 binding `DB` (the production database still holds the old site's tables, nothing reads them) and the `previews` block (a separate preview database). `wrangler.preview-migrations.jsonc` is for applying migrations to the preview database. |
 | `schema.sql`, `migrations/` | The database shape. `schema.sql` is the bootstrap and omits columns added by the numbered migrations; `npm run db:local` applies both to a local database. |
 | `tests/*.test.mjs` | Pure node tests (no server). `tests/run.mjs` runs them all. `tests/e2e/` holds the browser tests and their runner. |
@@ -57,7 +57,7 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 
 ## Rules that stay
 
-1. **The CSP has no `unsafe-eval` and no inline script or style.** No `eval`/`new Function` anywhere in browser code. Everything is served from the site; add a CDN or an inline allowance in `worker/security-headers.js` only when the owner asks for what needs it, and mirror anything that matters in `public/_headers`.
+1. **The CSP has no `unsafe-eval` and no inline script or style.** No `eval`/`new Function` anywhere in browser code. Everything is served from the site; add a CDN or an inline allowance only when the owner asks for what needs it, in `worker/security-headers.js` and the `/*` block of `public/_headers` together.
 2. **No emoji anywhere on the site** (the owner's rule, and in `outline.md`). That includes symbols phones draw as emoji (play, pause, stop, record, the north-east arrow, warning sign): use words or a drawn icon. Plain text marks (✓ × ← → ♪ ©) are fine. `tests/no-emoji.test.mjs` fails on any, escapes included; a line that only holds one as data is marked `// no-emoji: data` and uses an escape.
 3. **Anything that animates must sit inside `@media (prefers-reduced-motion: no-preference)`.**
 4. **Text is at least 16px and has real contrast** (the owner found the old site's small pixel type hard to read): check any new colour, and never set body text below 16px.

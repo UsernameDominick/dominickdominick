@@ -41,11 +41,24 @@ const ask = (path, env = { ASSETS }) => worker.fetch(new Request("https://domini
   ok(/^User-agent: \*/m.test(read("public/robots.txt")), "robots.txt is there");
 }
 
-// the static headers file
+// the static headers file: what the asset store sends with the index page and every other file in public/ (they never reach the Worker)
 {
   const text = read("public/_headers");
-  ok(/X-Content-Type-Options: nosniff/.test(text) && /X-Frame-Options: SAMEORIGIN/.test(text) && /Strict-Transport-Security: max-age=\d{7,}/.test(text), "public/_headers carries the same basics for files the asset store sends by itself");
-  ok(!/Content-Security-Policy/i.test(text), "and leaves the policy to the Worker");
+  // the `/*` block, read the way the platform reads it: a path line, then indented "Name: value" lines
+  const rules = [];
+  for (const raw of text.split(/\r?\n/)) {
+    if (!raw.trim() || raw.trim().startsWith("#")) continue;
+    if (/^\s/.test(raw)) {
+      const m = /^\s+([A-Za-z0-9-]+)\s*:\s*(.+?)\s*$/.exec(raw);
+      ok(!!m && rules.length > 0, "each indented line is a valid Name: value under a path", raw.trim());
+      if (m && rules.length) rules[rules.length - 1].headers[m[1]] = m[2];
+    } else rules.push({ path: raw.trim(), headers: {} });
+  }
+  const all = (rules.find((r) => r.path === "/*") || { headers: {} }).headers;
+  ok(JSON.stringify(all) === JSON.stringify(SECURITY_HEADERS), "the /* block is exactly the Worker's list of security headers (same names, same values, same order)", { all, worker: SECURITY_HEADERS });
+  const workersDev = rules.find((r) => /workers\.dev/.test(r.path));
+  ok(workersDev && workersDev.headers["X-Robots-Tag"] === "noindex", "the workers.dev address is kept out of search results");
+  ok(!Object.keys(all).some((k) => /cache-control|set-cookie|access-control/i.test(k)), "nothing there changes caching, cookies or cross-origin access");
 }
 
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");
