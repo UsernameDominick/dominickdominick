@@ -3442,6 +3442,7 @@
       `<div class="studio-sound-bar" role="group" aria-label="${esc(track.name)} level and preview">` +
       `<label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="${esc(track.name)} volume"></label>` +
       `<button type="button" class="studio-mini" data-hear data-no-history>Preview</button>` +
+      tuneHearHtml() +
       `<button type="button" class="studio-mini" data-mute-track data-no-history>Mute ${esc(track.name)}</button></div>` +
       `<section class="studio-section"><h3>Instrument</h3>` +
       `<div class="studio-browser" data-browse="studio-voice" role="group" aria-label="${esc(track.name)} instruments"></div>` +
@@ -3452,6 +3453,11 @@
       `<div class="studio-section-row"><button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button></div></section>`
     );
   }
+  // "Hear while tuning": on, turning a dial or choosing a sound plays it so it can be judged by ear; off, the Sound pane stays silent until Preview is
+  // pressed, so a song that is playing is not doubled by the sound being edited. Remembered.
+  let tuneHear = lsGet("studioTuneHear", "1") !== "0";
+  const tuneHearHtml = () =>
+    `<button type="button" class="studio-mini" data-tune-hear data-no-history aria-pressed="${tuneHear}" title="Play the sound as you turn a dial or pick one. Off keeps the Sound pane silent (Preview still plays), so a playing song is not doubled">Hear while tuning</button>`;
   function drumSoundHtml(rows) {
     const chips = rows.map((r) => `<button type="button" class="studio-chip" data-sound="${r}" data-no-history aria-pressed="false">${ROW_LABELS[r]}</button>`).join("");
     // The sound being shaped comes first (pick it, hear it, set it); the kit swaps the whole set and the extras are rarer, so both are folded.
@@ -3461,6 +3467,7 @@
       `<div class="studio-sound-bar" role="group" aria-label="Level and preview of the chosen drum sound">` +
       `<label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label>` +
       `<button type="button" class="studio-mini" data-hear-drum data-no-history>Preview</button>` +
+      tuneHearHtml() +
       `<button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button></div>` +
       `<section class="studio-section"><div class="studio-knobs">${DRUM_KNOBS.map((k) => `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-dout="${k.key}"></output><input type="range" min="0" max="1000" step="1" data-dknob="${k.key}" data-no-reset aria-label="${k.label} of the chosen drum sound: ${esc(k.hint)}"></label>`).join("")}</div>` +
       `<div class="studio-section-row"><button type="button" id="studio-sound-reset" class="studio-mini" data-no-history title="Back to the kit's own tune, length and tone for this sound">Reset this sound</button></div></section>` +
@@ -3479,14 +3486,15 @@
       fire(src, "change");
       soundSig = "";
       refresh();
+      if (!tuneHear) return;
       if (trackOf(trackId).kind === "notes") host().hear(trackId, HEAR[trackOf(trackId).part]);
       else host().hearDrum(soundRow);
     } else if (t.id === "studio-synth-ftype") {
       host().setSynth(trackId, { ftype: t.value });
       refresh();
-      host().hear(trackId, HEAR[trackOf(trackId).part]);
+      if (tuneHear) host().hear(trackId, HEAR[trackOf(trackId).part]);
     } else if (t.dataset && t.dataset.dknob) {
-      host().hearDrum(soundRow);
+      if (tuneHear) host().hearDrum(soundRow);
     } else if (t.id === "studio-synth-wave") {
       const track = trackOf(trackId);
       if (track.part === "melody" && !voiceOf(song(), track)) {
@@ -3494,9 +3502,9 @@
         fire($("song-waveform"), "change");
       } else host().setSynth(trackId, { wave: t.value });
       refresh();
-      host().hear(trackId, HEAR[track.part]);
+      if (tuneHear) host().hear(trackId, HEAR[track.part]);
     } else if (t.dataset && t.dataset.knob) {
-      if (heldPreview === null && performance.now() - heldEndedAt > 250) host().hear(trackId, HEAR[trackOf(trackId).part]);
+      if (tuneHear && heldPreview === null && performance.now() - heldEndedAt > 250) host().hear(trackId, HEAR[trackOf(trackId).part]);
     }
   });
   // ---- hearing the sound while a dial is turned ----
@@ -3516,7 +3524,7 @@
   onSound("pointerdown", (e) => {
     if (!(e.target.closest && e.target.closest(".dial-face"))) return;
     const track = trackOf(trackId);
-    if (track.kind !== "notes" || !host().holdHear) return;
+    if (!tuneHear || track.kind !== "notes" || !host().holdHear) return;
     const input = e.target.closest(".dial").querySelector("input");
     if (!input || input.disabled) return;
     stopHeld();
@@ -3526,7 +3534,7 @@
   window.addEventListener("blur", stopHeld);
   document.addEventListener("visibilitychange", () => { if (document.hidden) stopHeld(); });
   onSound("input", (e) => {
-    if (heldPreview === null && e.target.closest && e.target.closest(".dial.is-turning") && trackOf(trackId).kind === "drums" && e.target.dataset && e.target.dataset.dknob) {
+    if (tuneHear && heldPreview === null && e.target.closest && e.target.closest(".dial.is-turning") && trackOf(trackId).kind === "drums" && e.target.dataset && e.target.dataset.dknob) {
       const now = performance.now();
       if (now - lastDrumHear > 180) {
         lastDrumHear = now;
@@ -3618,13 +3626,19 @@
       host().setDrum(soundRow, { tune: null, decay: null, tone: null });
       soundSig = "";
       refresh();
-      host().hearDrum(soundRow);
+      if (tuneHear) host().hearDrum(soundRow);
     } else if (t.hasAttribute("data-hear-drum")) host().hearDrum(soundRow);
     else if (t.hasAttribute("data-hear")) host().hear(trackId, HEAR[track.part]);
+    else if (t.hasAttribute("data-tune-hear")) {
+      tuneHear = !tuneHear;
+      lsSet("studioTuneHear", tuneHear ? "1" : "0");
+      if (!tuneHear) stopHeld();
+      panes.sound.querySelectorAll("[data-tune-hear]").forEach((b) => b.setAttribute("aria-pressed", String(tuneHear)));
+    }
     else if (t.hasAttribute("data-mute-track")) toggleMute(track);
     else if (t.id === "studio-synth-reset") {
       host().setSynth(trackId, Object.fromEntries(SYNTH_KEYS_ALL.map((key) => [key, null])));
-      host().hear(trackId, HEAR[track.part]);
+      if (tuneHear) host().hear(trackId, HEAR[track.part]);
     } else if (t.id === "studio-add-btn") {
       $("song-add-drum").value = $("studio-add").value;
       $("song-add-drum-btn").click();

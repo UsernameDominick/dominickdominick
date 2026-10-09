@@ -176,6 +176,23 @@ const { chromium } = require("./_pw.cjs");
     await p.mouse.up();
     ok(duringDrum >= 2, "turning a drum dial plays the drum while it moves (not on every pixel)", duringDrum);
     ok(duringDrum <= 6, "...at a steady pace", duringDrum);
+    // "Hear while tuning" off: turning a dial and picking a sound stay silent, and Preview still plays
+    const tuneBtn = "#studio-sound-panel [data-tune-hear]";
+    ok((await p.getAttribute(tuneBtn, "aria-pressed")) === "true", "Hear while tuning starts on");
+    await p.click(tuneBtn);
+    ok((await p.getAttribute(tuneBtn, "aria-pressed")) === "false", "and the switch turns it off");
+    await p.evaluate(() => { window.__drum = 0; });
+    await p.mouse.move(df.x, df.y);
+    await p.mouse.down();
+    for (let i = 1; i <= 8; i++) { await p.mouse.move(df.x, df.y - i * 6); await p.waitForTimeout(60); }
+    await p.mouse.up();
+    await p.waitForTimeout(300);
+    ok((await p.evaluate(() => window.__drum)) === 0, "with it off, turning a drum dial plays nothing", await p.evaluate(() => window.__drum));
+    await p.click("#studio-sound-panel [data-hear-drum]");
+    ok((await p.evaluate(() => window.__drum)) === 1, "and Preview still plays the drum");
+    ok((await p.evaluate(() => localStorage.getItem("studioTuneHear"))) === "0", "the choice is remembered");
+    await p.click(tuneBtn);
+    ok((await p.getAttribute(tuneBtn, "aria-pressed")) === "true", "turned back on");
     // typing a tempo: the numbers on the way ("1", "12") are not tempos, so the song never runs at 1 BPM
     const tempoOf = () => p.evaluate(() => window.SongStudioHost.song().tempo);
     await p.fill("#studio-bpm", "");

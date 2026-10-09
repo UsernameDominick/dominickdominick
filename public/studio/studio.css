@@ -3414,5 +3414,6 @@
 .app-native .studio-mixer-dial { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; font: 400 14px/16px var(--bb-px); text-transform: uppercase; }
 .app-native .studio-mixer-row .studio-mini { justify-self: end; }
 .app-native .studio-mixer-row .studio-mini[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); }
+.app-native .studio-sound-bar [data-tune-hear][aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); }
 .app-native .studio-mixer-row.is-quiet .studio-mixer-name, .app-native .studio-mixer-row.is-quiet .studio-mixer-dial { opacity: 0.55; }
 @media (max-width: 420px) { .app-native .studio-mixer-row { grid-template-columns: auto auto 1fr; } .app-native .studio-mixer-name { grid-column: 1 / -1; } }
