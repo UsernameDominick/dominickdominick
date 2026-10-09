@@ -53,7 +53,7 @@ for (const name of Object.keys(E.MELODY_VOICES)) all[`voice:${name}`] = entry(pl
 // the plain waveform note
 for (const wave of ["sine", "square", "sawtooth", "triangle"]) all[`wave:${wave}`] = entry(play(melodyOnly({}, { C4: lane("x...............") }, { waveform: wave })));
 // each drum of each kit
-const ROWS = ["kick", "snare", "hat", "clap", "openhat", "rim", "tom", "crash"];
+const ROWS = ["kick", "snare", "hihat", "clap", "openhat", "rim", "tom", "crash"];
 for (const kit of E.KITS) {
   for (const row of ROWS) {
     const data = { tempo: 120, kit, master_volume: 1, trackMeta: {}, tracks: { [row]: lane("x...............") }, melody: { waveform: "sine", notes: {} } };
