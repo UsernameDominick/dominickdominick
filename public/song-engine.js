@@ -31,6 +31,53 @@ window.SongEngine = (function () {
     return buf;
   }
 
+  // ---------- Output limiter ----------
+  // Everything the listener hears goes through one soft limiter in front of the speakers (the master bus, the reverb return and the echo
+  // return all end here). It is a waveshaper whose curve is a straight line up to LIMIT_KNEE of full scale, so a normal mix passes through
+  // untouched, and above it bends smoothly towards full scale without ever reaching past it: a pile-up of supersaw, pad and chords is
+  // squashed gently instead of clipping into harsh distortion. Inputs up to LIMIT_RANGE times full scale are shaped; the gain in front
+  // scales the signal into the curve's domain. No look-ahead, so no delay. The meters read the signal BEFORE it (the master gain), so the
+  // clipping history still tells the visitor when a mix is hot enough for the limiter to be working.
+  const LIMIT_KNEE = 0.85;
+  const LIMIT_RANGE = 4;
+  let limiterCurve = null;
+  function softLimit(x) {
+    const a = Math.abs(x);
+    if (a <= LIMIT_KNEE) return x;
+    const y = LIMIT_KNEE + (1 - LIMIT_KNEE) * Math.tanh((a - LIMIT_KNEE) / (1 - LIMIT_KNEE));
+    return x < 0 ? -y : y;
+  }
+  function getLimiterCurve() {
+    if (!limiterCurve) {
+      const n = 4097; // odd, so the middle sample is exactly 0
+      limiterCurve = new Float32Array(n);
+      for (let i = 0; i < n; i++) limiterCurve[i] = softLimit((i / (n - 1) * 2 - 1) * LIMIT_RANGE);
+    }
+    return limiterCurve;
+  }
+  const outputs = new WeakMap();
+  // Where a voice, the master bus or an effect return connects to be heard. A render that measures the song's own level (the peak scan
+  // behind Normalize to peak) sets ctx.__measure first and gets the bare destination, so it sees the true level, not the limited one.
+  function getOutput(ctx) {
+    let out = outputs.get(ctx);
+    if (!out) {
+      if (ctx.__measure) {
+        out = ctx.destination;
+      } else {
+        const pre = ctx.createGain();
+        pre.gain.value = 1 / LIMIT_RANGE;
+        const shaper = ctx.createWaveShaper();
+        shaper.curve = getLimiterCurve();
+        shaper.oversample = "none";
+        pre.connect(shaper);
+        shaper.connect(ctx.destination);
+        out = pre;
+      }
+      outputs.set(ctx, out);
+    }
+    return out;
+  }
+
   // ---------- Master bus ----------
   // One shared GainNode per AudioContext that every voice routes through
   // instead of ctx.destination directly, so a single master-volume control
@@ -43,7 +90,7 @@ window.SongEngine = (function () {
     let gain = masterGains.get(ctx);
     if (!gain) {
       gain = ctx.createGain();
-      gain.connect(ctx.destination);
+      gain.connect(getOutput(ctx));
       masterGains.set(ctx, gain);
     }
     return gain;
@@ -163,7 +210,7 @@ function setMasterVolume(ctx, value) {
       wet.gain.value = 0;
       getMasterGain(ctx).connect(convolver);
       convolver.connect(wet);
-      wet.connect(ctx.destination);
+      wet.connect(getOutput(ctx));
       // The meters read the same signal the speakers get, reverb included.
       const analyser = peakMeterAnalysers.get(ctx);
       if (analyser) wet.connect(analyser);
@@ -252,7 +299,7 @@ function setMasterVolume(ctx, value) {
       tone.connect(wet);
       tone.connect(feedback);
       feedback.connect(delay);
-      wet.connect(ctx.destination);
+      wet.connect(getOutput(ctx));
       const analyser = peakMeterAnalysers.get(ctx);
       if (analyser) wet.connect(analyser);
       send = { delay, feedback, wet };
@@ -1311,6 +1358,7 @@ function setMasterVolume(ctx, value) {
     const sampleRate = 44100;
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
+    ctx.__measure = true; // this render measures the song's own level, so it skips the output limiter (see getOutput)
     // The render is at full volume regardless of the song's master_volume,
     // so the peak it finds is the song's own, not the slider's.
     // It ignores humanize and uses a content-seeded noise stream:
@@ -1455,5 +1503,6 @@ function setMasterVolume(ctx, value) {
     setSpace,
     setEcho,
     getPeakMeterAnalyser,
+    softLimit,
   };
 })();

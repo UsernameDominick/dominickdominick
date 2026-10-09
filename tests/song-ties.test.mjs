@@ -24,6 +24,7 @@ function makeCtx(rate = 44100) {
   ctx.createBiquadFilter = () => node("filter");
   ctx.createAnalyser = () => node("analyser");
   ctx.createConvolver = () => node("convolver");
+  ctx.createWaveShaper = () => node("shaper");
   ctx.createOscillator = () => {
     const o = node("osc");
     const rec = { freq: 0, start: null, stop: null };

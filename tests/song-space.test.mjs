@@ -24,6 +24,14 @@ function makeNode(kind, ctx) {
   ctx.nodes.push(node);
   return node;
 }
+// The engine puts a soft limiter (a quarter-gain into a 4097-point waveshaper) in front of the destination: "reaches the speakers" means the
+// destination or that limiter's input.
+const isLimiterShaper = (n) => n.kind === "shaper" && !!n.curve && n.curve.length === 4097;
+const toOutput = (ctx, n) => {
+  const shaper = ctx.nodes.find(isLimiterShaper);
+  const pre = shaper && ctx.nodes.find((x) => x.kind === "gain" && x.out.includes(shaper));
+  return n.out.includes(ctx.destination) || (!!pre && n.out.includes(pre));
+};
 function makeCtx(rate = 44100) {
   const ctx = { nodes: [], sampleRate: rate, currentTime: 0, destination: { kind: "destination", out: [] } };
   ctx.createGain = () => makeNode("gain", ctx);
@@ -32,6 +40,7 @@ function makeCtx(rate = 44100) {
   ctx.createBiquadFilter = () => makeNode("filter", ctx);
   ctx.createAnalyser = () => makeNode("analyser", ctx);
   ctx.createConvolver = () => makeNode("convolver", ctx);
+  ctx.createWaveShaper = () => makeNode("shaper", ctx);
   ctx.createBuffer = (channels, length, sampleRate) => {
     const data = Array.from({ length: channels }, () => new Float32Array(length));
     return { numberOfChannels: channels, length, sampleRate, getChannelData: (c) => data[c] };
@@ -79,10 +88,10 @@ const sends = (ctx) => ctx.nodes.filter((n) => n.kind === "convolver");
   playAll(ctx, song({ space: 50 }));
   const [conv] = sends(ctx);
   ok(sends(ctx).length === 1, "Space on builds exactly one convolver, however many steps play");
-  const master = ctx.nodes.find((n) => n.kind === "gain" && n.out.includes(ctx.destination) && n.out.includes(conv));
+  const master = ctx.nodes.find((n) => n.kind === "gain" && toOutput(ctx, n) && n.out.includes(conv));
   ok(!!master, "the master bus feeds both the destination (dry) and the convolver");
   const wet = conv.out[0];
-  ok(wet && wet.kind === "gain" && wet.out.includes(ctx.destination), "convolver -> wet gain -> destination");
+  ok(wet && wet.kind === "gain" && toOutput(ctx, wet), "convolver -> wet gain -> the speakers");
   ok(Math.abs(wet.gain.target - 0.9) < 1e-9, "50% Space is a 0.9 wet level", wet.gain.target);
 }
 for (const [value, want] of [[100, 1.8], [150, 1.8], [25, 0.45], [-20, 0], ["60", 1.08]]) {

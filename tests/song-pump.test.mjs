@@ -1,6 +1,6 @@
 // Pump: a song with Pump above 0 sends its melody and bass line through a "music" gain that dips on every kick and swells back (like
 // sidechain compression); a song without it builds nothing extra and is exactly as before.
-import { makeCtx, count, loadEngine, lane } from "./fake-audio.mjs";
+import { makeCtx, count, loadEngine, lane, reachesOutput, limiterIn } from "./fake-audio.mjs";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -14,7 +14,7 @@ const song = (extra = {}) => ({
   ...extra,
 });
 const play = (data, step = 0, time = 0) => { const ctx = makeCtx(); E.scheduleStep(ctx, data, step, time, () => 0.5); return ctx; };
-const masterOf = (ctx) => ctx.nodes.find((n) => n.kind === "gain" && n.out.includes(ctx.destination));
+const masterOf = (ctx) => ctx.nodes.find((n) => n.kind === "gain" && reachesOutput(ctx, n) && n !== limiterIn(ctx));
 // The music bus: a gain into the master that has automation and is fed by nothing but other gains (a voice's own envelope gain is fed by
 // an oscillator or a filter).
 const busOf = (ctx) => {

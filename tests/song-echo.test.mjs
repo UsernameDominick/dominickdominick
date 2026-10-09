@@ -1,6 +1,6 @@
 // The song engine's Echo (a tempo-synced delay send): off builds nothing at all, on builds one delay with a darkened feedback loop and a
 // wet level, the delay follows the tempo, and previews and renders treat it the way the player does.
-import { makeCtx, count, offlineLog, loadEngine, loadSongFiles } from "./fake-audio.mjs";
+import { makeCtx, count, offlineLog, loadEngine, loadSongFiles, reachesOutput } from "./fake-audio.mjs";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -42,7 +42,7 @@ const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === 
   const tone = delay.out[0];
   ok(tone && tone.kind === "filter" && tone.type === "lowpass" && tone.frequency.value < 5000, "the repeats go through a low-pass so each one is duller", tone && { type: tone.type, hz: tone.frequency.value });
   const feedback = tone.out.find((n) => n.kind === "gain" && n.out.includes(delay));
-  const wet = tone.out.find((n) => n.kind === "gain" && n.out.includes(ctx.destination));
+  const wet = tone.out.find((n) => n.kind === "gain" && reachesOutput(ctx, n));
   ok(!!feedback && !!wet, "the low-pass feeds both a feedback gain back into the delay and a wet gain to the output");
   ok(wet.gain.calls.some((c) => c.kind === "ramp" || c.kind === "lin") && Math.abs(wet.gain.calls.filter((c) => c.kind === "lin").pop().v - 0.4) < 1e-9, "50% echo ramps the wet level to 0.4", wet.gain.calls);
   ok(Math.abs(lastSet(feedback.gain) - 0.475) < 1e-9, "and the feedback to 0.475", lastSet(feedback.gain));
@@ -57,7 +57,7 @@ const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === 
     const { delay } = sendOf(ctx);
     const tone = delay.out[0];
     const feedback = tone.out.find((n) => n.kind === "gain" && n.out.includes(delay));
-    const wet = tone.out.find((n) => n.kind === "gain" && n.out.includes(ctx.destination));
+    const wet = tone.out.find((n) => n.kind === "gain" && reachesOutput(ctx, n));
     ok(feedback.gain.value < 0.7 && feedback.gain.value >= 0.35 && wet.gain.value <= 0.8 + 1e-9 && wet.gain.value > 0, `echo ${amount}%: feedback ${feedback.gain.value.toFixed(3)} (always below 1, so it dies away), wet ${wet.gain.value.toFixed(3)}`);
   }
 }
@@ -80,7 +80,7 @@ const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === 
   const both = makeCtx(); playAll(both, song({ echo: 30, space: 30 }));
   ok(count(both, "delay") === 1 && count(both, "convolver") === 1, "Echo and Space can be on together, each with its own send");
   const metered = makeCtx(); E.getPeakMeterAnalyser(metered); E.setEcho(metered, 50, 120);
-  const wet = sendOf(metered).delay.out[0].out.find((n) => n.kind === "gain" && n.out.includes(metered.destination));
+  const wet = sendOf(metered).delay.out[0].out.find((n) => n.kind === "gain" && reachesOutput(metered, n));
   ok(wet.out.some((n) => n.kind === "analyser"), "the meters read the echo too");
 }
 

@@ -37,7 +37,14 @@ export function makeCtx(rate = 44100) {
   };
   return ctx;
 }
-export const count = (ctx, kind) => ctx.nodes.filter((n) => n.kind === kind).length;
+// The engine puts a soft limiter in front of the speakers: a quarter-gain into a waveshaper with a 4097-point curve, into the destination.
+// These find it and look through it, so a test can still ask "what feeds the output" and "how many saturators does this voice have".
+const isLimiterShaper = (n) => n.kind === "shaper" && !!n.curve && n.curve.length === 4097;
+export const limiterShaper = (ctx) => ctx.nodes.find(isLimiterShaper);
+export const limiterIn = (ctx) => { const s = limiterShaper(ctx); return s ? ctx.nodes.find((n) => n.kind === "gain" && n.out.includes(s)) : undefined; };
+// True when a node's output is what the listener hears: the destination itself, or the limiter in front of it.
+export const reachesOutput = (ctx, node) => node.out.includes(ctx.destination) || (!!limiterIn(ctx) && node.out.includes(limiterIn(ctx)));
+export const count = (ctx, kind) => ctx.nodes.filter((n) => n.kind === kind && !isLimiterShaper(n)).length;
 
 export const offlineLog = [];
 class FakeOffline {

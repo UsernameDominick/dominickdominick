@@ -208,8 +208,8 @@
       <div class="song-builder-body">
         <details class="panel-section song-clip-section" id="song-clip-section">
           <summary id="song-clip-summary">Clipping history (0)</summary>
-          <p class="song-clip-note">Logs each time the mixed master output reaches full scale (100%) while you play; individual tracks aren't metered. Lowering the master volume fixes it. Normalize to peak sets a safe level from one pass, but random drum noise can occasionally still go over.</p>
-          <p id="song-clip-empty" class="song-clip-empty">No clipping so far.</p>
+          <p class="song-clip-note">Logs each time the mixed master output reaches full scale (100%) while you play; individual tracks aren't metered. A soft limiter in front of the speakers bends anything above about 85% back under full scale, so a hot mix is squashed, not clipped, but it still sounds crowded: lowering the master volume or a track's volume fixes it. Normalize to peak sets a safe level from one pass.</p>
+          <p id="song-clip-empty" class="song-clip-empty">Nothing has gone over so far.</p>
           <ul id="song-clip-list" class="song-clip-list" hidden></ul>
           <p id="song-clip-dropped" class="song-clip-note" hidden></p>
           <button type="button" id="song-clip-clear" disabled>Clear history</button>
