@@ -17,7 +17,7 @@ const DEFAULT_SHARE_IMAGE = "/share/site.png";
 // something risky. /admin (and /api/admin, routed before this runs) stay reachable so a logged-out owner can reach the login screen to
 // turn it back off, plus the files the page itself needs. An explicit allowlist, not a file-extension regex: a regex let real content
 // through by accident (a path ending in ".js", a slug that merely started with "admin").
-const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/style.css", "/favicon.ico", "/fonts/silkscreen-400.woff2", "/fonts/silkscreen-700.woff2", "/fonts/vt323-400.woff2"]);
+const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/style.css", "/favicon.ico", "/fonts/silkscreen-400.woff2", "/fonts/silkscreen-700.woff2", "/fonts/vt323-400.woff2", "/fonts/jetbrains-mono-400.woff2", "/fonts/jetbrains-mono-700.woff2"]);
 function isMaintenanceExempt(path) {
   return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
 }

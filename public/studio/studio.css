@@ -2404,7 +2404,8 @@
   --bb-o: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
   --bb-i: 0 2px, 2px 2px, 2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px);
   --bb-px: var(--font-pixel, "Silkscreen", monospace);
-  --bb-vt: var(--font-family, "VT323", monospace);
+  --bb-vt: var(--font-family, "JetBrains Mono", monospace);
+  --bb-digits: var(--font-display, "VT323", monospace);
   --track-1: var(--text);
   --track-2: var(--text);
   --track-3: var(--text);
@@ -2541,9 +2542,9 @@
 .app-native .studio-readout { display: flex; align-items: stretch; height: 44px; background: transparent; border: 0; border-radius: 0; overflow: visible; gap: 8px; }
 .app-native .studio-readout-cell { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; border: 2px solid var(--bg); min-width: 0; }
 .app-native .studio-readout-cap { font: 400 12px/12px var(--bb-px); color: var(--bg); text-transform: uppercase; letter-spacing: 0; }
-.app-native .studio-pos { min-width: 5ch; font: 400 30px/26px var(--bb-vt); color: var(--bg); letter-spacing: 0; }
+.app-native .studio-pos { min-width: 5ch; font: 400 30px/26px var(--bb-digits); color: var(--bg); letter-spacing: 0; }
 .app-native .studio-readout .studio-bpm { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; height: auto; margin: 0; padding: 0 10px; color: var(--bg); }
-.app-native .studio-readout .studio-bpm input { width: 4ch; height: 26px; min-height: 26px; padding: 0; border: 0; background: transparent; font: 400 30px/26px var(--bb-vt); color: var(--bg); text-align: left; }
+.app-native .studio-readout .studio-bpm input { width: 4ch; height: 26px; min-height: 26px; padding: 0; border: 0; background: transparent; font: 400 30px/26px var(--bb-digits); color: var(--bg); text-align: left; }
 .app-native .studio-readout .studio-bpm span { order: -1; font: 400 12px/12px var(--bb-px); color: var(--bg); text-transform: uppercase; }
 .app-native .studio-readout .studio-bpm input:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 4px; }
 .app-native .studio-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; flex: 1 1 auto; min-width: 0; }
@@ -2755,12 +2756,12 @@
 .app-native .song-studio .studio-pad {
   position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 0; padding: 0 12px 12px; min-height: 64px;
   background: var(--bg); color: var(--text); border: 2px solid var(--text); border-radius: 0; box-shadow: inset -4px -4px 0 var(--text); clip-path: polygon(var(--bb-i));
-  font: 400 30px/1 var(--bb-vt); text-align: left;
+  font: 400 30px/1 var(--bb-digits); text-align: left;
 }
 .app-native .song-studio .studio-pad::before { content: ""; position: absolute; left: 8px; right: 12px; top: 8px; height: 8px; background: var(--bg) repeating-conic-gradient(var(--text) 0 25%, var(--bg) 0 50%) 0 0 / 2px 2px; }
 .app-native .song-studio .studio-pad:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
 .app-native .song-studio .studio-pad:hover::before { background: var(--text) repeating-conic-gradient(var(--bg) 0 25%, var(--text) 0 50%) 0 0 / 2px 2px; }
-.app-native .song-studio .studio-pad .p-name { font: 400 30px/1 var(--bb-vt); }
+.app-native .song-studio .studio-pad .p-name { font: 400 30px/1 var(--bb-digits); }
 .app-native .song-studio .studio-pad .p-hint { display: none; }
 .app-native .song-studio .studio-pad .p-vel { background: var(--bg) repeating-conic-gradient(var(--text) 0 25%, var(--bg) 0 50%) 0 0 / 2px 2px; opacity: 1; mix-blend-mode: normal; z-index: 0; }
 .app-native .song-studio .studio-pad .p-name { position: relative; z-index: 1; background: var(--bg); color: var(--text); padding: 0 4px; margin-left: -4px; }
@@ -3019,9 +3020,9 @@
   box-sizing: border-box; min-height: 34px; margin-bottom: -2px; border-style: solid; border-width: 2px 2px 0; border-color: var(--text); border-radius: 0; background: var(--bg); color: var(--text);
   clip-path: polygon(0 100%, 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% 100%);
 }
-.app-native .song-studio-on .song-tab-add { border-style: dashed dashed none; font: 400 21px/1 var(--font-family, "VT323", monospace); color: var(--text); padding: 0 12px; }
+.app-native .song-studio-on .song-tab-add { border-style: dashed dashed none; font: 400 21px/1 var(--font-family, "JetBrains Mono", monospace); color: var(--text); padding: 0 12px; }
 .app-native .song-studio-on .song-tab.is-active { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--orange, #ff6a1a); border-color: var(--text); }
-.app-native .song-studio-on .song-tab button { color: inherit; font: 400 21px/1 var(--font-family, "VT323", monospace); min-height: 30px; background: transparent; border: 0; box-shadow: none; clip-path: none; }
+.app-native .song-studio-on .song-tab button { color: inherit; font: 400 21px/1 var(--font-family, "JetBrains Mono", monospace); min-height: 30px; background: transparent; border: 0; box-shadow: none; clip-path: none; }
 .app-native .song-studio-on .song-tab.is-active button { color: var(--bg); font-weight: 400; }
 .app-native .song-studio-on .song-tab:hover:not(.is-active), .app-native .song-studio-on .song-tab-add:hover { background: var(--text); color: var(--bg); }
 .app-native .song-studio-on .song-tab:hover:not(.is-active) button { color: var(--bg); }

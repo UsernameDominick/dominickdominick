@@ -180,7 +180,7 @@ html, body {
 }
 
 html {
-  /* VT323 sets small for its size, so the root is 20px; every rem on the site grows with it, and the text-size setting still scales the whole thing. */
+  /* The reading font (JetBrains Mono, size-adjusted to sit like the pixel font it replaced) is small for its size, so the root is 20px; every rem on the site grows with it, and the text-size setting still scales the whole thing. */
   font-size: calc(20px * var(--font-scale, 1));
 }
 
@@ -1438,6 +1438,11 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 @font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/silkscreen-400.woff2") format("woff2"); }
 @font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/silkscreen-700.woff2") format("woff2"); }
 @font-face { font-family: "VT323"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/vt323-400.woff2") format("woff2"); }
+/* JetBrains Mono is the reading font. size-adjust 70% makes it sit at the size VT323 did (VT323 is small for its size, which is why the root is 20px
+   and why every size in the Studio was set for it): a 20px root reads as 14px of JetBrains Mono, and each letter is 0.42em wide against VT323's 0.4em,
+   so no layout had to be redone. Latin letters only; anything else (arrows, triangles) falls back to the system font. */
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap; size-adjust: 70%; src: url("/fonts/jetbrains-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 700; font-display: swap; size-adjust: 70%; src: url("/fonts/jetbrains-mono-700.woff2") format("woff2"); }
 
 /* The look is "Bit bento" (the owner's pick): black, white and dither only, Mac-style windows, VT323 for text and Silkscreen for labels, and ONE tiny orange accent
    (--orange) that marks function (the playhead, the current stop, the active window, the lit controls) and is never used for text. Light is black ink on white; dark is the
@@ -1462,9 +1467,10 @@ body {
   --success: #2a2622;
   --warning: #2a2622;
   --info: #2a2622;
-  --font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* the big readouts only (position, tempo, pad names, the shelf title) */
   --heading-font-family: var(--font-family);
-  --font-pixel: "Silkscreen", "VT323", ui-monospace, monospace;
+  --font-pixel: "Silkscreen", "JetBrains Mono", ui-monospace, monospace;
   --font-mono: var(--font-family);
   --control-radius: 0;
   --control-border-width: 2px;

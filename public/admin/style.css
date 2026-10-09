@@ -3435,7 +3435,7 @@ button[data-tier="primary"]:hover { color: var(--on-accent, #fff); border-color:
 /* ==== Admin: Bit bento (begin) ==== */
 /* ==== Admin: Bit bento ====
    The admin in the owner's chosen look, the same system as the public site and the Studio: black, white and dither only, windows with a striped
-   title bar, a close box and a dithered shadow, VT323 for text and numbers, Silkscreen for small labels, and ONE tiny orange accent (--orange)
+   title bar, a close box and a dithered shadow, JetBrains Mono for text and VT323 for big numbers, Silkscreen for small labels, and ONE tiny orange accent (--orange)
    that only ever marks function: the active window's close box, a selected row, lit switches, progress, the selected block's handles and the
    keyboard focus ring. Never a text colour. Everything below draws with --border (ink) and --bg (paper), so dark is the same screen inverted.
    Status is told by shape and word, not by colour. Written as one block and kept last: it overrides the older Cassette-era rules above.

@@ -245,7 +245,8 @@
   --bb-o: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
   --bb-i: 0 2px, 2px 2px, 2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px);
   --bb-px: var(--font-pixel, "Silkscreen", monospace);
-  --bb-vt: var(--font-family, "VT323", monospace);
+  --bb-vt: var(--font-family, "JetBrains Mono", monospace);
+  --bb-digits: var(--font-display, "VT323", monospace);
 }
 .app-native .studio-panel {
   position: relative; padding: 28px 2px 2px; margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; color: var(--bb-ink);
@@ -382,7 +383,7 @@
 
 /* ---- the shelf (a phone, and anywhere the editor is closed) ---- */
 .app-native .studio-shelf { color: var(--text); font-family: var(--bb-vt); }
-.app-native .shelf-head .shelf-title { font: 400 38px/1 var(--bb-vt); letter-spacing: 0; margin: 0 0 8px; }
+.app-native .shelf-head .shelf-title { font: 400 38px/1 var(--bb-digits); letter-spacing: 0; margin: 0 0 8px; }
 .app-native .shelf-lede { font: 400 22px/1.15 var(--bb-vt); color: var(--text-dim); }
 .app-native .shelf-sub { font: 400 12px/14px var(--bb-px); text-transform: uppercase; letter-spacing: 0; }
 .app-native .shelf-count { font: 400 20px/1 var(--bb-vt); color: var(--text-dim); margin-left: 8px; }
