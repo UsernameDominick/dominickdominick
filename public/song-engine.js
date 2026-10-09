@@ -260,11 +260,16 @@ function setMasterVolume(ctx, value) {
     return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : 0;
   }
   // The dip on a kick at `time`: down at once, then back up over about three steps (never more than a third of a second).
+  const PUMP_ATTACK_TC = 0.004; // seconds: the time constant of the dip (about 95 percent down in 12 ms)
+  const PUMP_HOLD = 0.02; // the dip is held this long before the music swells back
   function duckMusic(ctx, time, amount, tempo) {
     const gain = getMusicBus(ctx).gain;
     const release = Math.min(0.35, stepDurationFor(tempo) * 3);
-    gain.setValueAtTime(1 - amount * PUMP_MAX_DIP, time);
-    gain.linearRampToValueAtTime(1, time + release);
+    // The dip falls in a few milliseconds (a drop in one sample clicks on a held bass) and the music swells back along a curve: both are glides from
+    // wherever the level is, so a kick that lands in the middle of the last one's release does not jump.
+    gain.cancelScheduledValues(time);
+    gain.setTargetAtTime(1 - amount * PUMP_MAX_DIP, time, PUMP_ATTACK_TC);
+    gain.setTargetAtTime(1, time + PUMP_HOLD, release / 4);
   }
   function withMusicBus(ctx, amount, fn) {
     if (!amount) return fn();
@@ -331,7 +336,8 @@ function setMasterVolume(ctx, value) {
     send.wet.gain.cancelScheduledValues(now);
     send.wet.gain.setValueAtTime(send.wet.gain.value, now);
     send.wet.gain.linearRampToValueAtTime(wet, now + 0.03);
-    send.feedback.gain.setValueAtTime(feedback, now);
+    send.feedback.gain.cancelScheduledValues(now);
+    send.feedback.gain.setTargetAtTime(feedback, now, 0.03); // glides: a step in the loop's gain is heard as a click in the repeats
     // The delay time glides to the new value: a jump is a click, and while it glides the repeats bend in pitch like a tape echo.
     send.delay.delayTime.setTargetAtTime(time, now, 0.03);
   }
@@ -751,6 +757,10 @@ function setMasterVolume(ctx, value) {
     const end = time + (live ? 30 : duration);
     const tracked = []; // everything that has to stop when a held note is let go
     const pitched = []; // the oscillators that carry the note's pitch, with their ratio to it, for bending
+    // A held note (live) is built so that a knob turned while it sounds can reach it: it always has a filter, and a vibrato, a tremolo and a sub-octave
+    // sitting at zero until a knob raises them. A note the player schedules is built only with what its voice asks for, as before.
+    const live_ = {}; // the parts update() moves
+    let releaseTime = v.release;
     const peak = MELODY_VOICE_PEAK * (v.level || 1);
     const envelope = ctx.createGain();
     const g = envelope.gain;
@@ -770,11 +780,12 @@ function setMasterVolume(ctx, value) {
       stopAt = attackEnd + v.decay + 0.02;
     }
     let tone = envelope;
-    if (v.cutoff) {
+    if (v.cutoff || live) {
       const filter = ctx.createBiquadFilter();
+      live_.filter = filter;
       filter.type = v.ftype || "lowpass";
       filter.Q.value = v.q || 1;
-      filter.frequency.setValueAtTime(v.cutoff, time);
+      filter.frequency.setValueAtTime(v.cutoff || 20000, time);
       if (v.cutoffEnd) filter.frequency.exponentialRampToValueAtTime(v.cutoffEnd, time + (v.filterTime || v.decay));
       filter.connect(envelope);
       tone = filter;
@@ -794,14 +805,17 @@ function setMasterVolume(ctx, value) {
       shaper.curve = driveCurve(v.drive);
       shaper.connect(tone);
       tone = shaper;
+      live_.shaper = shaper;
     }
-    if (v.tremolo) {
+    if (v.tremolo || live) {
       const trem = ctx.createGain();
-      trem.gain.value = 1 - v.tremolo.depth / 2;
+      const tremolo = v.tremolo || { depth: 0, rate: 5 };
+      trem.gain.value = 1 - tremolo.depth / 2;
       const lfo = ctx.createOscillator();
       const lfoDepth = ctx.createGain();
-      lfo.frequency.value = v.tremolo.rate;
-      lfoDepth.gain.value = v.tremolo.depth / 2;
+      lfo.frequency.value = tremolo.rate;
+      lfoDepth.gain.value = tremolo.depth / 2;
+      live_.trem = { base: trem, depth: lfoDepth, lfo };
       lfo.connect(lfoDepth).connect(trem.gain);
       lfo.start(time);
       lfo.stop(stopAt);
@@ -818,6 +832,7 @@ function setMasterVolume(ctx, value) {
       } else if (cents) osc.detune.value = cents;
       const mix = ctx.createGain();
       mix.gain.value = level;
+      osc.mixNode = mix;
       osc.connect(mix).connect(tone);
       osc.start(time);
       osc.stop(stopAt);
@@ -831,14 +846,22 @@ function setMasterVolume(ctx, value) {
       const n = v.unison;
       for (let i = 0; i < n; i++) {
         const pos = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
-        voices.push(oscillator(v.wave, freq, n > 1 ? 0.9 / Math.sqrt(n) : 1, pos * (v.detune || 0)));
+        const o = oscillator(v.wave, freq, n > 1 ? 0.9 / Math.sqrt(n) : 1, pos * (v.detune || 0));
+        o.spread = pos; // for a knob that moves the detune while the note sounds
+        voices.push(o);
       }
     } else {
       const twin = v.detune ? 0.5 : 1;
       voices.push(oscillator(v.wave, freq, twin));
-      if (v.detune) voices.push(oscillator(v.wave, freq, twin, v.detune), oscillator(v.wave, freq, twin * 0.6, -v.detune));
+      if (v.detune) {
+        const up = oscillator(v.wave, freq, twin, v.detune);
+        const down = oscillator(v.wave, freq, twin * 0.6, -v.detune);
+        up.spread = 1;
+        down.spread = -1;
+        voices.push(up, down);
+      }
     }
-    if (v.sub) oscillator("sine", freq / 2, v.sub);
+    if (v.sub || live) live_.sub = oscillator("sine", freq / 2, v.sub || 0);
     if (v.partial) oscillator("sine", freq * v.partial.ratio, v.partial.level);
     if (v.noise) {
       const hiss = ctx.createBufferSource();
@@ -858,18 +881,21 @@ function setMasterVolume(ctx, value) {
       mod.frequency.value = freq * v.fm.ratio;
       modDepth.gain.setValueAtTime(deviation, time);
       modDepth.gain.exponentialRampToValueAtTime(Math.max(0.001, deviation * 0.15), attackEnd + v.decay);
+      live_.fm = { mod, depth: modDepth };
       mod.connect(modDepth);
       voices.forEach((o) => modDepth.connect(o.frequency));
       mod.start(time);
       mod.stop(stopAt);
       tracked.push(mod);
     }
-    if (v.vibrato) {
+    if (v.vibrato || live) {
+      const vib = v.vibrato || { cents: 0, rate: 5.5, delay: 0 };
       const lfo = ctx.createOscillator();
       const depth = ctx.createGain();
-      lfo.frequency.value = v.vibrato.rate;
+      live_.vib = { lfo, depth };
+      lfo.frequency.value = vib.rate;
       depth.gain.setValueAtTime(0, time);
-      depth.gain.linearRampToValueAtTime(v.vibrato.cents, time + v.vibrato.delay + 0.25);
+      depth.gain.linearRampToValueAtTime(vib.cents, time + vib.delay + 0.25);
       lfo.connect(depth);
       voices.forEach((o) => depth.connect(o.detune));
       lfo.start(time);
@@ -887,7 +913,7 @@ function setMasterVolume(ctx, value) {
             g.cancelScheduledValues(t);
             g.setValueAtTime(Math.max(0.0001, g.value), t);
           }
-          const fade = Math.max(0.06, v.release);
+          const fade = Math.max(0.06, releaseTime);
           g.exponentialRampToValueAtTime(0.0001, t + fade);
           tracked.forEach((o) => { try { o.stop(t + fade + 0.03); } catch (e) { /* already stopped */ } });
         } catch (e) { /* the note has already ended */ }
@@ -895,6 +921,45 @@ function setMasterVolume(ctx, value) {
       bend(cents) {
         const k = Math.pow(2, (Number(cents) || 0) / 1200);
         pitched.forEach((p) => { try { p.osc.frequency.setTargetAtTime(freq * p.ratio * k, ctx.currentTime, 0.015); } catch (e) { /* ended */ } });
+      },
+      // A knob was turned while this note is held: move what can be moved now (filter, vibrato, tremolo, sub, detune, FM depth, drive, sustain level,
+      // release time) with a short glide, so there is no click. The voice and the track's tweaks are given again and read as for a new note.
+      update(name, tweaks) {
+        if (!live) return;
+        const n = shapedVoice(name, tweaks);
+        const now = ctx.currentTime;
+        const glide = (param, value, tc) => {
+          try {
+            param.cancelScheduledValues(now);
+            param.setTargetAtTime(value, now, tc || 0.03);
+          } catch (err) { /* the note has ended */ }
+        };
+        if (live_.filter) {
+          glide(live_.filter.frequency, n.cutoff || 20000);
+          glide(live_.filter.Q, n.q || 1);
+          try { live_.filter.type = n.ftype || "lowpass"; } catch (err) { /* ended */ }
+        }
+        if (live_.vib) {
+          glide(live_.vib.depth.gain, n.vibrato ? n.vibrato.cents : 0);
+          glide(live_.vib.lfo.frequency, n.vibrato ? n.vibrato.rate : 5.5);
+        }
+        if (live_.trem) {
+          const t = n.tremolo || { depth: 0, rate: 5 };
+          glide(live_.trem.base.gain, 1 - t.depth / 2);
+          glide(live_.trem.depth.gain, t.depth / 2);
+          glide(live_.trem.lfo.frequency, t.rate);
+        }
+        if (live_.sub && live_.sub.mixNode) glide(live_.sub.mixNode.gain, n.sub || 0);
+        voices.forEach((o) => { if (o.spread !== undefined) glide(o.detune, o.spread * (n.detune || 0)); });
+        if (live_.fm && n.fm) {
+          const past = now > attackEnd + v.decay;
+          glide(live_.fm.depth.gain, Math.max(0.001, freq * n.fm.ratio * n.fm.depth * 6 * (past ? 0.15 : 1)));
+          glide(live_.fm.mod.frequency, freq * n.fm.ratio);
+        }
+        if (live_.shaper && n.drive) live_.shaper.curve = driveCurve(n.drive);
+        // the held level follows the sustain knob once the note has settled (before that it would cut the attack and decay short)
+        if (v.sustain > 0 && n.sustain > 0 && now > attackEnd + v.decay) glide(g, Math.max(0.0001, peak * n.sustain), 0.05);
+        releaseTime = n.release;
       },
     };
   }

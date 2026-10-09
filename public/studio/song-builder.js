@@ -113,10 +113,18 @@
       const clean = Engine.cleanSynth(next);
       if (clean) part.synth = clean;
       else delete part.synth;
+      // the notes being held on this track follow the knob while they sound
+      liveHandles.forEach((h) => {
+        const m = liveMeta.get(h);
+        if (m && m.id === id && m.voice && h.update) h.update(m.voice, part.synth);
+      });
       scheduleAutosave();
     },
     // Plays a note of a track (never records it), with the track's sound as it is now.
     hear: (id, name) => hearNote(id, name),
+    // Holds a note of a track for as long as the caller wants (a knob is being turned), with the track's sound as it is, and lets the knobs move it
+    // while it sounds. Never recorded. Returns { off() }, or null when there is nothing to hold.
+    holdHear: (id, name) => holdHearNote(id, name),
     hearDrum: (row) => soundDrum(row),
     // One drum sound's own tweaks (tune in semitones, decay as a multiplier, tone from -1 to 1). A null value takes a tweak back to the kit's.
     drum: (row) => Engine.drumShape(songData.trackMeta && songData.trackMeta[row]),
@@ -396,7 +404,12 @@
     }
     const continuesInput = songHistoryInputGroup && songHistoryInputGroup.target === event.target &&
       (event.type === "input" || event.type === "change");
-    if (!continuesInput) flushSongHistoryInputGroup();
+    if (continuesInput) {
+      // the group already holds the state before the first of these events: no copy of the whole song for each one
+      songHistoryEvents.set(event, { before: songHistoryInputGroup.before, continued: true, generation: openGeneration, target: event.target, type: event.type });
+      return;
+    }
+    flushSongHistoryInputGroup();
     songHistoryEvents.set(event, {
       before: captureSongHistoryState(event.target && event.target.id === "song-name" ? songHistoryKnownName : $("song-name").value),
       generation: openGeneration,
@@ -422,6 +435,15 @@
       return;
     }
     if (pending.generation !== openGeneration || $("song-builder-modal").hidden) return;
+    if (pending.continued && songHistoryInputGroup && songHistoryInputGroup.target === pending.target) {
+      songEditGeneration++;
+      if (event.type === "change") flushSongHistoryInputGroup();
+      else {
+        clearTimeout(songHistoryInputTimer);
+        songHistoryInputTimer = setTimeout(flushSongHistoryInputGroup, 700);
+      }
+      return;
+    }
     const after = captureSongHistoryState();
     if (event.target && event.target.id === "song-name") songHistoryKnownName = after.name;
     if (sameSongHistoryState(pending.before, after)) {
@@ -774,11 +796,24 @@
   // Editing tempo/kit/waveform while a song is already playing should
   // take effect immediately, not just after Save — so these write
   // straight into the same songData object the running player reads.
-  $("song-tempo").addEventListener("input", () => {
-    songData.tempo = Number($("song-tempo").value) || 120;
+  // Typing "120" passes through "1" and "12": those are not tempos (a tempo of 1 leaves fifteen seconds between two steps and the song falls silent), so
+  // while a number is being typed it only counts once it is 40 or more; when the field is let go it is put inside 40 to 240 and written back.
+  function applyTempo(value) {
+    songData.tempo = value;
     Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     renderRulers();
     scheduleAutosave();
+  }
+  $("song-tempo").addEventListener("input", () => {
+    const typed = Number($("song-tempo").value);
+    if (!Number.isFinite(typed) || typed < 40) return;
+    applyTempo(Math.min(240, typed));
+  });
+  $("song-tempo").addEventListener("change", () => {
+    const typed = Number($("song-tempo").value);
+    const value = Math.round(Math.max(40, Math.min(240, Number.isFinite(typed) && typed > 0 ? typed : songData.tempo || 120)));
+    $("song-tempo").value = value;
+    applyTempo(value);
   });
   // Tap tempo: the BPM comes from the average gap between your last few taps; a pause of two seconds starts over.
   // A whole tap session is one undo step.
@@ -1411,6 +1446,7 @@
   // The pitch wheel's bend and the notes held right now (a key held, or kept by the sustain button), so a bend reaches them.
   let liveBend = 0;
   const liveHandles = new Set();
+  const liveMeta = new Map(); // handle -> { id: the track, voice } so a knob turned for that track reaches the notes it is holding
   // A note played live: held until `off()`, bent by the wheel. While recording, the step it started on gets the note and, when it is let go
   // in the same pattern a few steps later, the steps in between are tied to it, so a held key records as a held note.
   function startLiveNote(requested, velocity) {
@@ -1430,7 +1466,10 @@
         voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, 1, songData.melody.synth, Math.random, true) : Engine.playLiveWave(ctx, Engine.noteToFreq(noteName), $("song-waveform").value));
     }
     if (liveBend && handle) handle.bend(liveBend);
-    if (handle) liveHandles.add(handle);
+    if (handle) {
+      liveHandles.add(handle);
+      liveMeta.set(handle, { id: isPartRoll() ? rollPart : "melody", voice: isPartRoll() ? Engine.partVoiceOf(songData, rollPart) : Engine.melodyVoiceOf(songData) });
+    }
     const startedAt = ctx.currentTime;
     const start = recordNoteStep(noteName, vel);
     return {
@@ -1439,6 +1478,7 @@
         if (handle) {
           handle.release(ctx.currentTime);
           liveHandles.delete(handle);
+          liveMeta.delete(handle);
         }
         if (!start || start.other) return;
         // how many steps it was held across (from the time, so a quantized spot cannot stretch a tap into a long note); a quick press stays one step
@@ -1515,6 +1555,23 @@
   }
 
   // A note of a track played for the ear only (a slider released in the Studio's sound settings), with the track's sound as it is now.
+  function holdHearNote(id, name) {
+    const ctx = ensureAudio();
+    const part = id === "melody" ? songData.melody : songData[id];
+    const voice = id === "melody" ? Engine.melodyVoiceOf(songData) : Engine.partVoiceOf(songData, id);
+    if (!part) return null;
+    const handle = Engine.withVolume(ctx, Engine.volumeOf(part), () => (voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(name), voice, 1, part.synth, Math.random, true) : Engine.playLiveWave(ctx, Engine.noteToFreq(name), $("song-waveform").value)));
+    if (!handle) return null;
+    liveHandles.add(handle);
+    liveMeta.set(handle, { id, voice });
+    return {
+      off() {
+        handle.release(ctx.currentTime);
+        liveHandles.delete(handle);
+        liveMeta.delete(handle);
+      },
+    };
+  }
   function hearNote(id, name) {
     const ctx = ensureAudio();
     const duration = 60 / (songData.tempo || 120) / 4;
@@ -3410,7 +3467,7 @@
     if (songSavePending) return;
     const name = $("song-name").value.trim();
     if (!name) return alert("Name is required.");
-    songData.tempo = Number($("song-tempo").value) || 120;
+    songData.tempo = Math.max(40, Math.min(240, Number($("song-tempo").value) || 120));
     songData.kit = $("song-kit").value;
     songData.melody.waveform = $("song-waveform").value;
     songData.master_volume = Number($("song-master-volume").value) / 100;

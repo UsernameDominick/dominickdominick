@@ -44,9 +44,9 @@ const busOf = (ctx) => {
   const intoMaster = ctx.nodes.filter((n) => n !== bus && n.out.includes(master));
   ok(intoMaster.length >= 1, "the drums still go straight to the master (the kick is what triggers the dip, it is not ducked)", intoMaster.length);
   const calls = bus.gain.calls;
-  ok(calls.length === 2 && calls[0].kind === "set" && calls[1].kind === "lin" && calls[1].v === 1, "one kick makes one dip: set low, then ramp back to 1", calls);
+  ok(calls.length === 2 && calls[0].kind === "target" && calls[1].kind === "target" && calls[1].v === 1, "one kick makes one dip: glide down fast, then glide back to 1", calls);
   ok(Math.abs(calls[0].v - (1 - 0.6 * 0.85)) < 1e-9 && calls[0].t === 0, "at Pump 60 it drops to 49% at the kick's time", calls[0]);
-  ok(Math.abs(calls[1].t - 0.35) < 1e-9, "and is back at full after the release (a third of a second at 120 BPM)", calls[1].t);
+  ok(Math.abs(calls[0].tc - 0.004) < 1e-9 && Math.abs(calls[1].t - 0.02) < 1e-9 && Math.abs(calls[1].tc * 4 - 0.35) < 1e-9, "the dip falls in a few milliseconds, is held a moment, and the release is a third of a second at 120 BPM (four time constants)", calls);
   ok(count(ctx, "gain") === count(play(song({ pump: 100 })), "gain"), "the amount changes the dip, not the graph");
   const deep = busOf(play(song({ pump: 100 }))).gain.calls[0].v;
   ok(Math.abs(deep - 0.15) < 1e-9, "Pump 100 dips to 15%", deep);
@@ -61,11 +61,11 @@ const busOf = (ctx) => {
   const muted = play(song({ pump: 50, trackMeta: { kick: { muted: true } } }));
   ok(!busOf(muted) || busOf(muted).gain.calls.length === 0, "a muted kick plays nothing and dips nothing");
   const later = busOf(play(song({ pump: 50 }), 4, 2));
-  ok(later && later.gain.calls[0].t === 2 && Math.abs(later.gain.calls[1].t - 2.35) < 1e-9, "the dip starts at the time the step is scheduled for", later && later.gain.calls.map((c) => c.t));
+  ok(later && later.gain.calls[0].t === 2 && Math.abs(later.gain.calls[1].t - 2.02) < 1e-9, "the dip starts at the time the step is scheduled for", later && later.gain.calls.map((c) => c.t));
   const fast = busOf(play(song({ pump: 50, tempo: 240 })));
-  ok(Math.abs(fast.gain.calls[1].t - 0.1875) < 1e-9, "at 240 BPM the release is shorter (three steps, 0.19 s)", fast.gain.calls[1].t);
+  ok(Math.abs(fast.gain.calls[1].tc * 4 - 0.1875) < 1e-9, "at 240 BPM the release is shorter (three steps, 0.19 s)", fast.gain.calls[1].tc);
   const slow = busOf(play(song({ pump: 50, tempo: 60 })));
-  ok(Math.abs(slow.gain.calls[1].t - 0.35) < 1e-9, "and never longer than 0.35 s however slow the song", slow.gain.calls[1].t);
+  ok(Math.abs(slow.gain.calls[1].tc * 4 - 0.35) < 1e-9, "and never longer than 0.35 s however slow the song", slow.gain.calls[1].tc);
   const humanised = busOf(play(song({ pump: 50, humanize: 100 }), 0, 1));
   ok(humanised.gain.calls[0].t > 0.98 && humanised.gain.calls[0].t < 1.02, "with humanize the dip follows the kick's own nudged time", humanised.gain.calls[0].t);
 }

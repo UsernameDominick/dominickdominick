@@ -2397,6 +2397,7 @@
   $("studio-bpm").addEventListener("change", (e) => {
     $("song-tempo").value = e.target.value;
     fire($("song-tempo"), "change");
+    e.target.value = $("song-tempo").value; // the builder has put it inside 40 to 240
   });
   function syncTransport() {
     const h = host();
@@ -2549,7 +2550,16 @@
   let soundHomed = false;
   let soundFolded = lsGet("studio.soundPanel", "") === "folded";
   // The Sound pane's own controls answer to whichever of the two it is in.
-  const onSound = (type, fn) => [sheetBody, soundPanelBody].forEach((root) => root.addEventListener(type, fn));
+  // The sound pane lives in the Tools sheet or in the docked panel, and the sheet sits inside the panel when docked, so an event can pass both: each
+  // handler sees one event once.
+  const onSound = (type, fn) => {
+    const seen = new WeakSet();
+    [sheetBody, soundPanelBody].forEach((root) => root.addEventListener(type, (e) => {
+      if (seen.has(e)) return;
+      seen.add(e);
+      fn(e);
+    }));
+  };
   const PANES = [
     { id: "sound", label: "Sound" },
     { id: "tools", label: "Track" },
@@ -3420,7 +3430,42 @@
       refresh();
       host().hear(trackId, HEAR[track.part]);
     } else if (t.dataset && t.dataset.knob) {
-      host().hear(trackId, HEAR[trackOf(trackId).part]);
+      if (heldPreview === null && performance.now() - heldEndedAt > 250) host().hear(trackId, HEAR[trackOf(trackId).part]);
+    }
+  });
+  // ---- hearing the sound while a dial is turned ----
+  // A pointer down on a dial of the Sound pane holds a note of the open track (the one the Preview button plays) for as long as the pointer is down, so
+  // the knob can be judged by ear as it moves (the held note follows it: see playVoicedNote's update). A drum dial plays its drum again every 180 ms while
+  // it moves. A turn with the keys or the wheel has no held note, and plays the sound once when it settles, as before.
+  let heldPreview = null;
+  let lastDrumHear = 0;
+  let heldEndedAt = -1e9; // when a held note was let go: the knob's release needs no extra preview note just after it
+  const stopHeld = () => {
+    if (!heldPreview) return;
+    const h = heldPreview;
+    heldPreview = null;
+    heldEndedAt = performance.now();
+    try { h.off(); } catch (err) { /* already ended */ }
+  };
+  onSound("pointerdown", (e) => {
+    if (!(e.target.closest && e.target.closest(".dial-face"))) return;
+    const track = trackOf(trackId);
+    if (track.kind !== "notes" || !host().holdHear) return;
+    const input = e.target.closest(".dial").querySelector("input");
+    if (!input || input.disabled) return;
+    stopHeld();
+    heldPreview = host().holdHear(trackId, HEAR[track.part]);
+  });
+  ["pointerup", "pointercancel"].forEach((t) => document.addEventListener(t, stopHeld, true));
+  window.addEventListener("blur", stopHeld);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopHeld(); });
+  onSound("input", (e) => {
+    if (heldPreview === null && e.target.closest && e.target.closest(".dial.is-turning") && trackOf(trackId).kind === "drums" && e.target.dataset && e.target.dataset.dknob) {
+      const now = performance.now();
+      if (now - lastDrumHear > 180) {
+        lastDrumHear = now;
+        host().hearDrum(soundRow);
+      }
     }
   });
   onSound("input", (e) => {

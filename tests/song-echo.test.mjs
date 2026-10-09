@@ -46,7 +46,7 @@ const lastTo = (param) => { const calls = param.calls.filter((c) => c.kind === "
   const wet = tone.out.find((n) => n.kind === "gain" && reachesOutput(ctx, n));
   ok(!!feedback && !!wet, "the low-pass feeds both a feedback gain back into the delay and a wet gain to the output");
   ok(wet.gain.calls.some((c) => c.kind === "ramp" || c.kind === "lin") && Math.abs(wet.gain.calls.filter((c) => c.kind === "lin").pop().v - 0.4) < 1e-9, "50% echo ramps the wet level to 0.4", wet.gain.calls);
-  ok(Math.abs(lastSet(feedback.gain) - 0.475) < 1e-9, "and the feedback to 0.475", lastSet(feedback.gain));
+  ok(Math.abs(lastTo(feedback.gain) - 0.475) < 1e-9, "and the feedback glides to 0.475", lastTo(feedback.gain));
   playAll(ctx, song({ echo: 50 }));
   ok(count(ctx, "delay") === 1, "playing on does not build a second delay");
 }

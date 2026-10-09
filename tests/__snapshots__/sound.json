@@ -825,12 +825,12 @@
   "s": "gain x4, shaper x1, source x2, filter:highpass x2"
  },
  "fx:space+echo": {
-  "h": "c66e6ff1",
+  "h": "7d553288",
   "n": 9,
   "s": "gain x5, shaper x1, convolver x1, delay x1, filter:lowpass x1"
  },
  "fx:pump": {
-  "h": "199840fb",
+  "h": "09c32e9c",
   "n": 8,
   "s": "gain x5, shaper x1, osc:sine x2"
  }

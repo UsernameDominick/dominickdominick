@@ -133,6 +133,78 @@ const { chromium } = require("./_pw.cjs");
     // the volume reads in decibels
     const volText = await p.getAttribute("#studio-sound-panel #studio-sound-vol", "aria-valuetext");
     ok(/dB$/.test(volText || ""), "the volume dial reads in decibels", volText);
+    // the sound is heard while a dial is turned: a note is held for as long as the pointer is down, and it is let go on release
+    await p.evaluate(() => {
+      const h = window.SongStudioHost;
+      window.__hold = { started: 0, ended: 0 };
+      const real = h.holdHear;
+      h.holdHear = (id, name) => {
+        window.__hold.started++;
+        const note = real(id, name);
+        return note && { off() { window.__hold.ended++; note.off(); } };
+      };
+    });
+    f = await face();
+    await p.mouse.move(f.x, f.y);
+    await p.mouse.down();
+    await p.mouse.move(f.x, f.y - 30, { steps: 5 });
+    const during = await p.evaluate(() => ({ ...window.__hold }));
+    await p.mouse.up();
+    const afterUp = await p.evaluate(() => ({ ...window.__hold }));
+    ok(during.started === 1 && during.ended === 0, "pressing on a dial holds a note while the pointer is down", during);
+    ok(afterUp.ended === 1, "and lets it go when the pointer is released", afterUp);
+    await p.keyboard.press("Tab");
+    await p.evaluate((q) => document.querySelector(q).focus(), knob);
+    await p.keyboard.press("ArrowUp");
+    ok((await p.evaluate(() => window.__hold.started)) === 1, "a key press on a dial holds no note (it plays the sound once when it settles)");
+
+    // a drum dial plays its drum again while it moves
+    await p.click("#studio-stack .studio-card >> nth=0");
+    await p.waitForTimeout(500);
+    await p.evaluate(() => {
+      const h = window.SongStudioHost;
+      window.__drum = 0;
+      const real = h.hearDrum;
+      h.hearDrum = (row) => { window.__drum++; return real(row); };
+    });
+    const dknob = '#studio-sound-panel [data-dknob="tune"]';
+    const df = await p.evaluate((q) => { const r = document.querySelector(q).parentNode.querySelector(".dial-face").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, dknob);
+    await p.mouse.move(df.x, df.y);
+    await p.mouse.down();
+    for (let i = 1; i <= 8; i++) { await p.mouse.move(df.x, df.y - i * 6); await p.waitForTimeout(60); }
+    const duringDrum = await p.evaluate(() => window.__drum);
+    await p.mouse.up();
+    ok(duringDrum >= 2, "turning a drum dial plays the drum while it moves (not on every pixel)", duringDrum);
+    ok(duringDrum <= 6, "...at a steady pace", duringDrum);
+    // typing a tempo: the numbers on the way ("1", "12") are not tempos, so the song never runs at 1 BPM
+    const tempoOf = () => p.evaluate(() => window.SongStudioHost.song().tempo);
+    await p.fill("#studio-bpm", "");
+    await p.click("#studio-bpm");
+    await p.keyboard.press("Control+A");
+    await p.keyboard.type("1");
+    ok((await tempoOf()) >= 40, "typing the 1 of 150 does not make the tempo 1", await tempoOf());
+    await p.keyboard.type("5");
+    ok((await tempoOf()) >= 40, "nor does 15", await tempoOf());
+    await p.keyboard.type("0");
+    ok((await tempoOf()) === 150, "150 is applied as it is typed", await tempoOf());
+    await p.keyboard.press("Control+A");
+    await p.keyboard.type("9");
+    await p.keyboard.press("Enter");
+    await p.click("#studio-stack .studio-card >> nth=1");
+    ok((await tempoOf()) === 40 && (await p.inputValue("#studio-bpm")) === "40", "a tempo left too low is put at 40 and shown", [await tempoOf(), await p.inputValue("#studio-bpm")]);
+
+    // undo: a burst of key presses on a dial is one step
+    await p.click("#studio-stack .studio-card >> nth=1");
+    await p.waitForTimeout(400);
+    await setKnob(500);
+    await p.waitForTimeout(900);
+    await p.evaluate((q) => document.querySelector(q).focus(), knob);
+    for (let i = 0; i < 4; i++) await p.keyboard.press("ArrowUp");
+    await p.waitForTimeout(1000);
+    const burst = await val();
+    await p.keyboard.press("Control+Z");
+    await p.waitForTimeout(400);
+    ok(burst === 504 && (await val()) === 500, "four key presses on a dial are one undo step, and undo puts the dial back where it was", [burst, await val()]);
     ok(errs.length === 0, "no page errors", errs);
   } finally {
     await b.close();
