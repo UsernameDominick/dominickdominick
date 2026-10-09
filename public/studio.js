@@ -499,8 +499,7 @@
     // The editor, the list it keeps (hidden here) and the audio export dialog.
     dialogs: ["song-builder-modal", "songs-modal", "song-audio-modal"],
     editor: () => $("song-builder-modal"),
-    // The editor listens to a button that opens its list, so it must be there before its scripts load; and a few calls it makes to the
-    // admin page have nothing to do here.
+    // The editor listens to a button that opens its list, so it must be there before its scripts load.
     prepare(inner) {
       const songsBtn = document.createElement("button");
       songsBtn.type = "button";
@@ -508,8 +507,6 @@
       songsBtn.hidden = true;
       songsBtn.tabIndex = -1;
       inner.appendChild(songsBtn);
-      window.refreshSongOptions = function () {};
-      window.showContentUsage = function () {};
     },
     build(inner) {
       // The editor's "×" is the way back to the shelf here.

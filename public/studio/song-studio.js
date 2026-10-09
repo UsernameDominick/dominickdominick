@@ -796,7 +796,7 @@
 
   // ---------- the steps inside the expanded card ----------
   // The cells here only mirror the song. A tap clicks the matching step of the builder's editor, which does the real work (step strength,
-  // undo, autosave, the preview), and then the mirror is painted again from the song.
+  // undo, autosave), and then the mirror is painted again from the song.
   let gridSig = "";
   let gridCells = [];
   let colCells = [];
@@ -2390,10 +2390,6 @@
     fire($("song-name"), "input");
   });
   $("studio-save").addEventListener("click", () => $("save-song").click());
-  $("studio-help").addEventListener("click", () => {
-    const real = modal.querySelector(".editor-help-btn");
-    if (real) real.click();
-  });
   $("studio-close").addEventListener("click", () => $("close-song-builder").click());
   $("studio-midi").addEventListener("click", () => $("song-midi-connect").click());
   function syncTop() {
@@ -2595,14 +2591,13 @@
     panes.tools.append(strength, toolsDrums, toolsNotes);
     if ($("song-melody-tools")) $("song-melody-tools").open = true;
 
-    // Share: how the song looks on the page, the preview, files and export.
-    const look = section("On the page", "How the song's player looks where you put it.");
-    look.append(row($("song-visualization"), $("song-theme"), labelOf("song-page-sync")));
-    const prev = section("Preview");
-    prev.append(row($("song-preview-fold")), row($("song-clip-status")));
+    // Share: the clipping history, files and export.
+    const prev = document.createElement("section");
+    prev.className = "studio-section";
+    prev.append(row($("song-clip-section")), row($("song-clip-status")));
     const exp = section("Export", "Files and renders of this song.");
-    exp.append(row($("song-export-report"), $("song-export-audio"), $("song-export-midi"), $("song-export-json")), row($("song-file-status")), row($("song-generate-cover-art"), $("song-snapshot-mix")));
-    panes.share.append(look, prev, exp);
+    exp.append(row($("song-export-report"), $("song-export-audio"), $("song-export-midi"), $("song-export-json")), row($("song-file-status")), row($("song-snapshot-mix")));
+    panes.share.append(prev, exp);
     buildMidiPane();
 
     // Everything else stays in the builder, hidden: the selects the Sound tab drives, the roll's own buttons, the rows and the grids.
@@ -2956,7 +2951,6 @@
     refresh();
   }
   $("studio-tools").addEventListener("click", () => (sheet.hidden ? openSheet() : closeSheet()));
-  $("studio-sheet-help").addEventListener("click", () => $("studio-help").click());
   $("close-studio-sheet").addEventListener("click", closeSheet);
   sheet.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

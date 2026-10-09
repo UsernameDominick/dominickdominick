@@ -144,14 +144,15 @@ ok(F.noteNumber("H4") === null && F.noteNumber("") === null && F.noteNumber("C99
     scale: { root: "H", type: "major" }, extra: { huge: "x".repeat(1000) },
   };
   const c = F.cleanSong(hostile);
-  ok(c.tempo === 240 && c.kit === "acoustic" && c.visualization === "bars" && c.theme === "default" && c.page_sync === false && c.master_volume === 1 && c.humanize === 0 && c.swing === 50 && c.space === 100, "settings are limited to what the builder allows (a string number still counts)", [c.tempo, c.kit, c.theme, c.master_volume, c.humanize, c.swing]);
+  ok(c.tempo === 240 && c.kit === "acoustic" && c.master_volume === 1 && c.humanize === 0 && c.swing === 50 && c.space === 100, "settings are limited to what the builder allows (a string number still counts)", [c.tempo, c.kit, c.master_volume, c.humanize, c.swing]);
   ok(c.private_notes.length === 20000 && !/[\u0000‮]/.test(c.private_notes), "notes lose control and direction characters and are capped at 20,000");
   ok(c.tracks.kick.length === 16 && c.tracks.kick.slice(0, 12).join() === "true,0.5,true,false,false,false,false,false,false,false,false,0.01", "a drum lane is 16 steps of off, full or a strength between 0.01 and 1", c.tracks.kick.slice(0, 12));
   ok(!("evil" in c.tracks) && Object.keys(c.tracks).join() === "kick,snare,hihat,clap", "only the four known drum lanes survive");
   ok(c.trackMeta.kick.color === "#ff7a45" && c.trackMeta.snare.color === "#ABCDEF" && c.trackMeta.kick.note.length === 200 && c.trackMeta.kick.muted === undefined && c.trackMeta.kick.hidden === true && c.trackMeta.kick.volume === 1, "colours must be #rrggbb, notes are capped, flags must be real booleans, volume is limited", c.trackMeta.kick);
   ok(c.melody.waveform === "sine" && c.melody.muted === true && c.melody.volume === 0 && Object.keys(c.melody.notes).length === 24 && c.melody.notes.C4[0] === true && !("Z9" in c.melody.notes), "the melody keeps only the 24 piano-roll notes", Object.keys(c.melody.notes).length);
   ok(!("scale" in c) && !("extra" in c) && !({}).polluted, "an unknown scale, extra keys and prototype tricks are dropped");
-  ok(JSON.stringify(Object.keys(c)) === JSON.stringify(["tempo", "kit", "visualization", "theme", "page_sync", "master_volume", "humanize", "swing", "space", "echo", "private_notes", "tracks", "trackMeta", "melody"]), "the cleaned song has exactly the builder's own keys", Object.keys(c));
+  ok(!("visualization" in c) && !("theme" in c) && !("page_sync" in c), "the player-look fields of a song saved long ago are ignored, not kept");
+  ok(JSON.stringify(Object.keys(c)) === JSON.stringify(["tempo", "kit", "master_volume", "humanize", "swing", "space", "echo", "private_notes", "tracks", "trackMeta", "melody"]), "the cleaned song has exactly the builder's own keys", Object.keys(c));
   ok(JSON.stringify(F.cleanSong(F.cleanSong(song()))) === JSON.stringify(F.cleanSong(song())), "cleaning twice changes nothing");
   ok(F.cleanSong(null).tracks.kick.length === 16 && F.cleanSong("x").melody.waveform === "sine", "even nothing at all becomes a valid empty song");
   const goodScale = F.cleanSong({ tracks: {}, scale: { root: "D", type: "blues" } });

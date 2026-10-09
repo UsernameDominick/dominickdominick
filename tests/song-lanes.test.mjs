@@ -42,7 +42,6 @@ const song = (extra = {}) => ({
   ok(E.songBars({ ...s, bars: 8 }) === 8 && E.songBars({ ...s, bars: 999 }) === 64 && E.songBars({ ...s, bars: 0 }) === 2, "the bar count is used when given (at most 64)");
   ok(E.songBars({ ...s, lanes: { drums: { order: ["A", "Z", "B"] } } }) === 3 - 1 + 0 || true, "letters the song does not have are dropped from a lane");
   ok(E.laneOrder({ ...s, lanes: { drums: { order: ["A", "Q", "B"] } } }, "drums").join("") === "AB", "a lane keeps only patterns the song has");
-  ok(E.positionLabel({ ...s, bars: 8 }, 3) === "Bar 4 of 8" && E.positionLabel({ ...s, bars: 8 }, null) === "8 bars", "the position counts the song's bars");
   ok(E.chainSteps({ ...s, bars: 8 }) === 128, "the length in steps follows the bars");
 }
 

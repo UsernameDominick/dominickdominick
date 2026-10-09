@@ -569,15 +569,6 @@
   font-family: inherit;
 }
 
-.app-native .song-preview-note {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-}
-
-.app-native #song-preview-embed {
-  margin-bottom: 20px;
-}
-
 .app-native .song-tempo-label {
   display: flex;
   align-items: center;
@@ -1219,34 +1210,6 @@
   gap: 8px;
   flex: 0 0 auto;
 }
-.app-native .modal-inner header .editor-help-btn,
-.app-native .simulation-builder-inner header .editor-help-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: 2px solid var(--border);
-  border-radius: 50%;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-.app-native .modal-inner header .editor-help-btn:hover {
-  color: var(--text);
-  border-color: var(--text-dim);
-}
-.app-native .editor-help-btn {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  font-weight: 700;
-  line-height: 1;
-  flex: 0 0 auto;
-}
-@media (max-width: 640px) {
-  .app-native .simulation-row.simulation-row:has(.bulk-list-row-box) > span,
-  .app-native .redirect-row.redirect-row:has(.bulk-list-row-box) > .redirect-paths {
-    flex-basis: calc(100% - 52px);
-    min-width: 0;
-  }
-}
 .app-native input[type="range"] {
   accent-color: var(--accent);
 }
@@ -1405,7 +1368,6 @@
   .app-native .simulation-builder-inner.sim-more-open .sim-toolbar-group select { min-height: 38px; font-size: 0.85rem; }
 }
 @media (max-width: 860px) {
-  .app-native .simulation-builder-inner header .editor-help-btn { min-width: 40px; height: 40px; }
   .app-native .simulation-builder-inner header #close-song-builder  { min-width: 40px; min-height: 40px; }
   
   
@@ -1435,12 +1397,6 @@
   .app-native .simulation-builder-inner:not(.sim-more-open) .song-toolbar .song-autosave-status:not(:empty) { display: block; flex: 0 0 100%; order: 10; margin: 0; font-size: 0.78rem; text-align: center; }
   .app-native .simulation-builder-inner:not(.sim-more-open) .song-toolbar .simulation-name-input { flex: 1 1 0; min-width: 0; }
   .app-native .song-toolbar .sim-quick { font-size: 0.9rem; white-space: nowrap; }
-  .app-native .song-preview-fold { margin: 0 0 8px; }
-  .app-native .song-preview-fold > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; padding: 6px 10px; color: var(--text-dim); font-size: 0.9rem; border: 2px solid var(--border); border-radius: var(--control-radius); }
-  .app-native .song-preview-fold[open] > summary { margin-bottom: 8px; }
-}
-@media (min-width: 861px) and (min-height: 861px) {
-  .app-native .song-preview-fold > summary { display: none; }
 }
 
 .app-native .song-generators { margin: 0 0 0.5rem; } .app-native .song-generators > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }
@@ -1759,7 +1715,7 @@
 .app-native .studio-section-row > * { max-width: 100%; }
 .app-native .studio-section-row label { display: inline-flex; align-items: center; gap: 6px; }
 .app-native .studio-section-row input[type="range"] { min-width: 120px; }
-.app-native .studio-section-row details, .app-native .studio-section-row .song-preview-fold, .app-native .studio-section-row .song-arrangement { width: 100%; }
+.app-native .studio-section-row details, .app-native .studio-section-row .song-arrangement { width: 100%; }
 .app-native .studio-song-length { flex-wrap: wrap; }
 .app-native .studio-song-length input { width: 90px; }
 .app-native .studio-song-length .studio-section-hint { flex: 1 0 100%; margin: 0; }
@@ -1805,7 +1761,6 @@
   .app-native .studio-pill.studio-rec { padding: 0 10px; }
   .app-native .studio-bpm { flex-direction: column; align-items: center; gap: 0; }
   .app-native .studio-bpm input { width: 52px; min-height: 34px; }
-  .app-native .studio-help { display: none; }
   .app-native .studio-top { gap: 5px; }
   .app-native .studio-btn { padding: 0 9px; }
 }
@@ -2356,7 +2311,6 @@
 }
 .app-native .studio-sheet.is-docked .studio-sheet-play,
 .app-native .studio-sheet.is-docked #studio-sheet-title,
-.app-native .studio-sheet.is-docked #studio-sheet-help,
 .app-native .studio-sheet.is-docked #close-studio-sheet,
 .app-native .studio-sheet.is-docked::before { display: none; }
 .app-native .studio-sheet.is-docked .studio-sheet-body { overflow: visible; padding: 12px; }
@@ -2554,7 +2508,6 @@
 }
 .app-native .song-studio input[type="text"], .app-native .song-studio input[type="number"] { font-family: var(--bb-vt); font-size: 24px; color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; }
 .app-native .song-studio .studio-status { font: 400 18px/1 var(--bb-vt); color: var(--text-dim); }
-.app-native .song-studio .studio-help { display: none; }
 .app-native .song-studio input[type="checkbox"], .app-native .studio-shelf input[type="checkbox"] {
   appearance: none; -webkit-appearance: none; position: relative; width: 22px; height: 22px; margin: 0; border: 2px solid var(--text); border-radius: 0; background: var(--bg); flex: 0 0 auto; cursor: pointer;
 }

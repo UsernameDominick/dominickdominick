@@ -137,8 +137,6 @@
         if (out !== undefined) return out;
       }
       if (before && before !== window.adminApi) return before(path, opts);
-      if (p === "/settings" && method === "GET") return {};
-      if (p === "/content-usage") return [];
       throw fail("That is not available here.", 404);
     };
   }

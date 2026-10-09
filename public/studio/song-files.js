@@ -25,8 +25,6 @@
   const KITS = ["acoustic", "electronic", "808", "909", "house", "techno", "trap", "boombap", "lofi", "rock", "jazz", "dnb", "chip", "industrial", "soft"]; // the kits in song-engine.js (a test keeps the lists equal)
   const WAVEFORMS = ["sine", "square", "sawtooth", "triangle"];
   const MELODY_VOICES = ["pluck", "lead", "pad", "bass", "bell", "epiano", "fmkeys", "piano", "clav", "organ", "musicbox", "harp", "guitar", "kalimba", "marimba", "pizz", "stab", "subbass", "reese", "acid", "wobble", "finger", "pluckbass", "chipbass", "supersaw", "squarelead", "chip", "brass", "strings", "flute", "vox", "laser", "warmpad", "glasspad", "stringpad", "darkpad", "swell", "wind", "chime", "vibes", "glassbell"]; // the instruments in song-engine.js (a test keeps the two lists equal)
-  const VISUALIZATIONS = ["bars", "waveform", "pulse"];
-  const THEMES = ["default", "sunset", "ocean", "mono", "neon"];
   const SCALE_TYPES = ["major", "minor", "majpent", "minpent", "blues"];
   const PATTERN_NAMES = "ABCDEFGHIJKLMNOP".split("");
   const MAX_BARS = 64;
@@ -643,15 +641,12 @@
   const cleanLane = (lane) => Array.from({ length: STEPS }, (_, i) => cleanStep(Array.isArray(lane) ? lane[i] : false));
 
   // A clean song from anything a file might hold: only the settings the builder knows, each checked and limited, so a damaged or
-  // hand-edited file can't put odd values into the song (or into the public page it is embedded on).
+  // hand-edited file can't put odd values into the song.
   function cleanSong(raw) {
     const src = raw && typeof raw === "object" ? raw : {};
     const song = {
       tempo: Math.round(clampNum(src.tempo, 40, 240, 120)),
       kit: oneOf(src.kit, KITS, "acoustic"),
-      visualization: oneOf(src.visualization, VISUALIZATIONS, "bars"),
-      theme: oneOf(src.theme, THEMES, "default"),
-      page_sync: src.page_sync === true,
       master_volume: clampNum(src.master_volume, 0, 1, 1),
       humanize: clampNum(src.humanize, 0, 100, 0),
       swing: clampNum(src.swing, 0, 100, 0),

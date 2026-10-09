@@ -1,8 +1,8 @@
-// Shared by the admin Songs builder and the public Song block player —
+// Shared by the Studio's song builder and the shelf's song cards —
 // one implementation of drum synthesis, note→frequency, and playback
-// scheduling, used both places instead of duplicated per-context. Kept
+// scheduling, used by both instead of duplicated per-context. Kept
 // framework-free and DOM-free so either caller can drive it with its own
-// UI (grid highlighting, a public visualizer, whatever).
+// UI (grid highlighting, whatever).
 window.SongEngine = (function () {
   "use strict";
 
@@ -35,7 +35,7 @@ window.SongEngine = (function () {
   // One shared GainNode per AudioContext that every voice routes through
   // instead of ctx.destination directly, so a single master-volume control
   // affects drums + melody together. Keyed by ctx (not a module-level
-  // singleton) since the admin builder and public embed each own their own
+  // singleton) since the builder and a shelf card each own their own
   // AudioContext, and an OfflineAudioContext used for waveform rendering
   // needs its own gain node too.
   const masterGains = new WeakMap();
@@ -130,7 +130,7 @@ function setMasterVolume(ctx, value) {
   // A send off the master bus: master gain -> convolver -> wet gain -> destination, next to the
   // dry path that is already there. A song with Space at 0 never builds any of it, so those
   // songs sound and render exactly as before. The impulse response is generated from a fixed
-  // seed (decaying noise), so exports and the public player always get the same room.
+  // seed (decaying noise), so exports always get the same room.
   const REVERB_SECONDS = 1.8;
   const REVERB_MAX_WET = 1.8;
   const reverbSends = new WeakMap();
@@ -930,19 +930,14 @@ function setMasterVolume(ctx, value) {
     return (random() * 2 - 1) * HUMANIZE_MAX_JITTER_S * (amount / 100);
   }
 
-  // A muted drum track is silent everywhere the engine plays the song (admin
-  // preview, public embed, cached waveform); "hidden" is editor-only and is
+  // A muted drum track is silent everywhere the engine plays the song (playback,
+  // exports, the peak scan); "hidden" is editor-only and is
   // deliberately not consulted here.
   function isTrackMuted(songData, track) {
     return Boolean(songData.trackMeta && songData.trackMeta[track] && songData.trackMeta[track].muted === true);
   }
   function isMelodyMuted(songData) {
     return Boolean(songData.melody && songData.melody.muted === true);
-  }
-  function stepHasAudibleDrumHit(songData, step) {
-    return Boolean(
-      songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step] && PLAYERS[t] && !isTrackMuted(songData, t))
-    );
   }
 
   // Swing delays every second sixteenth (steps 2, 4, 6... counting from 1) by up to half a step: 0 is straight,
@@ -1054,16 +1049,6 @@ function setMasterVolume(ctx, value) {
   function chainSteps(songData) {
     return songBars(songData) * STEPS;
   }
-  // What a song with a song order says about where it is: "Bar 3 of 6" (and "· Pattern B" with { pattern: true }) while bar `index` of the
-  // order sounds, "6 bars" when none does (index null), and null for a song that is one bar long (nothing to count).
-  function positionLabel(songData, index, { pattern = false } = {}) {
-    const chain = chainOf(songData);
-    const total = songBars(songData);
-    if (total < 2) return null;
-    if (index === null || index === undefined || !(index >= 0)) return `${total} bars`;
-    const i = Math.min(total - 1, Math.floor(index));
-    return `Bar ${i + 1} of ${total}${pattern && chain.length ? ` · Pattern ${chain[i % chain.length]}` : ""}`;
-  }
   // The song as scheduleStep reads it while pattern `name` is playing: the same song with that pattern's parts in the usual places.
   function viewOf(songData, name) {
     if (isSinglePattern(songData) || name === editingName(songData)) return songData;
@@ -1137,8 +1122,7 @@ function setMasterVolume(ctx, value) {
         // starts comfortably ahead of ctx.currentTime) would otherwise hand
         // AudioBufferSourceNode/OscillatorNode.start() a negative time, which
         // throws a RangeError and kills the whole render -- a critic pass
-        // caught this live (silently broken waveform preview, admin builder
-        // AND public embed both, since they share this exact code path).
+        // caught this live (a silently broken peak scan).
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
           withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track])));
@@ -1190,9 +1174,9 @@ function setMasterVolume(ctx, value) {
   const LOOKAHEAD_MS = 25;
   const SCHEDULE_AHEAD_S = 0.1;
 
-  // A tiny seeded PRNG gives the waveform preview repeatable noise without
+  // A tiny seeded PRNG gives the offline render repeatable noise without
   // changing the live drums' per-hit randomness. Seed from musical content
-  // only; cache metadata and preview-only controls must not change the sound.
+  // only; settings that are not music must not change the sound.
   function seedPart(songData) {
     const tracks = Object.fromEntries(
       Object.keys(songData.tracks || {}).sort().map((key) => [key, songData.tracks[key]])
@@ -1237,12 +1221,12 @@ function setMasterVolume(ctx, value) {
 
   // getAudioCtx: () => AudioContext. songData: the song's data object
   // (read fresh each step, so a caller can mutate it live — e.g. MIDI
-  // recording into the admin builder's grid while playing). onStep(step,
+  // recording into the builder's grid while playing). onStep(step,
   // time), optional: called once per scheduled step for any UI sync
-  // (highlighting a cell, animating a visualizer).
+  // (highlighting a cell).
   // `songData` is read fresh each step, so a caller can edit it while it plays. onStep(step, time, info) also gets
   // info = { pattern, chainIndex, chainLength, data }: which pattern is sounding, where it sits in the song order, and the song as that
-  // pattern plays it (what stepHasAudibleDrumHit should look at).
+  // pattern plays it.
   function createPlayer(getAudioCtx, songData, onStep) {
     let playing = false;
     let currentStep = 0;
@@ -1317,9 +1301,8 @@ function setMasterVolume(ctx, value) {
   // Renders one full loop through an OfflineAudioContext and downsamples
   // the result into min/max peak pairs — a real waveform derived from the
   // actual synthesized audio, not a decorative fake. Async because
-  // offline rendering happens off the main thread; callers should render
-  // once (on load or on edit) and cache the result rather than re-render
-  // every frame.
+  // offline rendering happens off the main thread. The builder uses it
+  // to find a song's real peak level (Normalize to peak).
   async function renderWaveformPeaks(songData, peakCount) {
     const stepDur = stepDurationFor(songData.tempo);
     // The whole song order, one pattern after another (a one-pattern song is one loop, as ever).
@@ -1328,16 +1311,12 @@ function setMasterVolume(ctx, value) {
     const sampleRate = 44100;
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
-    // The waveform preview shows the song's rhythmic/melodic pattern shape,
-    // not its loudness -- rendering it at the actual master_volume would
-    // shrink it toward a flat line as the volume slider is lowered (and
-    // hide the pattern entirely at 0), which is a readability regression
-    // with no corresponding benefit. Render at full volume regardless of
-    // the song's actual master_volume so the preview's scale stays fixed.
-    // The preview ignores humanize and uses a content-seeded noise stream:
-    // repeated renders of the same song therefore show the same pattern,
+    // The render is at full volume regardless of the song's master_volume,
+    // so the peak it finds is the song's own, not the slider's.
+    // It ignores humanize and uses a content-seeded noise stream:
+    // repeated renders of the same song therefore give the same peaks,
     // while normal playback keeps fresh noise on each hit.
-    // The same goes for Space and Echo: a reverb tail or repeats would smear the pattern it is meant to show.
+    // The same goes for Space and Echo: a reverb tail or repeats would smear the pattern.
     const previewData =
       songData.master_volume === 1 && !songData.humanize && !songData.space && !songData.echo
         ? songData
@@ -1362,16 +1341,7 @@ function setMasterVolume(ctx, value) {
         if (v < min) min = v;
         if (v > max) max = v;
       }
-      // Rounded to 4 decimal places -- a critic pass reviewing the new
-      // persisted-cache feature (song-builder.js's cached_peaks) found
-      // that storing raw float64 values (18+ characters each, e.g.
-      // -0.9608913660049438) bloated a 200-bucket song's saved JSON to
-      // ~2.7KB for data that's only ever drawn to a handful of on-screen
-      // pixels -- far more precision than the visual actually uses.
-      // Applies to every caller of this shared function (the admin
-      // preview and the public embed's live-render fallback too), not
-      // just the new cache, since there's no reason for any of them to
-      // carry more precision than the others.
+      // Rounded to 4 decimal places: far more precision than a peak level needs.
       peaks.push([Math.round(min * 10000) / 10000, Math.round(max * 10000) / 10000]);
     }
     return peaks;
@@ -1438,7 +1408,6 @@ function setMasterVolume(ctx, value) {
     isPartMuted,
     isTiedContinuation,
     heldSteps,
-    stepHasAudibleDrumHit,
     swingDelay,
     stepDurationFor,
     DRUM_VOICES: Object.keys(PLAYERS),
@@ -1462,7 +1431,6 @@ function setMasterVolume(ctx, value) {
     songBars,
     barView,
     chainSteps,
-    positionLabel,
     chainPatterns,
     viewOf,
     maxExportLoops,

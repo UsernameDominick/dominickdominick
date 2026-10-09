@@ -8,7 +8,7 @@
         <button id="close-songs" aria-label="Close Songs dialog">×</button>
       </header>
       <div class="redirects-body">
-        <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Reuse it in any article or project via the Song block.</p>
+        <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Songs are kept in this browser.</p>
         <div class="sim-new-row">
           <button type="button" id="new-song-btn">New song</button>
           <select id="song-template-picker" aria-label="Template for a new song"><option value="">Blank</option></select>
@@ -30,7 +30,7 @@
       <span id="song-tab-status" class="song-tab-status" role="status"></span>
       <header class="sim-toolbar song-toolbar">
         <input id="song-name" class="simulation-name-input" placeholder="Song name">
-        <button type="button" id="song-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="song-toolbar-groups song-save-group" title="Sound, player look, metronome, export and more">More <span class="sim-more-caret" aria-hidden="true">▾</span></button>
+        <button type="button" id="song-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="song-toolbar-groups song-save-group" title="Sound, metronome, export and more">More <span class="sim-more-caret" aria-hidden="true">▾</span></button>
         <div id="song-save-group" class="sim-toolbar-group sim-toolbar-group-save">
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
@@ -40,7 +40,6 @@
           </div>
         </div>
         <span class="editor-header-end">
-          <button type="button" class="editor-help-btn" data-help="song" aria-label="Help for the Song builder" title="Tips and shortcuts for this editor">?</button>
           <button id="close-song-builder" aria-label="Close Song builder dialog">×</button>
         </span>
         <div id="song-toolbar-groups" class="sim-toolbar-groups">
@@ -56,7 +55,7 @@
             <div class="song-group-controls">
               <button type="button" class="sim-quick" id="song-play" title="Play or stop (the Space bar does it too, when no button or field has the focus)">Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <span class="song-metronome-group" role="group" aria-label="Metronome and count-in">
-                <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song or the public player)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
+                <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
                 <select id="song-metronome-sound" aria-label="Metronome sound" title="Metronome sound">
                   <option value="click">Click</option>
                   <option value="beep">Beep</option>
@@ -101,26 +100,6 @@
               <label class="song-tempo-label" title="Makes the melody and bass dip on every kick and swell back, like sidechain compression, so the groove pumps. 0 = off.">Pump<input type="range" id="song-pump" min="0" max="100" value="0" aria-valuetext="Off"></label>
             </div>
           </div>
-          <div class="sim-toolbar-group" data-group="look">
-            <span class="sim-toolbar-group-label">Player look</span>
-            <div class="song-group-controls">
-              <select id="song-visualization" title="Public page visualization" aria-label="Public page visualization">
-              <option value="bars">Bars</option>
-              <option value="waveform">Waveform</option>
-              <option value="pulse">Pulse</option>
-              </select>
-              <select id="song-theme" title="Player color theme" aria-label="Player color theme">
-              <option value="default">Default theme</option>
-              <option value="sunset">Sunset</option>
-              <option value="ocean">Ocean</option>
-              <option value="mono">Mono</option>
-              <option value="neon">Neon</option>
-              </select>
-              <label class="song-record-label" title="Also flash the whole page in time with the beat, not just the block">
-              <input type="checkbox" id="song-page-sync">Sync page background
-              </label>
-            </div>
-          </div>
           <div class="sim-toolbar-group" data-group="export">
             <span class="sim-toolbar-group-label">Export</span>
             <div class="song-group-controls">
@@ -129,7 +108,6 @@
               <button type="button" id="song-export-midi" title="Download the song as a MIDI file for a music program: drums on channel 10, melody on channel 1, bass line on channel 2, 4/4 at this tempo with swing. One bar per pattern in the song order. Muted tracks are left out; humanize is not included">Export MIDI</button>
               <button type="button" id="song-export-json" title="Download the whole song (every setting, drum step and melody note) as a file you can keep or import into any song list">Export song file</button>
               <span id="song-file-status" class="song-file-status" role="status"></span>
-              <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
               <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
             </div>
           </div>
@@ -142,7 +120,6 @@
           <button type="button" id="studio-save" class="studio-btn studio-btn-primary" title="Save the song">Save</button>
           <button type="button" id="studio-midi" class="studio-btn studio-midi" data-no-history hidden title="Connect a MIDI keyboard or pad controller: its notes play and, with Rec on, record">MIDI</button>
           <button type="button" id="studio-tools" class="studio-btn" data-no-history aria-haspopup="dialog" title="Song settings, tempo, bars, patterns, generators, export and everything else">Tools</button>
-          <button type="button" id="studio-help" class="studio-icon studio-help" aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
           <button type="button" id="studio-close" class="studio-icon" aria-label="Close the Song builder" title="Close">×</button>
         </div>
         <div id="studio-stack" class="studio-stack" data-no-history role="group" aria-label="Playlist: tracks 1 to 5 (Drums, Bass, Chords, Melody and Lead) and their bars. Tap a bar to edit it, or a track to open it." tabindex="-1" autofocus></div>
@@ -222,7 +199,6 @@
             <button type="button" id="studio-sheet-play" class="studio-round studio-sheet-play" data-no-history aria-label="Play" title="Play or pause (Space)"><svg class="studio-ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg><svg class="studio-ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
             <h2 id="studio-sheet-title">Tools</h2>
             <div class="studio-sheet-tabs" role="tablist" aria-label="Song tools"></div>
-            <button type="button" id="studio-sheet-help" class="studio-icon" data-no-history aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
             <button type="button" id="close-studio-sheet" class="studio-icon" data-no-history aria-label="Close the tools" title="Close (Esc)">×</button>
           </div>
           <div class="studio-sheet-body"></div>
@@ -230,16 +206,6 @@
         <div id="studio-holder" class="studio-holder" hidden></div>
       </section>
       <div class="song-builder-body">
-        <details class="song-preview-fold" id="song-preview-fold" open>
-        <summary>Preview and clipping history</summary>
-        <h2 class="song-section-heading">Preview (as it appears on the page)</h2>
-        <div class="song-embed" id="song-preview-embed">
-          <div class="song-embed-header"><strong id="song-preview-name">Song name</strong><span class="song-preview-note">live preview — use Play above</span></div>
-          <div class="song-embed-bars" id="song-preview-bars"></div>
-          <canvas class="song-embed-waveform" id="song-preview-waveform" width="600" height="80" hidden></canvas>
-          <div class="song-embed-pulse" id="song-preview-pulse" hidden><div class="song-embed-pulse-core"></div></div>
-          <div class="song-embed-position" id="song-preview-position" hidden><span class="song-embed-position-label" id="song-preview-position-label"></span><span class="song-embed-position-strip" id="song-preview-position-strip" aria-hidden="true"></span></div>
-        </div>
         <details class="panel-section song-clip-section" id="song-clip-section">
           <summary id="song-clip-summary">Clipping history (0)</summary>
           <p class="song-clip-note">Logs each time the mixed master output reaches full scale (100%) while you play; individual tracks aren't metered. Lowering the master volume fixes it. Normalize to peak sets a safe level from one pass, but random drum noise can occasionally still go over.</p>
@@ -247,7 +213,6 @@
           <ul id="song-clip-list" class="song-clip-list" hidden></ul>
           <p id="song-clip-dropped" class="song-clip-note" hidden></p>
           <button type="button" id="song-clip-clear" disabled>Clear history</button>
-        </details>
         </details>
         <span id="song-clip-status" class="song-clip-status" role="status"></span>
         <section class="song-arrangement" id="song-arrangement" aria-labelledby="song-arrangement-heading">
@@ -266,7 +231,7 @@
             <span id="song-order-summary" class="song-tools-hint"></span>
             <span id="song-order-add" class="song-order-add" role="group" aria-label="Add a pattern to the song order"></span>
             <button type="button" id="song-order-clear" class="song-track-toggle" title="Empty the song order (undoable). With no order the song plays its first pattern.">Clear order</button>
-            <label class="song-play-order" title="On: Play runs the song order from the start and the public player plays it. Off: Play loops just the pattern you are editing."><input type="checkbox" id="song-play-order"> Play the song order</label>
+            <label class="song-play-order" title="On: Play runs the song order from the start. Off: Play loops just the pattern you are editing."><input type="checkbox" id="song-play-order"> Play the song order</label>
           </div>
           <div class="song-pattern-tools" id="song-copy-tools" role="group" aria-label="Copy part of another pattern" hidden>
             <span class="song-pattern-label" id="song-copy-label">Copy into this pattern</span>
@@ -324,7 +289,7 @@
             <select id="song-part-voice" aria-label="Sound" title="This part's sound: Pad for the chords and Lead for the lead are the defaults; the others are the same instruments the melody can use" hidden></select>
           </span>
           <span class="song-transpose-controls">
-            <button type="button" id="song-melody-mute" class="song-track-toggle" aria-pressed="false" aria-label="Mute melody" title="Mute the melody: silent in the preview and on the public page">Mute</button>
+            <button type="button" id="song-melody-mute" class="song-track-toggle" aria-pressed="false" aria-label="Mute melody" title="Mute the melody: silent when the song plays">Mute</button>
             <button type="button" id="song-melody-hide" class="song-track-toggle" aria-pressed="false" aria-label="Hide melody piano roll" title="Hide the piano roll here in the editor; the melody still plays unless muted">Hide</button>
             <input type="range" id="song-melody-volume" class="song-track-volume" min="0" max="100" value="100" aria-label="Melody volume" title="Melody volume" aria-valuetext="100%">
             <span id="song-scale-status" class="sim-sr-only" role="status"></span>

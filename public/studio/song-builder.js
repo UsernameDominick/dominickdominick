@@ -35,7 +35,6 @@
         });
         setMelodyTies(out.ties || {});
         renderPianoRoll();
-        refreshWaveformPreview();
         scheduleAutosave();
       }
       if (own) window.SongStudioHost.group(false);
@@ -50,7 +49,6 @@
           if (songData.tracks[row]) songData.tracks[row] = out[row];
         });
         renderSequencer();
-        refreshWaveformPreview();
         scheduleAutosave();
       }
       if (own) window.SongStudioHost.group(false);
@@ -171,17 +169,6 @@
   // .song-step/.song-steps toggle-grid cells and click handling as the
   // drum sequencer below, just with a note name (not a drum sound) as the
   // per-row key, so the same rendering/toggle code covers both.
-  // Mirrors the whitelist in worker/render.js's renderSongBlockHtml -- both
-  // sides need to agree on which theme values actually have a matching
-  // CSS rule (public/style.css's .song-theme-* classes), since "default"
-  // (or any unrecognized value from stale/imported data) means no
-  // song-theme-* class at all, falling through to the site's own global
-  // --accent unchanged.
-  const SONG_THEME_CLASSES = new Set(["sunset", "ocean", "mono", "neon"]);
-  function applySongTheme(embedEl, theme) {
-    SONG_THEME_CLASSES.forEach((t) => embedEl.classList.remove(`song-theme-${t}`));
-    if (SONG_THEME_CLASSES.has(theme)) embedEl.classList.add(`song-theme-${theme}`);
-  }
 
   const NOTE_NAMES = Engine.NOTE_NAMES;
   const PIANO_NOTES = [];
@@ -204,19 +191,13 @@
     return {
       tempo: 120,
       kit: "acoustic",
-      visualization: "bars",
-      theme: "default",
-      page_sync: false,
       master_volume: 1,
       humanize: 0,
       swing: 0,
       space: 0,
       // Free-text production notes -- mix references, arrangement ideas,
       // "redo the kick" reminders. Rides in the same JSON blob as every
-      // other song setting, but renderSongBlockHtml() (worker/render.js)
-      // explicitly strips this one key before it reaches the public
-      // embed's data-song attribute, the same "never shown publicly"
-      // guarantee articles/projects give their own private_notes column.
+      // other song setting.
       private_notes: "",
       tracks: CORE_TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
@@ -333,7 +314,6 @@
   let songHistoryKnownName = $("song-name").value;
   let tapTimes = [];
   let tapStatusTimer = null;
-  let tapPreviewTimer = null;
 
   function captureSongHistoryState(name = $("song-name").value) {
     return { name, data: JSON.parse(JSON.stringify(songData)) };
@@ -473,9 +453,6 @@
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
     syncVoiceControl();
-    $("song-visualization").value = songData.visualization || "bars";
-    $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
-    $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
     $("song-swing").value = Number(songData.swing) || 0;
@@ -487,16 +464,12 @@
     $("song-pump").value = Number(songData.pump) || 0;
     $("song-pump").setAttribute("aria-valuetext", Number(songData.pump) ? `${Number(songData.pump)}% pump` : "Off");
     $("song-notes").value = songData.private_notes || "";
-    applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     Engine.setSpace(getAudioCtx(), songData.space);
     Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
-    $("song-preview-name").textContent = state.name || "Song name";
     renderSequencer();
     renderPianoRoll();
     renderPatternControls();
-    updatePreviewVisibility();
-    refreshWaveformPreview();
     notifyStudio();
     songEditGeneration++;
     scheduleAutosave();
@@ -562,8 +535,6 @@
     const dirtyGen = songDirtyGeneration;
     const data = pruneParts(JSON.parse(JSON.stringify(songData)));
     try {
-      await refreshCachedWaveformPeaks(data);
-      if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
       await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while this PATCH was in flight
       if (dirtyGen === songDirtyGeneration) {
@@ -574,7 +545,6 @@
         setAutosaveStatus("Unsaved changes…");
         autosaveQueued = true;
       }
-      if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
       if (gen !== openGeneration || id !== currentSongId) return;
       setAutosaveStatus("Autosave failed: " + err.message);
@@ -650,10 +620,8 @@
   }
 
   // Playback and drum/melody synthesis both live in the shared engine
-  // (public/song-engine.js) — the exact same code the public Song block
-  // uses to play a song on an article/project page. Only the admin-
-  // specific bits (grid highlighting, live tempo/kit/waveform editing)
-  // stay here.
+  // (public/song-engine.js). Only the editor's own bits (grid highlighting,
+  // live tempo/kit/waveform editing) stay here.
   let audioCtx = null;
   function getAudioCtx() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -675,143 +643,8 @@
   }
   ["pointerdown", "keydown", "touchend"].forEach((type) => document.addEventListener(type, () => { if (audioCtx && audioCtx.state !== "running") ensureAudio(); }, true));
 
-  // ---------- Live preview panel ----------
-  // Mirrors exactly what the public Song block renders/does (same CSS
-  // classes, same SongEngine calls) so "dialing in" the visualization here
-  // matches what a reader will actually see — no separate preview-only
-  // implementation to keep in sync.
-  let previewPeaks = null;
-
-  function updatePreviewVisibility() {
-    const viz = songData.visualization || "bars";
-    $("song-preview-bars").hidden = viz !== "bars";
-    $("song-preview-waveform").hidden = viz !== "waveform";
-    $("song-preview-pulse").hidden = viz !== "pulse";
-    if (viz === "bars" && !$("song-preview-bars").children.length) {
-      $("song-preview-bars").innerHTML = Array.from({ length: STEPS }, () => `<span class="song-embed-bar"></span>`).join("");
-    }
-  }
-
-  // Dragging the new volume slider fires many rapid 'input' events, each
-  // triggering a re-render here -- an OfflineAudioContext render is async,
-  // so several can be in flight at once and resolve out of order. A
-  // generation token discards any render whose result comes back after a
-  // newer one was already started, the same pattern used for the
-  // open-song race above.
-  let waveformPreviewGeneration = 0;
-  async function refreshWaveformPreview() {
-    if ((songData.visualization || "bars") !== "waveform") return;
-    const myGeneration = ++waveformPreviewGeneration;
-    const peaks = await Engine.renderWaveformPeaks(songData, 200);
-    if (myGeneration !== waveformPreviewGeneration) return;
-    previewPeaks = peaks;
-    drawWaveformPreview(0);
-  }
-
-  // ---------- Cached waveform peaks (persisted with the song) ----------
-  // The public embed (public/song-embed.js) used to run its own
-  // OfflineAudioContext render of renderWaveformPeaks() on EVERY page
-  // load of a "waveform"-visualization song, just to draw the static
-  // preview bars -- pure wasted CPU/battery for every visitor, since the
-  // peaks are a deterministic function of songData that only actually
-  // changes when the admin edits and saves the song. Computing it once
-  // here at save time (reusing the exact same 200-bucket call the admin
-  // preview above already makes, so the cached shape matches what the
-  // admin already saw while editing) and persisting it as part of the
-  // saved song data means every future page load can skip the render
-  // entirely and just draw the already-computed numbers -- worker/
-  // render.js's renderSongBlockHtml() already serializes the WHOLE
-  // song.data blob into the embed's data-song attribute, so this needed
-  // no server-side change at all to reach the public page.
-  // Only computed for "waveform" visualization songs, since that's the
-  // only mode with a canvas to draw peaks into at all -- storing it for
-  // "bars"/"pulse" songs would just be dead weight in the saved JSON
-  // that nothing ever reads. Recomputed fresh on every save (rather than
-  // tracked with a separate dirty flag) so it can never go stale against
-  // whatever content was actually saved.
-  // Takes `data` as an explicit parameter (rather than reading the
-  // module-level `songData` directly) so the object this writes onto is
-  // fixed at the moment it's called, not re-resolved after the `await`
-  // -- otherwise switching to a different song while this render is
-  // still in flight (the same shape of race a critic pass already
-  // stress-tested for the "Generate cover art" feature) could attach one
-  // song's freshly-computed peaks onto a DIFFERENT song's data object.
-  async function refreshCachedWaveformPeaks(data) {
-    if ((data.visualization || "bars") === "waveform") {
-      try {
-        data.cached_peaks = await Engine.renderWaveformPeaks(data, 200);
-      } catch (err) {
-        delete data.cached_peaks; // a broken/partial cache would be worse than none -- the embed falls back to a live render when this is absent
-      }
-    } else {
-      delete data.cached_peaks;
-    }
-  }
-
-  function drawWaveformPreview(progress) {
-    const canvas = $("song-preview-waveform");
-    if (!previewPeaks || canvas.hidden) return;
-    const c2d = canvas.getContext("2d");
-    const w = canvas.width;
-    const h = canvas.height;
-    const mid = h / 2;
-    c2d.clearRect(0, 0, w, h);
-    const barW = w / previewPeaks.length;
-    // Reads --accent off the preview embed itself (not hardcoded) so a
-    // chosen theme is reflected here too, matching the public embed's own
-    // theme-aware waveform color (see public/song-embed.js).
-    const accent = getComputedStyle($("song-preview-embed")).getPropertyValue("--accent").trim() || "#ff7a45";
-    previewPeaks.forEach((p, i) => {
-      const played = i / previewPeaks.length <= progress;
-      c2d.fillStyle = played ? accent : "rgba(255,255,255,0.25)";
-      const yTop = mid + p[1] * mid;
-      const yBot = mid + p[0] * mid;
-      c2d.fillRect(i * barW, yTop, Math.max(1, barW - 1), Math.max(1, yBot - yTop));
-    });
-  }
-
-  $("song-theme").addEventListener("change", () => {
-    songData.theme = $("song-theme").value;
-    applySongTheme($("song-preview-embed"), songData.theme);
-    // A theme change only re-colors --accent -- it doesn't change the
-    // underlying waveform samples at all, so re-rendering the offline
-    // peaks themselves would be pointless work; just redraw with the
-    // already-cached peaks at the new color.
-    if ((songData.visualization || "bars") === "waveform") drawWaveformPreview(0);
-    scheduleAutosave();
-  });
-  $("song-visualization").addEventListener("change", () => {
-    songData.visualization = $("song-visualization").value;
-    updatePreviewVisibility();
-    refreshWaveformPreview();
-    scheduleAutosave();
-  });
-  $("song-page-sync").addEventListener("change", () => {
-    songData.page_sync = $("song-page-sync").checked;
-    scheduleAutosave();
-  });
-
-  // Same shared-overlay approach as the public embed (public/song-embed.js)
-  // — one fixed layer, flashed on any beat, so trying "Sync page background"
-  // here previews the same effect a reader would see.
-  let pageSyncOverlay = null;
-  function getPageSyncOverlay() {
-    if (!pageSyncOverlay) {
-      pageSyncOverlay = document.createElement("div");
-      pageSyncOverlay.id = "song-page-sync-overlay";
-      document.body.appendChild(pageSyncOverlay);
-    }
-    return pageSyncOverlay;
-  }
-  function flashPageSync() {
-    const overlay = getPageSyncOverlay();
-    overlay.classList.remove("song-page-sync-hit");
-    void overlay.offsetWidth;
-    overlay.classList.add("song-page-sync-hit");
-  }
-
   // info (from the player): which pattern is sounding and where it sits in the song order. The playhead is drawn on the grids only while the
-  // pattern being played is the one being edited, and the waveform's progress covers the whole song.
+  // pattern being played is the one being edited.
   function highlightStep(step, time, info) {
     if (typeof time === "number") noteScheduledStep(step, time, info && info.chainIndex, info);
     if (window.SongStudio) window.SongStudio.step(step, time, info);
@@ -821,25 +654,6 @@
       el.classList.toggle("song-step-playing", visible && Number(el.dataset.step) === step);
     });
     if (info) markPlayingOrderChip(info.chainLength > 1 ? info.chainIndex : -1);
-    $("song-preview-name").textContent = $("song-name").value || "Song name";
-    const viz = songData.visualization || "bars";
-    const hits = Engine.stepHasAudibleDrumHit(info ? info.data : songData, step);
-    if (viz === "bars") {
-      $("song-preview-bars")
-        .querySelectorAll(".song-embed-bar")
-        .forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
-    } else if (viz === "waveform") {
-      drawWaveformPreview(((info ? info.chainIndex : 0) * STEPS + step) / ((info ? info.chainLength : 1) * STEPS));
-    } else if (viz === "pulse") {
-      const pulseEl = $("song-preview-pulse");
-      pulseEl.classList.toggle("song-embed-pulse-beat", hits);
-      if (hits) {
-        pulseEl.classList.remove("song-embed-pulse-hit");
-        void pulseEl.offsetWidth;
-        pulseEl.classList.add("song-embed-pulse-hit");
-      }
-    }
-    if (songData.page_sync && hits) flashPageSync();
   }
 
   // ---------- Metronome and count-in ----------
@@ -959,11 +773,10 @@
     songData.tempo = Number($("song-tempo").value) || 120;
     Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     renderRulers();
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   // Tap tempo: the BPM comes from the average gap between your last few taps; a pause of two seconds starts over.
-  // A whole tap session is one undo step, and the preview render waits until the taps settle.
+  // A whole tap session is one undo step.
   $("song-tap-tempo").addEventListener("click", () => {
     const now = performance.now();
     if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
@@ -986,18 +799,14 @@
     songData.tempo = bpm;
     renderRulers();
     scheduleAutosave();
-    clearTimeout(tapPreviewTimer);
-    tapPreviewTimer = setTimeout(refreshWaveformPreview, 300);
     $("song-tap-status").textContent = raw === bpm ? `${bpm} BPM` : `${bpm} BPM (${raw < bpm ? "slowest" : "fastest"} allowed)`;
   });
   $("song-kit").addEventListener("change", () => {
     songData.kit = $("song-kit").value;
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-waveform").addEventListener("change", () => {
     songData.melody.waveform = $("song-waveform").value;
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   // The melody sound (instrument) brings its own oscillator, so the plain waveform select only applies while it is "Basic".
@@ -1012,7 +821,6 @@
     if (voice) songData.melody.voice = voice;
     else delete songData.melody.voice;
     syncVoiceControl();
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   // Invalidates an async normalize scan if any song edit happens while it
@@ -1024,10 +832,7 @@
     // otherwise dragging the slider while playback is stopped (or before
     // the next scheduled step) has no audible effect, and a MIDI-keyboard
     // preview note (which plays via Engine.playMelodyNote directly, not
-    // through scheduleStep) would play at a stale volume. The waveform
-    // preview intentionally always renders at full scale regardless of
-    // master_volume (see renderWaveformPeaks), so it doesn't need a
-    // refresh here.
+    // through scheduleStep) would play at a stale volume.
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     scheduleAutosave();
   });
@@ -1052,7 +857,6 @@
     patternAnnounce++;
     $("song-pattern-status").textContent = `${message} (${patternWord()}${skipped ? `, ${skipped} hidden row${skipped > 1 ? "s" : ""} skipped` : ""}).${patternAnnounce % 2 ? "" : " "}`;
     scheduleAutosave();
-    refreshWaveformPreview();
   }
   // How full a randomized row is: busy hats, sparse kicks, and the extra voices kept light so a random beat still breathes.
   const DRUM_RANDOM_DENSITY = { hihat: 0.5, kick: 0.25, openhat: 0.15, rim: 0.15, tom: 0.12, crash: 0.04 };
@@ -1101,7 +905,6 @@
     patternAnnounce++;
     $("song-pattern-status").textContent = `${fill.label.replace(/ \(.*$/, "")} added over steps ${fill.from + 1} to ${STEPS}.${patternAnnounce % 2 ? "" : " "}`;
     scheduleAutosave();
-    refreshWaveformPreview();
   });
   $("song-euclid-apply").addEventListener("click", () => {
     const hits = clampInt("song-euclid-hits", 0, STEPS);
@@ -1111,7 +914,6 @@
   $("song-swing").addEventListener("input", () => {
     songData.swing = Number($("song-swing").value) || 0;
     $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-space").addEventListener("input", () => {
@@ -1133,7 +935,6 @@
     const amount = Number($("song-pump").value) || 0;
     if (amount) songData.pump = amount; else delete songData.pump; // a song with no pump has no pump field
     $("song-pump").setAttribute("aria-valuetext", amount ? `${amount}% pump` : "Off");
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-notes").addEventListener("input", () => {
@@ -1194,7 +995,6 @@
     }
   });
   $("song-name").addEventListener("input", () => {
-    $("song-preview-name").textContent = $("song-name").value || "Song name";
     scheduleAutosave();
   });
 
@@ -1483,13 +1283,7 @@
     if (window.SongStudio) window.SongStudio.stopped();
     stopPeakMeter();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
-    $("song-preview-bars")
-      .querySelectorAll(".song-embed-bar")
-      .forEach((bar) => bar.classList.remove("song-embed-bar-active"));
-    $("song-preview-pulse").classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
     markPlayingOrderChip(-1);
-    if (pageSyncOverlay) pageSyncOverlay.classList.remove("song-page-sync-hit");
-    drawWaveformPreview(0);
     $("song-play").textContent = "Play";
   }
 
@@ -1597,7 +1391,6 @@
       const lane = storedLane(spot.pattern, "drums", row);
       if (lane && !lane[spot.step]) {
         lane[spot.step] = levelValue(velocity);
-        refreshWaveformPreview();
         scheduleAutosave();
       }
       return;
@@ -1655,7 +1448,6 @@
           part2.ties[noteName][i] = true;
         }
         renderPianoRoll();
-        refreshWaveformPreview();
         scheduleAutosave();
       },
       bend(cents) {
@@ -1693,7 +1485,6 @@
       const lane = storedLane(spot.pattern, rollPart, noteName);
       if (lane && !lane[spot.step]) {
         lane[spot.step] = level;
-        refreshWaveformPreview();
         scheduleAutosave();
       }
       return { step: spot.step, other: true };
@@ -1914,7 +1705,7 @@
         const muted = Boolean(meta) && meta.muted === true;
         const hidden = Boolean(meta) && meta.hidden === true;
         const toggleHtml = meta
-          ? `<button type="button" class="song-track-toggle song-track-mute" data-row="${key}" aria-pressed="${muted}" aria-label="Mute ${label}" title="Mute ${label}: silent in the preview and on the public page">M</button>` +
+          ? `<button type="button" class="song-track-toggle song-track-mute" data-row="${key}" aria-pressed="${muted}" aria-label="Mute ${label}" title="Mute ${label}: silent when the song plays">M</button>` +
             `<button type="button" class="song-track-toggle song-track-hide" data-row="${key}" aria-pressed="${hidden}" aria-label="Hide ${label} row" title="Hide ${label} row: collapses it here in the editor, but it still plays unless muted">${hidden ? SONG_EYE_OFF_ICON : SONG_EYE_ICON}</button>`
           : "";
         // An added drum row has a × at its far end (not beside Mute and Hide, which would push its steps out of line with the rows above).
@@ -1992,7 +1783,6 @@
           if (next && next !== true) btn.style.setProperty("--lv", String(next)); else btn.style.removeProperty("--lv");
           btn.setAttribute("aria-label", btn.getAttribute("aria-label").replace(/, (soft|medium)$/, "") + stepLevelSpoken(next));
           $("song-step-status").textContent = `${btn.getAttribute("aria-label").replace(/,.*$/, "").replace(/ step (\d+).*$/, " step $1")}: ${!next ? "off" : Engine.stepLevel(next) >= 1 ? "full" : Engine.stepLevel(next) >= 0.5 ? "medium" : "soft"}.`;
-          refreshWaveformPreview();
           scheduleAutosave();
         });
       });
@@ -2005,7 +1795,6 @@
           onMetaChange(btn.dataset.row, "muted", next);
           btn.setAttribute("aria-pressed", String(next));
           btn.closest(".song-track-row").classList.toggle("song-track-row-muted", next);
-          refreshWaveformPreview();
           scheduleAutosave();
         });
       });
@@ -2033,7 +1822,6 @@
           const v = Number(inp.value) / 100;
           onMetaChange(inp.dataset.row, "volume", v);
           inp.setAttribute("aria-valuetext", volumeText(v));
-          refreshWaveformPreview();
           scheduleAutosave();
         });
       });
@@ -2212,7 +2000,6 @@
     $("song-add-drum").value = t;
     $("song-add-drum").focus();
     $("song-drum-status").textContent = `${TRACK_LABELS[t]} row removed.`;
-    refreshWaveformPreview();
     scheduleAutosave();
   }
 
@@ -2315,28 +2102,6 @@
       if (i === index) li.setAttribute("aria-current", "step");
       else li.removeAttribute("aria-current");
     });
-    updatePreviewPosition();
-  }
-
-  // The preview's bar counter, as on the public player: "N bars" at rest, "Bar 3 of 6 · Pattern B" while the song order plays (and nothing at
-  // all for a song of one bar). One segment per bar in the strip.
-  function updatePreviewPosition() {
-    const row = $("song-preview-position");
-    const order = Engine.chainOf(songData);
-    const playing = playingChip >= 0 && playingChip < order.length ? playingChip : null;
-    const text = Engine.positionLabel(songData, playing, { pattern: true });
-    row.hidden = !text;
-    if (!text) return;
-    const strip = $("song-preview-position-strip");
-    if (strip.children.length !== order.length) {
-      strip.innerHTML = order.map(() => "<span></span>").join("");
-      $("song-preview-position-label").style.minWidth = Engine.positionLabel(songData, order.length - 1, { pattern: true }).length + "ch";
-    }
-    $("song-preview-position-label").textContent = text;
-    [...strip.children].forEach((seg, i) => {
-      seg.classList.toggle("is-now", i === playing);
-      seg.classList.toggle("is-done", playing !== null && i < playing);
-    });
   }
 
   function renderPatternControls() {
@@ -2363,7 +2128,6 @@
     $("song-order-list").querySelectorAll(".song-order-remove").forEach((btn) => btn.addEventListener("click", () => removeFromOrder(Number(btn.dataset.index))));
     $("song-order-list").querySelectorAll(".song-order-move").forEach((btn) => btn.addEventListener("click", () => moveInOrder(Number(btn.dataset.index), Number(btn.dataset.dir))));
     playingChip = -1;
-    updatePreviewPosition();
     // With no order the song plays its first pattern on its own: say so, so an empty order is not a mystery.
     $("song-order-hint").hidden = chain.length > 0;
     $("song-order-hint").textContent = `Nothing in the order yet: the song plays pattern ${Engine.chainOf(songData)[0]} on its own. Add patterns with the + buttons.`;
@@ -2412,7 +2176,6 @@
   };
   const arrChanged = () => {
     renderPatternControls();
-    refreshWaveformPreview();
     scheduleAutosave();
   };
   const arrReopen = () => {
@@ -2537,7 +2300,6 @@
     renderPianoRoll();
     renderPatternControls();
     patternSay(`Pattern ${editingPattern()} now has pattern ${from}'s ${words[what]}. Undo brings the old one back.`);
-    refreshWaveformPreview();
     scheduleAutosave();
     $("song-copy-apply").focus();
   });
@@ -2553,7 +2315,6 @@
     const from = editingPattern();
     openPattern(name, copyParts(openParts()));
     afterPatternSwitch(`Pattern ${name} is a copy of ${from}, and is now open. Undo takes it back.`);
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-pattern-remove").addEventListener("click", () => {
@@ -2572,7 +2333,6 @@
     else delete songData.chain;
     if (songData.lanes) Object.keys(songData.lanes).forEach((k) => { songData.lanes[k].order = songData.lanes[k].order.filter((n) => n !== name); });
     afterPatternSwitch(`Pattern ${name} removed. Pattern ${next} is open.`);
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   function changeOrder(next, message) {
@@ -2580,7 +2340,6 @@
     else delete songData.chain;
     renderPatternControls();
     patternSay(`${message} ${orderSummary()}`);
-    refreshWaveformPreview();
     scheduleAutosave();
   }
   function addToOrder(name) {
@@ -2643,7 +2402,7 @@
     // The accessible name always contains the visible word (WCAG 2.5.3).
     $("song-melody-mute").setAttribute("aria-label", muted ? `Muted ${word}` : `Mute ${word}`);
     $("song-melody-hide").setAttribute("aria-label", hidden ? `Hidden ${word} piano roll` : `Hide ${word} piano roll`);
-    $("song-melody-mute").title = `Mute the ${word}: silent in the preview and on the public page`;
+    $("song-melody-mute").title = `Mute the ${word}: silent when the song plays`;
     $("song-melody-hide").title = `Hide the piano roll here in the editor; the ${word} still plays unless muted`;
     $("song-melody-volume").setAttribute("aria-label", `${rollWordCap()} volume`);
     $("song-melody-volume").title = `${rollWordCap()} volume`;
@@ -2659,7 +2418,6 @@
       toggle.focus();
     } else {
       if (part.hidden === true) renderPianoRoll();
-      refreshWaveformPreview();
     }
     scheduleAutosave();
   }
@@ -2667,7 +2425,6 @@
     const part = roll();
     setVolume(part, Number($("song-melody-volume").value) / 100);
     $("song-melody-volume").setAttribute("aria-valuetext", volumeText(part.volume ?? 1));
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-melody-mute").addEventListener("click", () => setMelodyFlag("muted"));
@@ -2812,7 +2569,6 @@
     const voice = $("song-bass-voice").value;
     if (voice === "bass") delete bass.voice;
     else bass.voice = voice;
-    refreshWaveformPreview();
     scheduleAutosave();
   });
   // The chords' and the lead's sound: each part's own default voice unless another is chosen (stored only when it is not the default).
@@ -2822,7 +2578,6 @@
     const voice = $("song-part-voice").value;
     if (voice === Engine.partVoiceOf({}, rollPart)) delete target.voice;
     else target.voice = voice;
-    refreshWaveformPreview();
     scheduleAutosave();
   });
 
@@ -2872,7 +2627,6 @@
       setMelodyTies(ties);
       paintTies();
       tieSay(`${name} steps ${step} and ${step + 1} ${nowTied ? "tied: they play as one held note" : "untied"}.`);
-      refreshWaveformPreview();
       scheduleAutosave();
     },
     true
@@ -2950,7 +2704,6 @@
     open.notes = openNotes;
     setMelodyTies(openTies);
     renderPianoRoll();
-    refreshWaveformPreview();
     scheduleAutosave();
   }
 
@@ -2995,7 +2748,6 @@
     part.notes = next;
     setMelodyTies(tiesFn ? tiesFn(part.ties || {}, next) : {});
     renderPianoRoll();
-    refreshWaveformPreview();
     scheduleAutosave();
     melodyToolsSay(message);
     return true;
@@ -3130,9 +2882,7 @@
       visible
         .map(
           (s) =>
-            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="usage-song" data-id="${
-              s.id
-            }" data-name="${escapeXml(s.name)}" title="See which pages use this song">Usage</button><button type="button" class="duplicate-song" data-id="${
+            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="duplicate-song" data-id="${
               s.id
             }">Duplicate</button><button type="button" class="edit-song" data-id="${s.id}">Edit</button><button type="button" class="delete-song" data-id="${s.id}">Delete</button></div>`
         )
@@ -3140,23 +2890,9 @@
       `<p style='color:var(--text-dim);font-size:0.85rem;'>${
         songs.length ? "No songs match your search." : "No songs yet."
       }</p>`;
-    if (window.bulkList) {
-      window.bulkList({
-        listId: "songs-list",
-        type: "song",
-        noun: "song",
-        rowIdSelector: ".edit-song",
-        duplicate: (id) => window.adminApi(`/songs/${id}/duplicate`, { method: "POST" }),
-        remove: (id) => window.adminApi(`/songs/${id}`, { method: "DELETE" }),
-        reload: loadSongsList,
-      });
-    }
     $("songs-list")
       .querySelectorAll(".edit-song")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
-    $("songs-list")
-      .querySelectorAll(".usage-song")
-      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("song", btn.dataset.id, btn.dataset.name)));
     $("songs-list")
       .querySelectorAll(".duplicate-song")
       .forEach((btn) =>
@@ -3169,11 +2905,7 @@
       .querySelectorAll(".delete-song")
       .forEach((btn) =>
         btn.addEventListener("click", async () => {
-          const usage = await window.adminApi(`/content-usage?type=song&id=${btn.dataset.id}`).catch(() => []);
-          const msg = usage.length
-            ? `This song is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will be omitted from public pages until replaced.`
-            : "Delete this song? This can't be undone.";
-          if (!confirm(msg)) return;
+          if (!confirm("Delete this song? This can't be undone.")) return;
           await window.adminApi(`/songs/${btn.dataset.id}`, { method: "DELETE" });
           await loadSongsList();
         })
@@ -3320,6 +3052,8 @@
       if (!Object.keys(data.lanes).length) delete data.lanes;
     }
     if (data.private_notes == null) data.private_notes = "";
+    // Fields of a song saved when songs could be put on web pages: nothing reads them now, so a song opened here lets go of them.
+    ["visualization", "theme", "page_sync", "cached_peaks"].forEach((key) => delete data[key]);
     return data;
   }
 
@@ -3542,26 +3276,6 @@
   let openRequestSeq = 0;
   let committedOpenSeq = 0;
   let pendingOpenId = null; // the song a not-yet-committed open is fetching
-  // What a new blank song starts with, from Site Settings > Songs (tempo, length, drum kit). A failed read just leaves the built-in defaults.
-  async function fetchSongDefaults() {
-    try {
-      return await window.adminApi("/settings");
-    } catch {
-      return null;
-    }
-  }
-  function applySongDefaults(data, settings) {
-    if (!settings) return;
-    try {
-      const tempo = Number(settings.song_default_tempo);
-      if (Number.isInteger(tempo) && tempo >= 40 && tempo <= 240) data.tempo = tempo;
-      const bars = Number(settings.song_default_bars);
-      if (Number.isInteger(bars) && bars >= 1 && bars <= Engine.MAX_BARS) data.bars = bars;
-      if (Engine.KITS.includes(settings.song_default_kit)) data.kit = settings.song_default_kit;
-    } catch {
-      /* built-in defaults */
-    }
-  }
   async function openBuilder(id, templateId, starterId) {
     if (!canLeaveSongBuilder(false)) return false;
     const dirtyGenAtAsk = songDirtyGeneration;
@@ -3570,9 +3284,6 @@
     const mySeq = ++openRequestSeq;
     pendingOpenId = id;
     let song = null;
-    let defaults = null;
-    if (!id && !starterId && !templateId) defaults = await fetchSongDefaults(); // read with the other request, before this open is committed
-    if (!id && mySeq !== openRequestSeq) return false;
     if (id) {
       try {
         song = await window.adminApi(`/songs/${id}`);
@@ -3624,16 +3335,11 @@
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();
-      applySongDefaults(songData, defaults);
     }
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
     syncVoiceControl();
-    $("song-visualization").value = songData.visualization || "bars";
-    $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
-    applySongTheme($("song-preview-embed"), songData.theme);
-    $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
     $("song-swing").value = Number(songData.swing) || 0;
@@ -3652,7 +3358,6 @@
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     Engine.setSpace(getAudioCtx(), songData.space);
     Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
-    $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
     player = Engine.createPlayer(getAudioCtx, songData, onPlayerStep);
@@ -3668,8 +3373,6 @@
     renderPatternControls();
     patternSay("");
     notifyStudio(true);
-    updatePreviewVisibility();
-    refreshWaveformPreview();
     syncActiveTab();
     return true;
   }
@@ -3693,9 +3396,6 @@
     songData.tempo = Number($("song-tempo").value) || 120;
     songData.kit = $("song-kit").value;
     songData.melody.waveform = $("song-waveform").value;
-    songData.visualization = $("song-visualization").value;
-    songData.theme = $("song-theme").value;
-    songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
     songData.swing = Number($("song-swing").value) || 0;
@@ -3716,7 +3416,6 @@
     setAutosaveStatus("Saving…");
     let saveFailed = false;
     try {
-      await refreshCachedWaveformPeaks(data);
       // An older autosave may already be writing this same row. Let it
       // finish before the explicit Save so an earlier snapshot cannot
       // arrive last and overwrite the newer manual save.
@@ -3731,10 +3430,7 @@
       }
       if (gen !== openGeneration) {
         // A different song is open now, but THIS song's data was still
-        // genuinely saved above -- refresh the songs list so a
-        // brand-new song shows up there rather than only existing in a
-        // database row nobody in the UI knows about yet.
-        if (window.refreshSongOptions) window.refreshSongOptions();
+        // genuinely saved above.
         return;
       }
       if (!id) {
@@ -3750,7 +3446,6 @@
         songHasUnsavedChanges = true;
         setAutosaveStatus("Saved, but newer edits still need saving…");
       }
-      if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
       if (gen !== openGeneration) {
         // The user has already moved to another song, so nothing on screen shows
@@ -3798,15 +3493,12 @@
         : [`Patterns: ${Engine.patternNames(songData).join(", ")} (${editingPattern()} was open)`, `Song order: ${Engine.chainOf(songData).join(" ")} (${Engine.chainOf(songData).length} bar${Engine.chainOf(songData).length === 1 ? "" : "s"})`]),
       `Melody sound: ${Engine.melodyVoiceOf(songData) ? Engine.MELODY_VOICES[Engine.melodyVoiceOf(songData)].label : `Basic, ${songData.melody.waveform} waveform`}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
       ...PART_KEYS.filter(partHasNotes).map((key) => `${REPORT_NAMES[key]} sound: ${Engine.MELODY_VOICES[Engine.partVoiceOf(songData, key)].label}${songData[key].muted === true ? " (muted)" : ""}${reportVolume(songData[key])}`),
-      `Visualization: ${songData.visualization}`,
-      `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
       `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
       `Swing: ${typeof songData.swing === "number" ? songData.swing : 0}%`,
       `Space: ${typeof songData.space === "number" ? songData.space : 0}%`,
       `Echo: ${Number(songData.echo) || 0}%`,
       ...(Number(songData.pump) ? [`Pump: ${Number(songData.pump)}%`] : []),
-      `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
       "Drum tracks (steps hit / total):",
@@ -4224,61 +3916,11 @@
     }
   });
 
-  // ---------- Generate waveform cover art ----------
-  // Renders the song's own already-existing offline waveform peaks
-  // (the same Engine.renderWaveformPeaks() used for the "waveform"
-  // visualization preview above) onto a fresh, higher-resolution
-  // 1200x630 canvas (a common social/cover-image aspect ratio) and
-  // uploads the result straight into the Media Library via the same
-  // adminUploadBlob() helper the Photo Editor's own "Save as new"
-  // already uses -- no new upload plumbing needed. Reads the theme's
-  // live --accent color off the already-rendered preview embed, exactly
-  // like drawWaveformPreview() above, rather than hardcoding a second
-  // copy of the four theme colors that could drift out of sync with
-  // public/style.css's own .song-theme-* definitions.
-  $("song-generate-cover-art").addEventListener("click", async () => {
-    const btn = $("song-generate-cover-art");
-    if (btn.disabled) return;
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Generating…";
-    try {
-      const peaks = await Engine.renderWaveformPeaks(songData, 80);
-      const w = 1200;
-      const h = 630;
-      const cvs = document.createElement("canvas");
-      cvs.width = w;
-      cvs.height = h;
-      const c2d = cvs.getContext("2d");
-      c2d.fillStyle = "#0c0a16"; // matches the site's own dark-theme --bg
-      c2d.fillRect(0, 0, w, h);
-      const accent = getComputedStyle($("song-preview-embed")).getPropertyValue("--accent").trim() || "#ff7a45";
-      const mid = h / 2;
-      const barW = w / peaks.length;
-      c2d.fillStyle = accent;
-      peaks.forEach((p, i) => {
-        const yTop = mid + p[1] * mid * 0.85; // 0.85, not 1, so the tallest peaks leave a small margin rather than touching the image edges
-        const yBot = mid + p[0] * mid * 0.85;
-        c2d.fillRect(i * barW, yTop, Math.max(1, barW - 2), Math.max(1, yBot - yTop));
-      });
-      const blob = await new Promise((resolve) => cvs.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("Canvas export failed");
-      await window.adminUploadBlob(blob, "song-covers");
-      if (window.refreshMediaLibrary) window.refreshMediaLibrary();
-      alert("Cover art generated and added to the Media Library (in the \"song-covers\" folder).");
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
-  });
-
   // ---------- Snapshot mix ----------
   // Creates a brand-new, separate song row from the CURRENT in-memory
   // songData -- including any unsaved edits still in the builder, not
-  // just what's persisted -- so an admin can try a different mixing
-  // direction (volumes, theme, kit, notes) without losing this exact
+  // just what's persisted -- so you can try a different mixing
+  // direction (volumes, kit, notes) without losing this exact
   // version, and without it disturbing the song still open in this
   // builder (currentSongId/songHasUnsavedChanges are left untouched;
   // this only ever creates a new row, never overwrites the original).
@@ -4295,9 +3937,7 @@
       // Deep-cloned so this snapshot is a true independent copy, unaffected
       // by any further live edits made to songData after this point.
       const data = JSON.parse(JSON.stringify(songData));
-      await refreshCachedWaveformPeaks(data);
       await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name: snapshotName, data }) });
-      if (window.refreshSongOptions) window.refreshSongOptions();
       alert(`Saved as a new song: "${snapshotName}". You're still editing the original -- open it separately from the Songs list to compare.`);
     } catch (err) {
       alert(err.message);
@@ -4317,17 +3957,8 @@
       moreBtn.querySelector(".sim-more-caret").textContent = open ? "▴" : "▾";
     };
     moreBtn.addEventListener("click", () => setMore(!inner.classList.contains("sim-more-open")));
-    // The preview card and clipping history fold away on a phone or a short laptop screen so the drum grid is in reach; a tall desktop always shows them.
-    const fold = $("song-preview-fold");
-    const wide = window.matchMedia("(min-width: 861px) and (min-height: 861px)");
-    wide.addEventListener("change", (e) => {
-      if (e.matches) fold.open = true;
-    });
     new MutationObserver(() => {
-      if (!$("song-builder-modal").hidden) {
-        setMore(false);
-        fold.open = wide.matches;
-      }
+      if (!$("song-builder-modal").hidden) setMore(false);
     }).observe($("song-builder-modal"), { attributes: true, attributeFilter: ["hidden"] });
   }
 })();

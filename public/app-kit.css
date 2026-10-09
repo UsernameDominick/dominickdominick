@@ -3,8 +3,6 @@
 .app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
 .app-native { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .app-native .app-shell { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: transparent; color: var(--text); }
-/* Things only the site's owner has a use for. */
-.app-native :is(.editor-help-btn, .usage-song, .bulk-bar) { display: none !important; }
 
 /* ---- the shelf: the visitor's songs ---- */
 .app-native .studio-shelf { flex: 1 1 auto; min-height: 0; overflow-y: auto; width: 100%; max-width: 1080px; margin: 0 auto; padding: 28px 24px 40px; }
@@ -197,8 +195,8 @@
 .app-native .studio-pick:hover { border-color: var(--accent); }
 .app-native .studio-pick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .app-native #song-audio-modal { z-index: 1100; }
-/* More of what only the site's owner has a use for. */
-.app-native :is(#close-songs, #song-generate-cover-art, #studio-sheet-help, #song-view-toggle, #song-toolbar-publish, #studio-help) { display: none !important; }
+/* The Songs list is kept hidden (the shelf and the Songs panel are the list), so its close button is never shown. */
+.app-native #close-songs { display: none !important; }
 
 /* With the Songs panel beside the editor (1280px and up) the "Songs" button has nothing to go back to. */
 @media (min-width: 1280px) { .app-native #studio-close { display: none; } }

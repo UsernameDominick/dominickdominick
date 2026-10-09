@@ -29,7 +29,7 @@ const { chromium } = require("./_pw.cjs");
     ok((await p.locator(".shelf-empty").count()) === 1, "with no songs yet it says so");
     const starters = await p.locator(".shelf-chip").count();
     ok(starters >= 3, "starter songs are offered", starters);
-    ok((await p.locator("#close-songs, .usage-song, #song-generate-cover-art, #studio-help").evaluateAll((els) => els.filter((e) => e.offsetParent).length)) === 0, "no owner-only parts show");
+    ok((await p.locator("#close-songs").evaluateAll((els) => els.filter((e) => e.offsetParent).length)) === 0, "no owner-only parts show");
 
     // a new song opens in place, under the nav
     await p.click("#new-song-btn");
