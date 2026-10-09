@@ -2822,7 +2822,7 @@
       tab.setAttribute("aria-selected", String(on));
       tab.tabIndex = on ? 0 : -1;
       tab.classList.toggle("is-active", on);
-      if (on) tab.scrollIntoView({ block: "nearest", inline: "nearest" }); // a row that scrolls sideways shows the open tab
+      if (on) scrollStrip(tab.parentNode, tab, false, false); // a row that scrolls sideways shows the open tab
     });
     $("studio-sheet-title").textContent = PANES.find((p) => p.id === id).label;
     syncSheet();
@@ -2845,17 +2845,16 @@
   // the middle is the section shown, and when the scrolling stops on another one it becomes the section (a tap on a stop scrolls it to the middle).
   // The script's own turns are told apart from the visitor's by the time (progUntil), as the nav dial does.
   const deckCarousel = () => window.matchMedia("(max-width: 640px)").matches;
-  const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let deckProgUntil = 0;
   let deckSettle = 0;
   function centreStop(b, smooth) {
     if (!deckCarousel()) {
-      b.scrollIntoView({ block: "nearest", inline: "nearest" });
+      scrollStrip(deckDial, b, false, false);
       return;
     }
     clearTimeout(deckSettle);
     deckProgUntil = performance.now() + (smooth ? 700 : 250);
-    b.scrollIntoView({ block: "nearest", inline: "center", behavior: smooth && !calm() ? "smooth" : "auto" });
+    scrollStrip(deckDial, b, true, smooth);
   }
   deckDial.addEventListener("scroll", () => {
     if (!deckCarousel() || performance.now() < deckProgUntil) return;
@@ -3074,6 +3073,21 @@
     if (bars && document.activeElement !== bars) bars.value = s.bars ? String(s.bars) : "";
     if (sheetTab === "sound") renderSound();
     $("studio-sheet-title").textContent = panes[sheetTab] ? (sheetTab === "sound" || sheetTab === "tools" ? `${track.name} ${sheetTab === "sound" ? "sound" : "tools"}` : PANES.find((p) => p.id === sheetTab).label) : "Tools";
+  }
+
+  // Scrolls a strip sideways, and only sideways, so that one of its items is in view (or in the middle). scrollIntoView does the same but also scrolls
+  // every scrollable parent up and down, which on a small phone pushed the top of the Studio under the nav bar.
+  function scrollStrip(strip, el, centre, smooth) {
+    if (!strip || !el) return;
+    const s = strip.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    let dx = 0;
+    if (centre) dx = r.left + r.width / 2 - (s.left + s.width / 2);
+    else if (r.left < s.left) dx = r.left - s.left;
+    else if (r.right > s.right) dx = r.right - s.right;
+    if (Math.abs(dx) < 1) return;
+    const behavior = smooth && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) ? "smooth" : "auto";
+    strip.scrollTo({ left: strip.scrollLeft + dx, behavior });
   }
 
   // ---------- the Sound tab: the instrument and its shape, or the kit and each drum sound ----------

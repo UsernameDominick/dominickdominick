@@ -2010,3 +2010,6 @@ html.finder-on { overflow: hidden; }
 
 /* The first block of the home page, when it is the heading, is the page's title: bigger than any other heading and it scales with the window. */
 .canvas > .block:first-of-type h1 { font-size: clamp(2.6rem, 7vw, 4.4rem); line-height: 0.95; }
+
+/* A phone turned on its side must not make the text bigger by itself (iOS does that unless told not to); the text size setting is the visitor's own choice. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
