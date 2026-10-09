@@ -417,7 +417,7 @@
    repeats what a control already says goes, rows get room to breathe, and the thing you are working on gets the screen. ---- */
 @media (max-width: 640px) {
   /* the Studio */
-  .app-native .song-studio { gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .app-native .song-studio { gap: 6px; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .app-native .studio-hint, .app-native .studio-note, .app-native .studio-keybar-hint, .app-native .studio-pad .p-hint { display: none; }
   .app-native .studio-keybar { gap: 8px; }
   .app-native .studio-pad { min-height: 56px; }

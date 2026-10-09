@@ -352,10 +352,9 @@ body {
   background: var(--text);
   color: var(--bg);
 }
-.tab:focus-visible { outline: none; }
-.tab:focus-visible .tab-label {
+.tab:focus-visible {
   outline: 3px dotted var(--orange);
-  outline-offset: 3px;
+  outline-offset: -5px;
 }
 
 /* The shortcut shown beside Search, where there is a keyboard. */
@@ -4792,7 +4791,7 @@ hr, .block hr {
 .article-canvas { max-width: 760px; }
 .article-canvas > .block { padding: 18px 24px 24px; }
 @media (max-width: 640px) {
-  .canvas:not(.article-canvas, .studio-canvas) { padding: 18px 14px 28px; gap: 16px; }
+  .canvas:not(.article-canvas, .studio-canvas) { padding: 18px 14px 28px; gap: 16px 8px; }
   .canvas > .block { padding: 10px 14px 16px; }
   .article-canvas > .block { padding: 14px 16px 20px; }
   .article-canvas { padding: 18px 14px 28px; }
