@@ -240,6 +240,10 @@
   --bb-ink: var(--text);
   --bb-paper: var(--bg);
   --bb-ring: var(--text);
+  /* The title bar is a flat tint and the shadow a flat block (they were a field of 1px lines and a 2px checkerboard, which shimmer); dividers inside a box are solid lines of a middle tone. */
+  --bb-band: color-mix(in srgb, var(--text) 13%, var(--bg));
+  --bb-shadow: color-mix(in srgb, var(--text) 26%, var(--bg));
+  --bb-soft: color-mix(in srgb, var(--text) 45%, var(--bg));
   --bb-ground: var(--bg);
   --bb-orange: var(--orange, #ff6a1a);
   --bb-o: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
@@ -260,7 +264,7 @@
     linear-gradient(var(--bb-paper), var(--bb-paper)) right 16px top 9px / 10px 10px no-repeat,
     linear-gradient(var(--bb-ink), var(--bb-ink)) right 14px top 7px / 14px 14px no-repeat,
     linear-gradient(var(--bb-paper), var(--bb-paper)) right 11px top 4px / 20px 20px no-repeat,
-    repeating-linear-gradient(var(--bb-ink) 0 1px, var(--bb-paper) 1px 2px) 8px 8px / calc(100% - 16px) 12px no-repeat,
+    linear-gradient(var(--bb-band), var(--bb-band)) 8px 8px / calc(100% - 16px) 12px no-repeat,
     linear-gradient(var(--bb-ink), var(--bb-ink)) 2px 26px / calc(100% - 4px) 2px no-repeat,
     linear-gradient(var(--bb-ground), var(--bb-ground)) left top / 2px 4px no-repeat,
     linear-gradient(var(--bb-ground), var(--bb-ground)) 2px 0 / 2px 2px no-repeat,
@@ -275,7 +279,7 @@
 }
 .app-native .studio-panel::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transform: translate(6px, 6px);
-  background: repeating-conic-gradient(var(--bb-ring) 0 25%, var(--bb-ground) 0 50%) 0 0 / 2px 2px; clip-path: polygon(var(--bb-o));
+  background: var(--bb-shadow); clip-path: polygon(var(--bb-o));
 }
 .app-native .studio-sound-panel { --bb-lit: linear-gradient(var(--bb-orange), var(--bb-orange)) 18px 11px / 6px 6px no-repeat; }
 /* a panel folded to its handle has no title bar */

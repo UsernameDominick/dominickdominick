@@ -9,7 +9,7 @@
 //   node tests/e2e/run.mjs --keep             leave the temp folders (server logs, copied databases) for a look afterwards
 //
 // How it stays fast and safe: each worker gets `wrangler dev --persist-to <temp folder>` on its own port, seeded from a copy of the local
-// D1/R2 state in .wrangler, and its own login. Tests can create and delete whatever they like (no QQ clean-up, no collisions between
+// D1/R2 state in .wrangler. Tests can create and delete whatever they like (no QQ clean-up, no collisions between
 // workers) and the real local database is never touched. Don't edit files under worker/ or public/ while it runs: the servers reload.
 // Tests listed in known-failing.txt may fail without failing the run; anything else red is a new failure.
 import { spawn, execFileSync } from "node:child_process";
@@ -61,7 +61,7 @@ if (!tests.length) {
 // Longest first, so one slow test doesn't start last and hold everything up.
 tests.sort((a, b) => (timings[b] || 20) - (timings[a] || 20));
 
-// ---- Playwright and the admin password (the password is only ever sent to the local server)
+// ---- Playwright
 const globalRoot = (() => {
   try {
     return execFileSync("npm", ["root", "-g"], { encoding: "utf8", shell: IS_WIN, windowsHide: true }).trim();
@@ -78,19 +78,6 @@ try {
   console.error("Playwright was not found. Run `npm install` in tests/e2e (or `npm install -g playwright`).");
   process.exit(2);
 }
-const adminPassword = (() => {
-  try {
-    const m = /^ADMIN_PASSWORD\s*=\s*(.*)$/m.exec(fs.readFileSync(path.join(root, ".dev.vars"), "utf8"));
-    return m ? m[1].trim().replace(/^(["'])(.*)\1$/, "$2") : "";
-  } catch {
-    return "";
-  }
-})();
-if (!adminPassword) {
-  console.error("No ADMIN_PASSWORD in .dev.vars, so the tests can't sign in to the local admin.");
-  process.exit(2);
-}
-
 // ---- servers
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-"));
 const children = [];
@@ -191,18 +178,6 @@ async function startWorker(i) {
   throw new Error(`worker ${i}: the server did not come up in time; see ${path.join(dir, "wrangler.log")}`);
 }
 
-async function signIn(base, file) {
-  const ctx = await playwright.request.newContext({ baseURL: base });
-  const res = await ctx.post("/api/admin/login", { data: { password: adminPassword } });
-  if (res.status() !== 200) throw new Error(`sign-in failed on ${base} (HTTP ${res.status()})`);
-  await ctx.storageState({ path: file });
-  await ctx.dispose();
-  // The older song tests drive the classic editor; the Studio layout has its own test, which switches view itself.
-  const state = JSON.parse(fs.readFileSync(file, "utf8"));
-  state.origins = [{ origin: base, localStorage: [{ name: "admin-panels:v2", value: JSON.stringify({ w: {}, hidden: {} }) }] }];
-  fs.writeFileSync(file, JSON.stringify(state));
-}
-
 // ---- running
 function runTest(name, worker) {
   return new Promise((resolve) => {
@@ -210,7 +185,7 @@ function runTest(name, worker) {
     let out = "";
     const child = spawn(process.execPath, [path.join(here, `${name}.js`)], {
       cwd: here,
-      env: { ...process.env, E2E_BASE: worker.base, ADMIN_STATE: worker.state, NODE_PATH: nodePath, NODE_OPTIONS: "--no-warnings", ...(live ? {} : { E2E_PERSIST: worker.dir }) },
+      env: { ...process.env, E2E_BASE: worker.base, NODE_PATH: nodePath, NODE_OPTIONS: "--no-warnings", ...(live ? {} : { E2E_PERSIST: worker.dir }) },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
       windowsHide: true,
@@ -247,10 +222,6 @@ try {
     console.log(`Starting ${Math.min(workerCount, tests.length)} isolated server${Math.min(workerCount, tests.length) === 1 ? "" : "s"}…`);
     execFileSync("npx", ["wrangler", "--version"], { cwd: root, stdio: "ignore", shell: IS_WIN, windowsHide: true }); // warm the npx cache once, before the workers race for it
     workers = await Promise.all(Array.from({ length: Math.min(workerCount, tests.length) }, (_, i) => startWorker(i)));
-  }
-  for (const w of workers) {
-    w.state = path.join(tmp, `state-${w.i}.json`);
-    await signIn(w.base, w.state);
   }
 } catch (err) {
   console.error(String(err.message || err));

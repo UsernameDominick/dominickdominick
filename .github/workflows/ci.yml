@@ -78,10 +78,8 @@ jobs:
         working-directory: tests/e2e
       - run: npx playwright install --with-deps chromium
         working-directory: tests/e2e
-      - name: Local database with the home page
-        run: |
-          printf 'ADMIN_PASSWORD=ci-admin-password\nSESSION_SECRET=ci-session-secret-0123456789abcdef0123456789\n' > .dev.vars
-          npm run db:local
+      - name: Local database
+        run: npm run db:local
       - name: Browser tests
         run: node tests/e2e/run.mjs
       # test_sound_render.js writes every voice, every drum of every kit and every starter song as a WAV file: download this artifact from the run

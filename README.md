@@ -8,23 +8,21 @@ A small personal site on a Cloudflare Worker: the **Studio** (a music maker that
 - **Search**: the magnifier in the nav (or Ctrl/Cmd+K) opens a dialog that filters its rows as you type: dark or light, reduced motion, text size, the Studio. Typing `core 1` or `c777` shows a study module, which asks for its password.
 - **Studio (`/studio`)**: five fixed tracks (drums, bass, chords, melody, lead) with a step sequencer, a piano roll, forty instruments, fifteen drum kits, MIDI keyboard input, live play and song files. Everything a visitor makes stays in their own browser; nothing is sent to the site.
 - **Study modules**: the A+ Core 1 drill and the WGU C777 web development drill, shown in a popup after a password. Progress is kept in the browser.
-- **Admin (`/admin`)**: the owner's page editor, image library, a few site settings, backups, and a read-only view of the features board and the project outline.
 
 The look is "Bit bento": ink on paper, Mac-style windows, pixel type and one orange accent. Light is dark ink on warm cream; dark is the same screen inverted onto soft charcoal.
 
 ## How it works
 
-- **`worker/`**: the Worker. `index.js` routes the few public addresses, `render.js` builds the HTML, `admin-api.js` is every `/api/admin/*` route, `db.js` is all the SQL, `study/` is the study modules.
-- **`public/`**: static files served straight from the asset store: the stylesheet, `nav.js`, the Studio (`studio.js`, `app-kit.js`, `song-engine.js`) and the admin app (`public/admin/`).
-- **D1** (`dominickdominick`): pages, blocks, media records, settings, revisions and the error log. **R2** (`dominickdominick-media`): uploaded images and the daily JSON backups.
+- **`worker/`**: the Worker. `index.js` routes the few public addresses, `render.js` builds the HTML, `db.js` is the little SQL left (the error log and the rate limit), `study/` is the study modules.
+- **`public/`**: static files served straight from the asset store: the stylesheet, `nav.js` and the Studio (`studio.js`, `app-kit.js`, `song-engine.js`).
+- **D1** (`dominickdominick`): the error log and the rate limit; it still holds the tables of the features that were cut (nothing reads them). There is no admin panel (removed 2026-10-09).
 
 ## Run it locally
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # then put your own values in it
 npm run db:local                 # local database: schema, migrations and the home page
-npm run dev                      # http://localhost:8787, admin at /admin
+npm run dev                      # http://localhost:8787
 ```
 
 ```bash

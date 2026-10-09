@@ -42,7 +42,7 @@
      whole site's controls change together (and Site Settings can
      override them the same way it overrides --accent). */
   --control-radius: 999px;
-  --control-pad-y: 0.6em;
+  /* Room on both sides: the stops sit as a centred pair, and with more stops than fit the strip scrolls so any one can come to the middle. */
   --control-pad-x: 1.25em;
   --control-border-width: 1px;
   --card-radius: 14px;
@@ -233,7 +233,7 @@ body {
 /* Top bar: the menu bar. Black ink on paper under a 2px rule, and the nav is a ruler of ticks with the stops standing on it. */
 
 .topbar {
-  --rz: 22px; /* the height of the ruler under the stops */
+  --rz: 12px; /* the height of the ruler under the stops */
   position: relative;
   z-index: 30;
   display: flex;
@@ -241,7 +241,7 @@ body {
   justify-content: center;
   padding: 0;
   gap: 0;
-  min-height: 62px;
+  min-height: 42px;
   background: var(--bg);
   border-bottom: 2px solid var(--border);
 }
@@ -258,7 +258,7 @@ body {
    middle; the stop under the needle is the lit one (an inverted flag with a small orange bar). nav.js puts each stop's distance from the
    middle in --d as the strip moves. Dragging the dial changes the page; on a screen with room you just click the stop you want. */
 .site-nav {
-  --stop-w: 160px;
+  --stop-w: 104px;
   position: relative;
   display: flex;
   flex: 1 1 auto;
@@ -273,9 +273,9 @@ body {
   flex: 1 1 auto;
   align-items: flex-end;
   min-width: 0;
-  height: 62px;
+  height: 40px;
   /* Room on both sides so any stop, the first and the last too, can come to the middle. */
-  padding: 0 calc(50% - var(--stop-w) / 2) var(--rz);
+  padding: 0 calc(50% - var(--stops, 2) * var(--stop-w) / 2) var(--rz);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -299,7 +299,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  height: 28px;
   padding: 0;
   background: transparent;
   border: 0;
@@ -325,14 +325,14 @@ body {
 .tab-label {
   display: block;
   max-width: var(--stop-w);
-  height: 32px;
-  padding: 2px 10px 0;
+  height: 28px;
+  padding: 2px 8px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 16px;
   font-weight: 400;
-  line-height: 28px;
+  line-height: 24px;
   letter-spacing: 0;
   text-transform: lowercase;
   color: inherit;
@@ -1905,10 +1905,11 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
   .topbar .site-nav { order: 0; flex: 1 1 auto; }
 }
 @media (max-width: 720px) {
-  .topbar { --rz: 14px; }
-  .site-nav { --stop-w: 108px; } /* wide enough for SETTINGS in full (96px cut it to SETTIN...) */
-  .tab { height: 44px; }
-  .tab-label { height: 44px; line-height: 40px; padding-left: 4px; padding-right: 4px; }
+  .topbar { --rz: 10px; min-height: 46px; }
+  .tabs { height: 44px; }
+  .site-nav { --stop-w: 88px; }
+  .tab { height: 34px; }
+  .tab-label { height: 34px; line-height: 30px; padding-left: 4px; padding-right: 4px; }
 }
 
 /* ---- The home tiles ---- */
@@ -2010,6 +2011,10 @@ html.finder-on { overflow: hidden; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* The search stop of the nav dial is a magnifier: the stops are words, this one a picture, and its word is there for screen readers. */
-.tabs .tab-finder .tab-ico { display: block; width: 32px; height: 32px; margin: 0 auto; }
+.tabs .tab-finder .tab-ico { display: block; width: 22px; height: 22px; margin: 0 auto; }
 .tab-finder .tab-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .finder-none { margin: 0 16px 12px; color: var(--text-dim); font-size: 1.1rem; }
+
+/* The Studio and the search are the whole dial: two stops, side by side and centred as a pair (the padding either side is half the strip less
+   half the stops). With nothing to scroll there is no needle; the stop you are on is the lit one. */
+.site-nav.is-still > .tab-indicator { display: none; }

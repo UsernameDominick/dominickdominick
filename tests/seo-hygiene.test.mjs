@@ -4,7 +4,7 @@ import { renderErrorPageHtml } from "../worker/render.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
-const deadEnv = { DB: { prepare() { throw new Error("no database in this test"); } }, MEDIA: {}, ASSETS: { fetch: async () => new Response("asset") } };
+const deadEnv = { DB: { prepare() { throw new Error("no database in this test"); } }, ASSETS: { fetch: async () => new Response("asset") } };
 const ctx = { waitUntil() {} };
 
 // the error page
@@ -13,7 +13,7 @@ const ctx = { waitUntil() {} };
   ok(/<html lang="en">/.test(html) && /<h1>Something went wrong<\/h1>/.test(html) && /<main/.test(html), "it is a real page: language, heading, main area");
   ok(/<meta name="robots" content="noindex">/.test(html) && !/<script/i.test(html) && !/<link[^>]+style\.css/.test(html), "noindex, no scripts, no stylesheet to depend on");
   ok(/prefers-color-scheme: light/.test(html) && /Reference: <code>abcd1234<\/code>/.test(html), "it follows a light-theme system setting and keeps its reference");
-  ok(/href="\/"/.test(html), "it links back home");
+  ok(/href="\/studio"/.test(html), "it links back to the Studio");
 }
 
 // one address per page

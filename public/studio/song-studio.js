@@ -186,7 +186,7 @@
   function keepFocus(box, build) {
     const a = document.activeElement;
     let key = null;
-    if (a && box.contains(a)) key = a.dataset.pick ? `[data-pick="${a.dataset.pick}"]` : a.dataset.mute ? `[data-mute="${a.dataset.mute}"]` : a.dataset.clip !== undefined ? `[data-clip][data-bar="${a.dataset.bar}"]` : null;
+    if (a && box.contains(a)) key = a.dataset.grip ? `[data-grip="${a.dataset.grip}"]` : a.dataset.pick ? `[data-pick="${a.dataset.pick}"]` : a.dataset.mute ? `[data-mute="${a.dataset.mute}"]` : a.dataset.clip !== undefined ? `[data-clip][data-bar="${a.dataset.bar}"]` : null;
     build();
     if (key) {
       const again = box.querySelector(key);
@@ -199,11 +199,15 @@
       `<div class="studio-pl-ruler" aria-hidden="true"><span class="studio-pl-corner"></span><span class="studio-pl-marks" id="studio-pl-marks"></span></div>` +
       TRACKS.map((t) => `<div class="studio-card" data-card="${t.id}" style="--track-color: var(--track-${t.n})"><div class="studio-pl-head"></div><div class="studio-pl-lane"></div></div>`).join("") +
       `<div class="studio-pl-over" aria-hidden="true"><i class="studio-playhead" id="studio-playhead"></i></div>` +
-      `</div></div>`;
+      `</div></div>` +
+      `<div id="studio-hsplit" class="studio-hsplit" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Width of the playlist: drag left or right, or use the arrow keys. It is pulled onto the width of the box below. Enter puts it back."><i></i></div>`;
     TRACKS.forEach((t) => {
       const el = stackEl.querySelector(`[data-card="${t.id}"]`);
       cardEls[t.id] = { el, head: el.querySelector(".studio-pl-head"), lane: el.querySelector(".studio-pl-lane") };
+      rowGrips[t.id] = rowGrips[t.id] || makeGrip(t);
     });
+    applyRowHeights();
+    applyStackW();
   }
   function renderStack(s) {
     const arr = host().arr;
@@ -221,6 +225,7 @@
         cardSigs[track.id + "h"] = head;
         keepFocus(row.head, () => (row.head.innerHTML = head));
       }
+      if (rowGrips[track.id].parentNode !== row.head) row.head.appendChild(rowGrips[track.id]);
       if (cardSigs[track.id + "l"] !== lane) {
         cardSigs[track.id + "l"] = lane;
         keepFocus(row.lane, () => (row.lane.innerHTML = lane));
@@ -512,7 +517,7 @@
   // On a wide screen the playlist stops growing at five rows of 72 px, so the open track never gets less than what leaves it that.
   function editorFloor() {
     if (!wideMQ.matches) return EDITOR_MIN;
-    return Math.min(editorMax(), Math.max(EDITOR_MIN, roomForBoth() - (cssPx("--pl-ruler", 18) + 5 * 72 + 37)));
+    return Math.min(editorMax(), Math.max(EDITOR_MIN, roomForBoth() - (cssPx("--pl-ruler", 18) + 5 * 72 + cssPx("--pl-extra", 0) + 37)));
   }
   // The automatic height, measured by taking the chosen one away for a moment.
   function autoHeight() {
@@ -615,6 +620,232 @@
   });
   window.addEventListener("resize", () => {
     if (editorH) setEditorH(editorH, false, false);
+  });
+
+  // ---------- resizing the playlist ----------
+  // Each track's row can be made taller or shorter by dragging the grip along the bottom of its name cell (the arrow keys do it too when the grip
+  // has the focus; Enter or a double tap puts the row back to automatic). The edge is pulled onto a few heights that mean something: the
+  // standard row, and the height of any other row, so the rows can be made to match. On a wide screen the playlist itself can be made narrower
+  // by dragging its right edge; there the edge is pulled onto the width of the box below it (the open track), which is also its widest.
+  // Alt held down switches the pull off. Both are kept in this browser; nothing in the song changes.
+  const ROW_MIN = 28;
+  const ROW_MAX = 160;
+  const ROW_STEP = 6;
+  const ROW_MAGNET = 8;
+  let rowH = {}; // track id -> px; absent = automatic
+  try {
+    const kept = JSON.parse(lsGet("studioRowH", "") || "{}");
+    TRACKS.forEach((t) => {
+      const n = Number(kept[t.id]);
+      if (n >= ROW_MIN) rowH[t.id] = Math.min(ROW_MAX, Math.round(n));
+    });
+  } catch {
+    rowH = {};
+  }
+  const rowGrips = {};
+  function makeGrip(track) {
+    const g = document.createElement("span");
+    g.className = "studio-row-grip";
+    g.dataset.grip = track.id;
+    g.setAttribute("role", "separator");
+    g.setAttribute("aria-orientation", "horizontal");
+    g.tabIndex = 0;
+    g.setAttribute("aria-label", `Height of the ${track.name} row: drag up or down, or use the arrow keys. Enter puts it back.`);
+    g.title = "Drag to make this track taller or shorter (double-click puts it back)";
+    return g;
+  }
+  function rowNow(id) {
+    return Math.round(cardEls[id].el.getBoundingClientRect().height);
+  }
+  function applyRowHeights() {
+    const base = cssPx("--pl-row", 30);
+    let extra = 0;
+    TRACKS.forEach((t) => {
+      const c = cardEls[t.id];
+      if (!c) return;
+      const h = rowH[t.id] || 0;
+      c.el.toggleAttribute("data-row-h", h > 0);
+      if (h) {
+        c.el.style.setProperty("--row-h", h + "px");
+        extra += Math.max(0, h - base);
+      } else c.el.style.removeProperty("--row-h");
+      const g = rowGrips[t.id];
+      if (g) {
+        g.setAttribute("aria-valuemin", String(ROW_MIN));
+        g.setAttribute("aria-valuemax", String(ROW_MAX));
+        g.setAttribute("aria-valuenow", String(h || rowNow(t.id)));
+      }
+    });
+    studio.style.setProperty("--pl-extra", extra + "px");
+  }
+  function setRowH(id, px, save) {
+    if (px) rowH[id] = Math.round(Math.max(ROW_MIN, Math.min(ROW_MAX, px)));
+    else delete rowH[id];
+    applyRowHeights();
+    if (save) lsSet("studioRowH", Object.keys(rowH).length ? JSON.stringify(rowH) : "");
+  }
+  function rowPoints(id) {
+    const pts = [{ h: 0, at: cssPx("--pl-row", 30), name: "its automatic height" }];
+    TRACKS.forEach((t) => {
+      if (t.id === id) return;
+      pts.push({ h: rowNow(t.id), at: rowNow(t.id), name: `as tall as ${t.name}` });
+    });
+    return pts;
+  }
+  let gripDrag = null;
+  stackEl.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    const g = e.target.closest && e.target.closest("[data-grip]");
+    if (!g) return;
+    e.preventDefault();
+    const id = g.dataset.grip;
+    gripDrag = { pointer: e.pointerId, id, y: e.clientY, h: rowNow(id), moved: false, points: null, snapped: null, g };
+    try {
+      g.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
+    g.classList.add("is-dragging");
+  });
+  stackEl.addEventListener("pointermove", (e) => {
+    if (!gripDrag || e.pointerId !== gripDrag.pointer) return;
+    const dy = e.clientY - gripDrag.y;
+    if (Math.abs(dy) > 3) gripDrag.moved = true;
+    if (!gripDrag.moved) return;
+    if (!gripDrag.points) gripDrag.points = rowPoints(gripDrag.id);
+    const raw = gripDrag.h + dy;
+    let hit = null;
+    if (!e.altKey) gripDrag.points.forEach((p) => {
+      const d = Math.abs(p.at - raw);
+      if (d <= ROW_MAGNET && (!hit || d < hit.d)) hit = { p, d };
+    });
+    hit = hit && hit.p;
+    setRowH(gripDrag.id, hit ? hit.h : raw, false);
+    gripDrag.g.classList.toggle("is-snapped", Boolean(hit));
+    if (hit !== gripDrag.snapped) {
+      gripDrag.snapped = hit;
+      if (hit) say(`${trackOf(gripDrag.id).name} row ${hit.name}`);
+    }
+  });
+  function endGrip(e) {
+    if (!gripDrag || e.pointerId !== gripDrag.pointer) return;
+    const was = gripDrag;
+    gripDrag = null;
+    was.g.classList.remove("is-dragging", "is-snapped");
+    if (was.moved) setRowH(was.id, rowH[was.id] || 0, true);
+  }
+  stackEl.addEventListener("pointerup", endGrip);
+  stackEl.addEventListener("pointercancel", endGrip);
+  stackEl.addEventListener("dblclick", (e) => {
+    const g = e.target.closest && e.target.closest("[data-grip]");
+    if (!g) return;
+    setRowH(g.dataset.grip, 0, true);
+    say(`${trackOf(g.dataset.grip).name} row height: automatic`);
+  });
+  stackEl.addEventListener("keydown", (e) => {
+    const g = e.target.closest && e.target.closest("[data-grip]");
+    if (!g) return;
+    const id = g.dataset.grip;
+    const now = rowH[id] || rowNow(id);
+    let to = null;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") to = now + ROW_STEP;
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") to = now - ROW_STEP;
+    else if (e.key === "Home") to = ROW_MIN;
+    else if (e.key === "End") to = ROW_MAX;
+    else if (e.key === "Enter" || e.key === "Delete") to = 0;
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+    setRowH(id, to, true);
+    say(to === 0 ? `${trackOf(id).name} row height: automatic` : `${trackOf(id).name} row ${rowH[id]} pixels tall`);
+  }, true);
+
+  // The playlist's width (a wide screen only; below that it is the full width). 0 = as wide as the box below.
+  const STACK_W_KEY = "studioStackW";
+  let stackW = Math.max(0, Number(lsGet(STACK_W_KEY, "")) || 0);
+  const hsplit = () => stackEl.querySelector("#studio-hsplit");
+  const stackFull = () => Math.round(detailEl.getBoundingClientRect().width);
+  const stackMinW = () => Math.round(cssPx("--pl-head", 112) + 2 * cssPx("--pl-bar", 56) + 8);
+  function applyStackW() {
+    const on = stackW > 0 && wideMQ.matches;
+    studio.toggleAttribute("data-stack-w", on);
+    if (on) studio.style.setProperty("--stack-w", stackW + "px");
+    else studio.style.removeProperty("--stack-w");
+    const h = hsplit();
+    if (!h) return;
+    h.setAttribute("aria-valuemin", String(stackMinW()));
+    h.setAttribute("aria-valuemax", String(Math.max(stackMinW(), stackFull())));
+    h.setAttribute("aria-valuenow", String(on ? stackW : Math.round(stackEl.getBoundingClientRect().width)));
+  }
+  // `limit` keeps a width by hand inside what fits; one kept earlier is applied as it was (the window may have been another size) and CSS caps it.
+  function setStackW(px, save, limit = true) {
+    const full = stackFull();
+    if (px && limit && px >= full - 1) px = 0; // the width of the box below is the automatic width
+    stackW = px ? Math.round(limit ? Math.max(stackMinW(), Math.min(full, px)) : Math.max(stackMinW(), px)) : 0;
+    applyStackW();
+    if (save) lsSet(STACK_W_KEY, stackW ? String(stackW) : "");
+  }
+  let hDrag = null;
+  stackEl.addEventListener("pointerdown", (e) => {
+    if (e.button > 0 || !wideMQ.matches) return;
+    const h = e.target.closest && e.target.closest("#studio-hsplit");
+    if (!h) return;
+    e.preventDefault();
+    hDrag = { pointer: e.pointerId, x: e.clientX, w: stackEl.getBoundingClientRect().width, moved: false, snapped: false, h };
+    try {
+      h.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
+    h.classList.add("is-dragging");
+  });
+  stackEl.addEventListener("pointermove", (e) => {
+    if (!hDrag || e.pointerId !== hDrag.pointer) return;
+    const dx = e.clientX - hDrag.x;
+    if (Math.abs(dx) > 3) hDrag.moved = true;
+    if (!hDrag.moved) return;
+    const raw = hDrag.w + dx;
+    const full = stackFull();
+    const snap = !e.altKey && Math.abs(full - raw) <= MAGNET_PX;
+    setStackW(snap ? 0 : raw, false);
+    hDrag.h.classList.toggle("is-snapped", snap);
+    if (snap !== hDrag.snapped) {
+      hDrag.snapped = snap;
+      if (snap) say("Playlist as wide as the open track");
+    }
+  });
+  function endHDrag(e) {
+    if (!hDrag || e.pointerId !== hDrag.pointer) return;
+    const was = hDrag;
+    hDrag = null;
+    was.h.classList.remove("is-dragging", "is-snapped");
+    if (was.moved) setStackW(stackW, true);
+  }
+  stackEl.addEventListener("pointerup", endHDrag);
+  stackEl.addEventListener("pointercancel", endHDrag);
+  stackEl.addEventListener("dblclick", (e) => {
+    if (!(e.target.closest && e.target.closest("#studio-hsplit"))) return;
+    setStackW(0, true);
+    say("Playlist width: as wide as the open track");
+  });
+  stackEl.addEventListener("keydown", (e) => {
+    if (!(e.target.closest && e.target.closest("#studio-hsplit"))) return;
+    const now = stackW || Math.round(stackEl.getBoundingClientRect().width);
+    let to = null;
+    if (e.key === "ArrowRight") to = now + 24;
+    else if (e.key === "ArrowLeft") to = now - 24;
+    else if (e.key === "Home") to = stackMinW();
+    else if (e.key === "End" || e.key === "Enter") to = 0;
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+    setStackW(to, true);
+    say(to === 0 ? "Playlist width: as wide as the open track" : `Playlist ${stackW} pixels wide`);
+  }, true);
+  wideMQ.addEventListener("change", applyStackW);
+  window.addEventListener("resize", () => {
+    if (stackW) setStackW(stackW, false);
+    applyRowHeights();
   });
 
   // ---------- the bars of the open track ----------

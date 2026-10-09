@@ -1503,7 +1503,7 @@
 .app-native .song-studio { --pl-row: 30px; --pl-head: 112px; --pl-bar: 56px; --pl-ruler: 16px; }
 .app-native .studio-stack {
   flex: 0 1 auto; min-width: 0; user-select: none;
-  min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + 7px);
+  min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + var(--pl-extra, 0px) + 7px);
   background: var(--bg-elevated); border: 2px solid var(--border); border-radius: 12px; overflow: hidden;
 }
 .app-native .studio-stack:focus { outline: none; }
@@ -2197,14 +2197,14 @@
 @media (max-width: 1023px) {
   .app-native .studio-detail { flex: 1 1 250px; min-height: 250px; }
   .app-native .song-studio[data-detail-h] .studio-detail { flex: 0 0 var(--detail-h); min-height: 0; }
-  .app-native .song-studio[data-detail-h] .studio-stack { flex: 1 1 0; max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
+  .app-native .song-studio[data-detail-h] .studio-stack { flex: 1 1 0; max-height: calc(var(--pl-ruler) + 5 * 72px + var(--pl-extra, 0px) + 7px); }
   .app-native .song-studio.studio-editor-folded .studio-detail { flex: 0 0 auto; min-height: 0; }
-  .app-native .song-studio.studio-editor-folded .studio-stack { flex: 1 1 auto; max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
+  .app-native .song-studio.studio-editor-folded .studio-stack { flex: 1 1 auto; max-height: calc(var(--pl-ruler) + 5 * 72px + var(--pl-extra, 0px) + 7px); }
   .app-native .song-studio.studio-editor-folded .studio-split { display: none; }
 }
 @media (min-width: 1024px) {
   .app-native .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto; }
-  .app-native .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
+  .app-native .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + var(--pl-extra, 0px) + 7px); }
 }
 .app-native .song-studio {
   --track-1: #ff8a3d;
@@ -2435,7 +2435,7 @@
     linear-gradient(var(--bb-ink), var(--bb-ink)) right 14px top 7px / 14px 14px no-repeat,
     linear-gradient(var(--bb-paper), var(--bb-paper)) right 11px top 4px / 20px 20px no-repeat,
     /* the title bar stripes and the rule under them */
-    repeating-linear-gradient(var(--bb-ink) 0 1px, var(--bb-paper) 1px 2px) 8px 8px / calc(100% - 16px) 12px no-repeat,
+    linear-gradient(var(--bb-band), var(--bb-band)) 8px 8px / calc(100% - 16px) 12px no-repeat,
     linear-gradient(var(--bb-ink), var(--bb-ink)) 2px 26px / calc(100% - 4px) 2px no-repeat,
     /* the stepped corners, cut in the ground's colour */
     linear-gradient(var(--bb-ground), var(--bb-ground)) left top / 2px 4px no-repeat,
@@ -2452,7 +2452,7 @@
 }
 .app-native .studio-stack::after, .app-native .studio-detail::after, .app-native .studio-controls.studio-display::after, .app-native .studio-keyboard::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transform: translate(6px, 6px);
-  background: repeating-conic-gradient(var(--bb-ring) 0 25%, var(--bb-ground) 0 50%) 0 0 / 2px 2px;
+  background: var(--bb-shadow);
   clip-path: polygon(var(--bb-o));
 }
 .app-native .studio-stack::before, .app-native .studio-detail::before, .app-native .studio-controls.studio-display::before, .app-native .studio-keyboard::before {
@@ -2589,7 +2589,7 @@
 .app-native .studio-display .studio-readout { order: 1; }
 .app-native .studio-display .studio-history { order: 2; margin-left: auto; }
 .app-native .studio-display .studio-toggles { order: 3; flex: 1 1 100%; border-top: 2px dotted var(--bg); padding-top: 4px; }
-.app-native .studio-stack { min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 35px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + 37px); display: flex; flex-direction: column; user-select: none; }
+.app-native .studio-stack { min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 35px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + var(--pl-extra, 0px) + 37px); display: flex; flex-direction: column; user-select: none; }
 .app-native .studio-stack > .studio-pl-scroll { flex: 0 1 auto; height: auto; min-height: 0; background: var(--bg); scrollbar-width: thin; scrollbar-color: var(--text) var(--bg); }
 .app-native .song-studio { --pl-row: 32px; --pl-head: 148px; --pl-bar: 60px; --pl-ruler: 22px; }
 @media (min-width: 641px) { .app-native .song-studio { --pl-row: 30px; --pl-head: 176px; --pl-bar: 88px; --pl-ruler: 20px; } }
@@ -2918,7 +2918,7 @@
   .app-native .song-studio { grid-template-rows: auto auto minmax(var(--pl-min), auto) minmax(var(--detail-min), 1fr) auto; }
   .app-native .song-studio.studio-docked-deck { grid-template-rows: auto auto minmax(var(--pl-min), auto) minmax(var(--detail-min), 1fr) auto auto; }
   .app-native .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) auto auto; }
-  .app-native .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 37px); }
+  .app-native .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + var(--pl-extra, 0px) + 37px); }
 }
 .app-native .song-studio .studio-deck-dial { min-height: 46px; flex: 0 0 auto; align-items: flex-end; }
 .app-native .song-studio .studio-grid[data-mode="steps"] .studio-cell.now.on { transform: none; }
@@ -2988,7 +2988,7 @@
       linear-gradient(var(--bb-ring), var(--bb-ring));
   }
   .app-native .studio-stack::before { display: none; }
-  .app-native .studio-stack { min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 11px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + 15px); }
+  .app-native .studio-stack { min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 11px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + var(--pl-extra, 0px) + 15px); }
   .app-native .song-studio .studio-keys.studio-pads { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); }
   .app-native .song-studio .studio-pads { gap: 6px; padding: 6px; }
   .app-native .song-studio .studio-pad { min-height: 52px; padding: 0 6px 6px; }
@@ -3060,7 +3060,7 @@
     linear-gradient(var(--bg), var(--bg)) right 16px top 9px / 10px 10px no-repeat,
     linear-gradient(var(--border), var(--border)) right 14px top 7px / 14px 14px no-repeat,
     linear-gradient(var(--bg), var(--bg)) right 11px top 4px / 20px 20px no-repeat,
-    repeating-linear-gradient(var(--border) 0 1px, var(--bg) 1px 2px) 8px 8px / calc(100% - 16px) 12px no-repeat,
+    linear-gradient(color-mix(in srgb, var(--border) 13%, var(--bg)), color-mix(in srgb, var(--border) 13%, var(--bg))) 8px 8px / calc(100% - 16px) 12px no-repeat,
     linear-gradient(var(--border), var(--border)) 2px 26px / calc(100% - 4px) 2px no-repeat,
     linear-gradient(var(--bg), var(--bg)) 2px 2px / calc(100% - 4px) calc(100% - 4px) no-repeat,
     linear-gradient(var(--border), var(--border));
@@ -3310,7 +3310,7 @@
   .app-native .song-studio.studio-docked-deck[data-detail-h]:not(.studio-editor-folded) { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) var(--detail-h) auto auto; }
   .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-detail { min-height: 0; }
   /* a short open track gives the playlist room to grow, as when it is folded: its rows get taller, up to 72px */
-  .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 37px); }
+  .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + var(--pl-extra, 0px) + 37px); }
 }
 .app-native .studio-split.is-snapped i { width: 78px; margin-left: -39px; background: repeating-linear-gradient(90deg, var(--bb-orange) 0 2px, var(--bg) 2px 4px); }
 
@@ -3417,3 +3417,33 @@
 .app-native .studio-sound-bar [data-tune-hear][aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); }
 .app-native .studio-mixer-row.is-quiet .studio-mixer-name, .app-native .studio-mixer-row.is-quiet .studio-mixer-dial { opacity: 0.55; }
 @media (max-width: 420px) { .app-native .studio-mixer-row { grid-template-columns: auto auto 1fr; } .app-native .studio-mixer-name { grid-column: 1 / -1; } }
+
+/* ---- Boxes you can see (2026-10-09): the lines inside a box are solid and a middle tone, not dotted (dotted and dashed rules shimmer and tire the eyes); the
+   box itself keeps its full-strength ring, a flat title band and a flat block shadow (--bb-band, --bb-shadow, --bb-soft in app-kit.css). ---- */
+.app-native .studio-card + .studio-card, .app-native .studio-lane-row, .app-native .song-studio .studio-section + .studio-section, .app-native .song-studio details.studio-fold,
+.app-native .song-studio .studio-pop-menu .studio-menu-item[data-act="bar-differ"], .app-native .song-studio .studio-pop-menu .studio-menu-len, .app-native .app-backup { border-top-style: solid; border-top-color: var(--bb-soft); }
+.app-native .studio-song, .app-native .studio-mixer-row { border-bottom-style: solid; border-bottom-color: var(--bb-soft); }
+.app-native .studio-songs { border-color: var(--bb-soft); }
+.app-native .song-studio .studio-clip.is-empty, .app-native .song-studio .studio-silent, .app-native .song-studio .studio-marquee { border-style: solid; border-color: var(--bb-soft); }
+.app-native .shelf-empty { border-style: solid; border-color: var(--bb-soft); }
+
+/* ---- Resizing the playlist (song-studio.js, "resizing the playlist"): the grip along the bottom of a track's name cell sets that row's height, and on a
+   wide screen the handle on the playlist's right edge sets its width (pulled onto the width of the box below it). ---- */
+.app-native .studio-row-grip {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 8px; z-index: 3; cursor: row-resize; touch-action: none;
+  background: linear-gradient(var(--bb-soft), var(--bb-soft)) center 3px / 32px 3px no-repeat;
+}
+.app-native .studio-row-grip:hover, .app-native .studio-row-grip.is-dragging { background-image: linear-gradient(var(--bb-orange), var(--bb-orange)); background-color: color-mix(in srgb, var(--bb-orange) 22%, transparent); }
+.app-native .studio-row-grip.is-snapped { background-size: 56px 3px; }
+.app-native .studio-row-grip:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -3px; }
+.app-native .studio-card[data-row-h] { flex: 0 0 var(--row-h); height: var(--row-h); min-height: var(--row-h); max-height: none; }
+@media (pointer: coarse) { .app-native .studio-row-grip { height: 14px; background-position: center 5px; } }
+.app-native .studio-hsplit { display: none; }
+@media (min-width: 1024px) {
+  .app-native .studio-hsplit { display: block; position: absolute; top: 30px; bottom: 8px; right: -11px; width: 22px; z-index: 6; cursor: col-resize; touch-action: none; }
+  .app-native .studio-hsplit i { position: absolute; left: 50%; top: 50%; width: 6px; height: 46px; margin: -23px 0 0 -3px; background: var(--bb-soft); }
+  .app-native .studio-hsplit:hover i, .app-native .studio-hsplit.is-dragging i { background: var(--bb-orange); }
+  .app-native .studio-hsplit.is-snapped i { height: 78px; margin-top: -39px; }
+  .app-native .studio-hsplit:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -3px; }
+  .app-native .song-studio[data-stack-w] .studio-stack { width: var(--stack-w); max-width: 100%; justify-self: start; }
+}

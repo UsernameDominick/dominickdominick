@@ -1,6 +1,6 @@
 // Runs every tests/*.test.mjs in its own process and fails if any prints a FAIL line, throws, or never reaches ALL PASS.
-// These are the pure checks (no server, no browser): the circuit solver and the client/worker parity of the simulation
-// analysis, plus the helpers the admin pages share. The Playwright scripts that drive the admin UI live in tests/e2e/.
+// These are the pure checks (no server, no browser): the song engine and its files, the Worker's routing and pages, the dial maths.
+// The Playwright scripts that drive the Studio and the search dialog live in tests/e2e/.
 //
 //   node tests/run.mjs              every file, a few at a time
 //   node tests/run.mjs song sim     only files whose name contains "song" or "sim"

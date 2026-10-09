@@ -4,22 +4,6 @@
 # Below: failing on 20ec3c5 (before the Bit bento look) in this sandbox: the public site is cut down to Home/Studio/Search and the
 # local database has no articles, projects or scans. Not caused by the redesign (checked against that commit).
 test_backup
-test_block_bar
-test_block_spacing
-test_bulk_inspector_fix
-test_canvas_preview
-test_density
 test_footer_share
-test_inspector_groups
-test_media_library
 test_mouse_swipe
-test_nav_carousel
 test_nav_dial
-test_page_first
-test_palette
-test_round3_a11y
-test_security_seo
-test_tokens
-# Added 2026-10-08, after the site was cut down to Home and Studio: this test builds extra pages and nav tabs, a search, and Hidden Notes,
-# none of which exist any more. It needs rewriting for the three-stop nav (studio, home, settings) before it can be trusted.
-test_nav_carousel

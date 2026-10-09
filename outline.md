@@ -2,7 +2,7 @@
 
 Current operating rules, what is shipped, open work, migrations, and manual checks. Completed implementation narratives remain in Git history.
 
-**What the site is (since 2026-10-09):** the Studio (a music maker in the browser) and a search and command dialog behind a magnifier in the nav; `/` goes to the Studio (the home page was removed). Two password-protected study modules open when their name is typed in the search. A slim admin at `/admin` still edits the old home page, which no visitor sees (candidates to remove: its page editor and the blocks code). Everything else the site used to have (articles, projects, search, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes, scripts, analytics and the rest) was deleted from the code. Its last working state is the git tag `before-slim-down`; to bring something back, start from that tag.
+**What the site is (since 2026-10-09):** the Studio (a music maker in the browser) and a search and command dialog behind a magnifier in the nav; `/` goes to the Studio (the home page was removed). Two password-protected study modules open when their name is typed in the search. The admin panel was removed on 2026-10-09 (its code is in git history; the old pages, blocks, settings and media rows are still in the database, untouched). Everything else the site used to have (articles, projects, search, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes, scripts, analytics and the rest) was deleted from the code. Its last working state is the git tag `before-slim-down`; to bring something back, start from that tag.
 
 **Stack:** Cloudflare Workers (JavaScript), D1 (SQLite), R2, vanilla HTML/CSS/JS. Tests are plain Node scripts plus Playwright; CI is GitHub Actions.
 
@@ -40,25 +40,22 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 
 **D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it (`npm run db:local` does both for a local database and seeds the home page from `seed/home.sql`, which must never be run against production). The `previews` block sets runtime bindings, while Wrangler migrations use the selected config's top-level D1. Use `wrangler.preview-migrations.jsonc` and verify its database name/ID against the Preview binding before `--remote`; inspect production before any forward-only live migration. Preview D1/R2 are separate from production but shared by Previews using the same IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need per-instance confirmation. Preview resources: `dominickdominick-preview` D1 and `dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and `dominickdominick-media`. **The code for the deleted features is gone but their D1 tables and rows are still there**; dropping them is a production database change that needs the owner's say-so (see section 3).
 
-**Secrets:** `ADMIN_PASSWORD` and `SESSION_SECRET` stay in Worker runtime Secrets, never in source or public content. Also set `STUDY_PASSWORD` there: without it the study modules fall back to the built-in default (`123`), which keeps casual visitors out and nothing more. Build variables and secrets are build-time settings; that panel does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
+**Secrets:** `STUDY_PASSWORD` stays in Worker runtime Secrets, never in source or public content: without it the study modules fall back to the built-in default (`123`), which keeps casual visitors out and nothing more. `ADMIN_PASSWORD` and `SESSION_SECRET` are no longer read by anything and can be deleted from Cloudflare. Build variables and secrets are build-time settings; that panel does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
 
 ## 1. What is shipped
 
-- **Old home page (not shown since 2026-10-09):** one D1 page (`home`) still stored and editable in the admin, rendered by nothing. Block types: heading, text, image, button, divider, spacer, quote, gallery and study. Each block can carry colour, font, size, border, a width on phones, a reading order, hide-on-desktop/mobile, a hover effect and one of five entrance animations. A page holding a study block is kept out of search engines and the sitemap on purpose.
+- **Old home page (gone since 2026-10-09):** one D1 page (`home`) is still stored; nothing renders or edits it.
 - **Study modules:** the A+ Core 1 drill and the WGU C777 web development drill (`worker/study/`, `public/study/`), opened from a study block in a full-screen popup after a password. Progress and weak spots stay in the browser. See `worker/study/README.md`.
 - **Studio (`/studio`):** the song builder as a page for every visitor: five fixed tracks (drums, bass, chords, melody, lead), step sequencer and piano roll, forty instruments and fifteen drum kits, MIDI keyboard input, live play (arpeggio, strum, roll), bars and patterns, song files and MIDI import/export. Songs stay in the visitor's browser (`localStorage`) and are never sent to the site. The sound is synthesized with Web Audio; there is no sample playback, effects chain or mixing desk.
 - **Look:** Bit bento (1-bit ink on paper, Mac-style windows, pixel type, one orange accent). Paper is warm cream in the light theme and soft charcoal in the dark theme (not pure white and black, which was hard on the eyes).
 - **Settings dialog:** the last stop of the nav dial. Light/dark, reduce motion, text size, and links to the pages. No search.
-- **Slim admin:** login; the home page editor (blocks, undo/redo, autosave that never publishes a draft, conflict check, revisions, trash); media library for images; site settings (footer, maintenance mode, default share image); backups (export/import, daily scheduled backup to R2, verify, restore); the features board and this outline, read-only; error log; command palette.
-- **Backups:** the daily 08:00 UTC cron writes a full JSON export of D1 to R2 (`backups/`), including the tables of the deleted features, so a restore loses nothing.
+- **Admin panel (removed 2026-10-09):** the login, the home page editor, the media library, the site settings, the backups, the features board and this outline's viewer, and the error log viewer are gone. Their routes answer the 404 page. The Worker no longer has the R2 bucket binding or the daily backup cron.
 
 ## 2. Open work
 
 ### Home page
-- [ ] The live home heading block carries a hard-coded white text colour and a 6px font size in its saved style, so it vanishes on the light theme. Clear that block's style in the admin (the seed in `seed/home.sql` has none).
 - [ ] Decide whether the home page should be indexable. It is kept out of search engines only because it holds study buttons.
 - [ ] Set `STUDY_PASSWORD` (section 0, Secrets).
-- [ ] Alt text for the home page's hero image: it had an R2 object but no D1 media row (found 2026-09-28); recheck delivery and the admin media list.
 
 ### Studio
 - [ ] Tempo/time-signature settings: every module assumes 16 steps per pattern, so a signature other than 4/4 needs a variable pattern length in the engine, the step grids, cached peaks and saved data. Needs a decision on which signatures.
@@ -69,10 +66,6 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 - [ ] Re-create the browser tests for the song builder against `/studio`: the 18 `test_song_*` tests drove it through the admin's song library and were deleted with it (the pure `tests/song-*.test.mjs` still cover the logic).
 - [ ] Rewrite `tests/e2e/test_nav_carousel.js` for the three-stop nav; it is parked in `known-failing.txt`.
 - [ ] The browser tests have not been run to the end since the cut (the first full run is the first CI run on Linux). Check `known-failing.txt` for what is still parked and why.
-
-### Admin
-- [ ] Improve backdrop contrast for near-fullscreen builder modals.
-- [ ] Real-browser verification of the admin dialogs and writing-focus semantics.
 
 ### Testing, staging and deployment
 - [ ] Finish the one-time setup in section 0 and watch the first pull request go through the whole pipeline.
@@ -101,7 +94,6 @@ The code for these was deleted (recover it from the git tag `before-slim-down`):
 - [ ] Rate limits still cover every public write endpoint (login, study unlock); check after adding any new public POST route.
 - [ ] Security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) still present and correctly scoped.
 - [ ] Session cookie still `HttpOnly; Secure; SameSite=Strict`.
-- [ ] No new admin route added without going through `isAuthenticated()` / the admin router's auth gate.
 - [ ] `javascript:`/`data:` URI neutralization (`safeHref`) still applied wherever a user-authored URL renders.
 - [ ] New tables/columns don't accidentally expose more than intended through a `SELECT *` in a public-facing query.
 - [ ] File uploads validated by type (images); add validation whenever a new format is introduced.

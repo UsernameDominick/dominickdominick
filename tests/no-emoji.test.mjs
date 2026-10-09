@@ -1,5 +1,5 @@
-// The owner's rule: no emoji anywhere on the site, public or admin. This reads every file the site serves or builds pages from
-// (public/, worker/) plus the two documents the admin shows (outline.md, features.json) and fails on any emoji character, on the
+// The owner's rule: no emoji anywhere on the site. This reads every file the site serves or builds pages from
+// (public/, worker/) plus the owner's outline.md and fails on any emoji character, on the
 // emoji presentation selector (U+FE0F), and on emoji written as an escape (\u{1F525}, ▶, &#9654;, CSS "\25B6"). Symbols that
 // phones draw as emoji count too (play, pause, stop, arrows like the north-east one): the site draws icons for those
 // (worker/ui-icons.js). The copyright, registered and trade mark signs are plain text and allowed. A line that only holds an emoji
@@ -48,8 +48,8 @@ function walk(dir) {
 walk("public");
 walk("worker");
 // the documents only by their characters: their prose may name an escape
-for (const f of ["outline.md", "features.json"]) found.push(...emojiIn(fs.readFileSync(f, "utf8"), f, { escapes: false }));
-ok(found.length === 0, "no emoji in the site's files or the documents the admin shows", found.slice(0, 40));
+for (const f of ["outline.md"]) found.push(...emojiIn(fs.readFileSync(f, "utf8"), f, { escapes: false }));
+ok(found.length === 0, "no emoji in the site's files or the outline", found.slice(0, 40));
 
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");

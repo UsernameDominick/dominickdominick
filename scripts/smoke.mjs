@@ -67,9 +67,9 @@ try {
     expect(`${gone} stays removed`, await get(gone), (r) => r.res.status === 404, status);
   }
 
-  expect("admin page answers 200", await get("/admin/"), (r) => r.res.status === 200, status);
-  expect("admin API refuses a visitor", await get("/api/admin/pages"), (r) => r.res.status === 401, status);
-  expect("admin API says a visitor is signed out", await get("/api/admin/me"), (r) => r.res.status === 200 && r.text.includes('"authenticated":false'), (r) => `got ${r.res.status} ${r.text.slice(0, 60)}`);
+  // The admin panel is gone: its addresses are just the 404 page.
+  expect("the admin address is gone", await get("/admin"), (r) => r.res.status === 404, status);
+  expect("the admin API is gone", await get("/api/admin/pages"), (r) => r.res.status === 404, status);
 
   // The study unlock must refuse a request with no password, for a lab asked for by name (the search dialog) and for a block that is not there.
   const post = (body) => get("/api/study/unlock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

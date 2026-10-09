@@ -1,5 +1,5 @@
-// A failure on a public page: a branded 500 page that works without the database, shows a reference, leaks nothing, and the same
-// reference leads the logged entry. Calls the Worker's real fetch with an environment whose database is down.
+// A failure on a public address: a branded 500 page that works without the database, shows a reference, leaks nothing, and the same
+// reference leads the logged entry. Calls the Worker's real fetch with an environment whose static files fail (the only thing a public page now needs).
 import worker from "../worker/index.js";
 import { renderErrorPageHtml } from "../worker/render.js";
 
@@ -20,8 +20,7 @@ const brokenEnv = () => ({
       return stmt(null);
     },
   },
-  MEDIA: {},
-  ASSETS: { fetch: async () => new Response("asset") },
+  ASSETS: { fetch: async () => { throw new Error("D1_ERROR: database is unavailable at secret-host.internal"); } },
 });
 const ctx = () => { const p = []; return { waitUntil: (x) => p.push(x), done: () => Promise.all(p) }; };
 
@@ -36,14 +35,14 @@ const ctx = () => { const p = []; return { waitUntil: (x) => p.push(x), done: ()
 // the Worker's real fetch
 {
   const c = ctx();
-  const res = await worker.fetch(new Request("https://dominickdominick.com/some-page"), brokenEnv(), c);
+  const res = await worker.fetch(new Request("https://dominickdominick.com/some-page.css"), brokenEnv(), c);
   await c.done();
   const body = await res.text();
   ok(res.status === 500 && /text\/html/.test(res.headers.get("Content-Type")), "a failing page answers 500 with an HTML page", res.status);
   const ref = (/Reference: <code>([a-z0-9]{8})<\/code>/.exec(body) || [])[1];
   ok(!!ref, "the page carries an 8-character reference", ref);
   ok(!/secret-host|D1_ERROR|database is unavailable|at .*\.js|worker\/|node_modules/.test(body), "no error text, host name or stack trace reaches the reader");
-  ok(logged.length === 1 && logged[0].message.startsWith(`[${ref}] `) && /database is unavailable/.test(logged[0].message) && logged[0].path === "/some-page", "the logged entry starts with that same reference and holds the real error", logged[0] && logged[0].message.slice(0, 40));
+  ok(logged.length === 1 && logged[0].message.startsWith(`[${ref}] `) && /database is unavailable/.test(logged[0].message) && logged[0].path === "/some-page.css", "the logged entry starts with that same reference and holds the real error", logged[0] && logged[0].message.slice(0, 40));
   ok(res.headers.get("X-Content-Type-Options") === "nosniff" || res.headers.has("Content-Security-Policy") || res.headers.has("X-Frame-Options"), "security headers are still on the error page");
 }
 // each failure gets its own reference
@@ -51,7 +50,7 @@ const ctx = () => { const p = []; return { waitUntil: (x) => p.push(x), done: ()
   const refs = new Set();
   for (let i = 0; i < 5; i++) {
     const c = ctx();
-    const res = await worker.fetch(new Request(`https://dominickdominick.com/p${i}`), brokenEnv(), c);
+    const res = await worker.fetch(new Request(`https://dominickdominick.com/p${i}.css`), brokenEnv(), c);
     await c.done();
     refs.add((/Reference: <code>([a-z0-9]{8})<\/code>/.exec(await res.text()) || [])[1]);
   }
@@ -70,7 +69,7 @@ const ctx = () => { const p = []; return { waitUntil: (x) => p.push(x), done: ()
   const env = brokenEnv();
   env.DB.prepare = () => { throw new Error("even prepare throws"); };
   const c = ctx();
-  const res = await worker.fetch(new Request("https://dominickdominick.com/x"), env, c);
+  const res = await worker.fetch(new Request("https://dominickdominick.com/x.css"), env, c);
   await c.done();
   ok(res.status === 500 && /Something went wrong/.test(await res.text()), "even when the error log can't be written, the reader still gets the page");
 }

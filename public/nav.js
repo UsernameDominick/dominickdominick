@@ -51,7 +51,10 @@
     var mid = wrap.scrollLeft + wrap.clientWidth / 2;
     var best = nearest();
     for (var i = 0; i < stops.length; i++) stops[i].style.setProperty("--d", Math.min(Math.abs(centres[i] - mid) / pitch, 3).toFixed(3));
-    var lit = interacted || target() ? best : -1;
+    // With nothing to scroll (the strip holds every stop) the lit stop is the one this page is on, or Search while its dialog is open.
+    var still = wrap.scrollWidth <= wrap.clientWidth + 1;
+    nav.classList.toggle("is-still", still);
+    var lit = still ? anchors.indexOf(target()) : interacted || target() ? best : -1;
     for (var k = 0; k < anchors.length; k++) anchors[k].classList.toggle("is-centred", k === lit);
   }
   function paintSoon() {

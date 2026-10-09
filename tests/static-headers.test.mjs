@@ -1,4 +1,4 @@
-// public/_headers: the headers that go on files sent straight from the asset store (the admin page, scripts, the stylesheet).
+// public/_headers: the headers that go on files sent straight from the asset store (scripts, the stylesheet).
 import fs from "node:fs";
 
 let fail = 0;
@@ -18,7 +18,7 @@ for (const raw of text.split(/\r?\n/)) {
   }
 }
 const byPath = Object.fromEntries(rules.map((r) => [r.path, r.headers]));
-ok(rules.length === 4 && rules.every((r) => /^(\/|https:\/\/)/.test(r.path)), "four rules, each starting at a path or https:// host", rules.map((r) => r.path));
+ok(rules.length === 3 && rules.every((r) => /^(\/|https:\/\/)/.test(r.path)), "three rules, each starting at a path or https:// host", rules.map((r) => r.path));
 ok(/immutable/.test(byPath["/fonts/*"]["cache-control"] || "") && /max-age=31536000/.test(byPath["/fonts/*"]["cache-control"] || ""), "the pixel fonts are cached for a year");
 ok(byPath["https://dominickdominick.:subdomain.workers.dev/*"]["x-robots-tag"] === "noindex", "the workers.dev address is still kept out of search results");
 const all = byPath["/*"];
@@ -26,8 +26,7 @@ ok(all && all["x-content-type-options"] === "nosniff", "every static file: no MI
 ok(all["x-frame-options"] === "SAMEORIGIN", "every static file: not framed by other sites");
 ok(all["referrer-policy"] === "strict-origin-when-cross-origin", "every static file: referrer trimmed (same as the Worker's pages)");
 ok(/max-age=\d{7,}/.test(all["strict-transport-security"]), "every static file: https only");
-ok(!("content-security-policy" in all) && !("content-security-policy" in (byPath["/admin/*"] || {})), "no page-wide CSP here (the admin relies on inline scripts; the Worker sets the site's CSP on rendered pages)");
-ok(/noindex/.test(byPath["/admin/*"]["x-robots-tag"]) && /nofollow/.test(byPath["/admin/*"]["x-robots-tag"]), "the admin shell is noindex, nofollow");
+ok(!("content-security-policy" in all), "no page-wide CSP here (the Worker sets the site's CSP on rendered pages)");
 ok(!Object.keys(all).some((k) => /cache-control|set-cookie|access-control/.test(k)), "nothing here changes caching, cookies or cross-origin access");
 ok(text.length < 2000, "the file is well under the platform's size limit", text.length);
 const worker = fs.readFileSync(new URL("../worker/index.js", import.meta.url), "utf8");
