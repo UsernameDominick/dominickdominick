@@ -234,7 +234,7 @@ export default {
   // logs, so a failure is also written to the error log; runScheduledBackup records it to settings for the admin's status line.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
-      runScheduledBackup(env, { alert: true }).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:backup" }))
+      runScheduledBackup(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:backup" }))
     );
   },
 };

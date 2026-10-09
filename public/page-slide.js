@@ -47,14 +47,14 @@ window.addEventListener("pagereveal", function (e) {
 // it, following the finger. Every nav page (and its first pictures) is fetched ahead, so nothing waits on the network.
 // The address bar and the Back/Forward buttons work as usual (history.pushState + popstate). Anything this can't do safely, it hands back
 // to a normal page load (which the view-transition slide above still dresses up): an error or non-page response, or a page that needs
-// scripts this one doesn't run again (study). Scripts Cloudflare adds to pages (/cdn-cgi/, analytics) do not count, and
+// scripts this one does not run again. Scripts Cloudflare adds to pages (/cdn-cgi/, analytics) do not count, and
 // the addresses Cloudflare's email protection hides are put back here.
 (function () {
   if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) return;
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
   // Scripts a swapped-in page may bring: loaded once (in order) the first time a page needs them, and set up for each page by
-  // window.siteInitContent (pictures, the Studio), so these pages slide like the rest instead of loading from scratch.
-  var LOADABLE = { "/song-engine.js": 1, "/lightbox.js": 1, "/studio.js": 1, "/backup-logic.js": 1, "/app-kit.js": 1 };
+  // window.siteInitContent (pictures, the Studio; the study popup needs no set-up, it listens on the document), so these pages slide like the rest instead of loading from scratch.
+  var LOADABLE = { "/song-engine.js": 1, "/lightbox.js": 1, "/studio.js": 1, "/backup-logic.js": 1, "/app-kit.js": 1, "/study/study.js": 1 };
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}

@@ -10,7 +10,7 @@ const { chromium } = require("./_pw.cjs");
   let r = await p.evaluate(() => ({ groups: [...document.querySelectorAll(".command-result-group")].map((g) => g.textContent), rows: document.querySelectorAll(".command-result").length, ico: [...document.querySelectorAll(".command-result")].every((i) => /url\(/.test(getComputedStyle(i, "::before").maskImage || getComputedStyle(i, "::before").webkitMaskImage || "")) }));
   ok(r.groups.length >= 1 && r.rows > 5, `empty query groups ${r.groups}`);
   ok(r.ico, "all icons resolve");
-  await p.fill("#command-input, .command-input", "accent"); await p.waitForTimeout(700);
+  await p.fill("#command-input, .command-input", "footer"); await p.waitForTimeout(700);
   r = await p.evaluate(() => [...document.querySelectorAll(".command-result-group")].map((g) => g.textContent));
   ok(r.includes("Settings"), `settings group ${r}`);
   await p.keyboard.press("ArrowDown"); await p.keyboard.press("ArrowUp");

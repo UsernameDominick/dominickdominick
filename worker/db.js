@@ -664,19 +664,7 @@ export async function listErrors(env, limit = 50) {
 
 
 
-// ---------- Webhook delivery history ----------
-export async function logWebhookDelivery(env, { url, payload, status, status_code, error }) {
-  const res = await env.DB
-    .prepare("INSERT INTO webhook_deliveries (url, payload, status, status_code, error) VALUES (?, ?, ?, ?, ?)")
-    .bind(url, JSON.stringify(payload), status, status_code || null, error ? String(error).slice(0, 500) : null)
-    .run();
-  // Pruned the same way the activity log is, so this can't grow forever.
-  await env.DB
-    .prepare(`DELETE FROM webhook_deliveries WHERE id NOT IN (SELECT id FROM webhook_deliveries ORDER BY id DESC LIMIT 200)`)
-    .run()
-    .catch(() => {});
-  return res.meta.last_row_id;
-}
+
 
 
 
@@ -1327,8 +1315,7 @@ export async function getSetting(env, key) {
 
 const LOGIN_WINDOW_MINUTES = 15;
 const LOGIN_MAX_ATTEMPTS = 8;
-// With the owner's opt-in, the webhook URLs hear about it when one connection gets this many wrong passwords inside the window.
-export const LOGIN_ALERT_AFTER = 5;
+
 
 // How long until a connection with these failed-attempt times (SQL UTC strings) may try again: the failures that count are the ones
 // still inside the window, and it may try once enough of the oldest have aged out to drop below the limit. 0 means it may try now.
@@ -1499,54 +1486,6 @@ async function writeVerifiedBackup(env, key) {
   if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
 }
 
-// Tells the configured webhook URLs about something that went wrong, when the owner has asked for that (Site Settings, off by default:
-// the URLs may be build hooks that were never meant to receive anything but publish notices). One POST per URL (at most five, so a
-// failing day stays well inside the request budget), each logged like any other webhook delivery. Never throws: an alert that can't
-// be sent must not hide the problem it is about. Returns how many URLs were called.
-async function postWebhookAlert(env, flagKey, payload, send) {
-  try {
-    if ((await getSetting(env, flagKey)) !== "1") return 0;
-    const urls = ((await getSetting(env, "webhook_url")) || "")
-      .split("\n")
-      .map((u) => u.trim())
-      .filter((u) => /^https?:\/\//i.test(u))
-      .slice(0, 5);
-    let called = 0;
-    for (const url of urls) {
-      try {
-        const res = await send(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        await logWebhookDelivery(env, { url, payload, status: res.ok ? "success" : "failed", status_code: res.status, error: res.ok ? null : `HTTP ${res.status}` });
-      } catch (err) {
-        await logWebhookDelivery(env, { url, payload, status: "failed", error: err && err.message ? err.message : "Request failed" }).catch(() => {});
-      }
-      called++;
-    }
-    return called;
-  } catch {
-    return 0;
-  }
-}
-
-export function alertBackupFailure(env, message, send = fetch) {
-  return postWebhookAlert(
-    env,
-    "webhook_on_backup_failure",
-    { event: "backup_failed", site: "dominickdominick.com", message: String(message || "Backup failed").slice(0, 300), at: new Date().toISOString() },
-    send
-  );
-}
-
-// No address in the message: these URLs can be third-party services, and who is guessing is not theirs to know.
-export function alertLoginFailures(env, count, send = fetch) {
-  return postWebhookAlert(
-    env,
-    "webhook_on_login_failures",
-    { event: "login_failures", site: "dominickdominick.com", count: Number(count) || 0, window_minutes: LOGIN_WINDOW_MINUTES, at: new Date().toISOString() },
-    send
-  );
-}
-
-
 // Stored dates come in two shapes (ISO with a T from the editors, "YYYY-MM-DD HH:MM:SS" from SQL's datetime('now')); both are UTC.
 export function stampMs(value) {
   const text = String(value == null ? "" : value).trim();
@@ -1559,7 +1498,7 @@ export function stampMs(value) {
 
 
 
-export async function runScheduledBackup(env, { alert = false } = {}) {
+export async function runScheduledBackup(env) {
   try {
     const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     await writeVerifiedBackup(env, key);
@@ -1573,7 +1512,6 @@ export async function runScheduledBackup(env, { alert = false } = {}) {
     return key;
   } catch (err) {
     await setSetting(env, "last_backup_error", err.message || "Backup failed");
-    if (alert) await alertBackupFailure(env, err.message || "Backup failed");
     throw err;
   }
 }

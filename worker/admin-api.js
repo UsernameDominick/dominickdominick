@@ -1,4 +1,4 @@
-import { RESERVED_SLUGS, listPages, createPage, updatePage, getNavAdminOnlyIds, setNoindexItem, setNavAdminOnly, deletePage, restorePage, hardDeletePage, listTrashedPages, listBlocks, createBlock, updateBlock, deleteBlock, getMediaMeta, upsertMediaMeta, deleteMediaMeta, recordMediaVersion, listMediaVersions, deleteMediaVersions, getAllMediaUsage, getDuplicateMediaHashes, logActivity, listErrors, logError, runScheduledBackup, runSafetyBackup, compareBackupToSite, previewScheduledBackup, listScheduledBackups, getBackupStatus, getBackupContents, verifyBackupIntegrity, restoreScheduledBackup, slugExists, getLoginLockout, loginLockoutMessage, recordLoginAttempt, alertLoginFailures, LOGIN_ALERT_AFTER, getSetting, setSetting, exportAll, importAll, createRedirect, getRedirect, maybeSnapshotPage, snapshotPageNow, listRevisions, getRevision, restorePageRevision, restoreArticleRevision, restorePageRevisionBlock, getBlockPageId, getBlockSharedId, updateSharedBlock, restoreProjectRevision, sha256Hex, plausibleDims } from "./db.js";
+import { RESERVED_SLUGS, listPages, createPage, updatePage, getNavAdminOnlyIds, setNoindexItem, setNavAdminOnly, deletePage, restorePage, hardDeletePage, listTrashedPages, listBlocks, createBlock, updateBlock, deleteBlock, getMediaMeta, upsertMediaMeta, deleteMediaMeta, recordMediaVersion, listMediaVersions, deleteMediaVersions, getAllMediaUsage, getDuplicateMediaHashes, logActivity, listErrors, logError, runScheduledBackup, runSafetyBackup, compareBackupToSite, previewScheduledBackup, listScheduledBackups, getBackupStatus, getBackupContents, verifyBackupIntegrity, restoreScheduledBackup, slugExists, getLoginLockout, loginLockoutMessage, recordLoginAttempt, getSetting, setSetting, exportAll, importAll, createRedirect, getRedirect, maybeSnapshotPage, snapshotPageNow, listRevisions, getRevision, restorePageRevision, restoreArticleRevision, restorePageRevisionBlock, getBlockPageId, getBlockSharedId, updateSharedBlock, restoreProjectRevision, sha256Hex, plausibleDims } from "./db.js";
 import { cleanBodyFields } from "./text.js";
 import FEATURES from "../features.json" with { type: "json" };
 import { REQUEST_PREFIX, countByStatus, readRequestRow } from "./features.js";
@@ -448,7 +448,6 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!ok) {
       // Only wrong passwords count against the limit.
       const failures = await recordLoginAttempt(env, ip);
-      if (failures === LOGIN_ALERT_AFTER) ctx.waitUntil(alertLoginFailures(env, failures));
       log(ctx, env, "login_failed", "session", "Failed login attempt", ip);
       return json({ error: "Wrong password" }, { status: 401 });
     }

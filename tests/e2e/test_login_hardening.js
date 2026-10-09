@@ -12,9 +12,6 @@ const d1 = require("./_pw.cjs").d1;
 const attempts = () => Number(/"n":\s*(\d+)/.exec(d1("SELECT COUNT(*) AS n FROM login_attempts"))[1]);
 (async () => {
   d1("DELETE FROM login_attempts");
-  const hits = [];
-  const srv = http.createServer((req, res) => { let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => { hits.push(JSON.parse(b || "{}")); res.end("ok"); }); });
-  await new Promise((r) => srv.listen(8798, r));
   const admin = await request.newContext({ storageState: process.env.ADMIN_STATE });
   const settings = await (await admin.fetch(BASE + "/api/admin/settings")).json();
   const anon = await request.newContext();
@@ -44,17 +41,11 @@ const attempts = () => Number(/"n":\s*(\d+)/.exec(d1("SELECT COUNT(*) AS n FROM 
     ok(statuses.every((s) => s === 200), "ten correct logins in a row all work", statuses);
     ok(attempts() === 0, "none of them counted", attempts());
 
-    // --- lockout message and alert ---
-    await admin.fetch(BASE + "/api/admin/settings", { method: "PUT", data: { ...settings, webhook_url: "http://127.0.0.1:8798/hook", webhook_on_login_failures: "1" } });
+    // --- lockout message ---
     for (let i = 1; i <= 8; i++) {
       const r = await login("wrong-" + i);
       if (r.status() !== 401) ok(false, `wrong password ${i} is a 401`, r.status());
-      if (i === 4) { await new Promise((r) => setTimeout(r, 800)); ok(hits.length === 0, "no alert before the fifth", hits.length); }
-      if (i === 5) { await new Promise((r) => setTimeout(r, 1200)); ok(hits.length === 1, "an alert on the fifth", hits.length); }
     }
-    await new Promise((r) => setTimeout(r, 800));
-    ok(hits.length === 1, "and only one for the whole run", hits.length);
-    ok(hits[0] && hits[0].event === "login_failures" && hits[0].count === 5 && !/\d+\.\d+\.\d+\.\d+/.test(JSON.stringify(hits[0])), "the alert says what happened and nothing about who", hits[0]);
     const locked = await login(pw);
     const body = await locked.json();
     ok(locked.status() === 429, "the ninth try is refused", locked.status());
@@ -70,7 +61,6 @@ const attempts = () => Number(/"n":\s*(\d+)/.exec(d1("SELECT COUNT(*) AS n FROM 
   } finally {
     d1("DELETE FROM login_attempts");
     await admin.fetch(BASE + "/api/admin/settings", { method: "PUT", data: settings });
-    srv.close();
     await b.close();
   }
   console.log(f ? "FAILED " + f : "ALL PASS");

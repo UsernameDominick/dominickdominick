@@ -1,6 +1,6 @@
-// Login: how long a locked-out connection waits, the message it sees, and the opt-in alert after repeated wrong passwords.
+// Login: how long a locked-out connection waits, the message it sees, and how wrong passwords are counted.
 import assert from "node:assert/strict";
-import { loginRetrySeconds, loginLockoutMessage, alertLoginFailures, recordLoginAttempt, getLoginLockout, LOGIN_ALERT_AFTER } from "../worker/db.js";
+import { loginRetrySeconds, loginLockoutMessage, recordLoginAttempt, getLoginLockout } from "../worker/db.js";
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
 const sql = (ms) => new Date(ms).toISOString().slice(0, 19).replace("T", " ");
@@ -69,29 +69,5 @@ assert.deepEqual(await getLoginLockout(f.env, "1.2.3.4", NOW), { allowed: true, 
 // recordLoginAttempt returns how many wrong passwords this connection now has in the window.
 f = fakeEnv();
 for (let i = 1; i <= 6; i++) assert.equal(await recordLoginAttempt(f.env, "1.2.3.4"), i);
-assert.equal(LOGIN_ALERT_AFTER, 5);
-
-// ---- the alert ----
-const sent = [];
-const send = async (url, init) => (sent.push({ url, body: JSON.parse(init.body) }), { ok: true, status: 200 });
-f = fakeEnv({ webhook_url: "https://hooks.example/a\nnope\nhttp://hooks.example/b" });
-assert.equal(await alertLoginFailures(f.env, 5, send), 0, "off by default");
-assert.equal(sent.length, 0);
-f = fakeEnv({ webhook_on_login_failures: "1", webhook_url: "https://hooks.example/a\nnope\nhttp://hooks.example/b" });
-assert.equal(await alertLoginFailures(f.env, 5, send), 2, "one call per real URL");
-assert.deepEqual(sent.map((s) => s.url), ["https://hooks.example/a", "http://hooks.example/b"]);
-assert.equal(sent[0].body.event, "login_failures");
-assert.equal(sent[0].body.count, 5);
-assert.equal(sent[0].body.window_minutes, 15);
-assert.ok(!JSON.stringify(sent[0].body).match(/\d+\.\d+\.\d+\.\d+/), "no address in the message");
-assert.equal(f.state.deliveries.length, 2, "logged like any other delivery");
-// The backup alert's switch does not turn this one on.
-f = fakeEnv({ webhook_on_backup_failure: "1", webhook_url: "https://hooks.example/a" });
-sent.length = 0;
-assert.equal(await alertLoginFailures(f.env, 5, send), 0);
-// A failing endpoint never throws.
-f = fakeEnv({ webhook_on_login_failures: "1", webhook_url: "https://hooks.example/a" });
-assert.equal(await alertLoginFailures(f.env, 5, async () => { throw new Error("down"); }), 1);
-assert.equal(f.state.deliveries[0].status, "failed");
 
 console.log("ALL PASS");
