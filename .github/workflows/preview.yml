@@ -1,0 +1,60 @@
+name: Preview
+
+# Every pull request from this repository gets its own preview address: a Worker version that is not live, using the separate preview
+# database and storage from wrangler.jsonc, never production's. The address is posted on the pull request and smoke-tested.
+# Skipped (not failed) until the Cloudflare secrets exist; Cloudflare's own build also posts a preview for branches.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    # Pull requests from forks never see the secrets, and a fork must not be able to deploy anything.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - id: ready
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Preview skipped::The Cloudflare secrets are not set (outline.md, section 0)."
+          fi
+      - if: steps.ready.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.ready.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - if: steps.ready.outputs.ready == 'true'
+        run: npm ci
+      - name: Upload a preview version
+        id: upload
+        if: steps.ready.outputs.ready == 'true'
+        run: |
+          npx wrangler versions upload --preview-alias "pr-${{ github.event.number }}" --message "PR ${{ github.event.number }}: ${{ github.event.pull_request.head.sha }}" | tee upload.log
+          url="$(grep -oE 'https://[^ ]+workers\.dev' upload.log | head -n1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Smoke test the preview
+        if: steps.ready.outputs.ready == 'true'
+        # The preview database starts empty until it is seeded with seed/home.sql (see "Git, pipeline and deploy" in CLAUDE.md), so the home page is not checked here.
+        run: node scripts/smoke.mjs "${{ steps.upload.outputs.url }}" --no-home
+      - name: Post the address on the pull request
+        if: steps.ready.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.number }}" --edit-last --create-if-none --body "Preview: ${{ steps.upload.outputs.url }}"

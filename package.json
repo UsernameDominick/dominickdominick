@@ -1,0 +1,18 @@
+{
+  "name": "dominickdominick",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "test": "node tests/run.mjs",
+    "test:e2e": "node tests/e2e/run.mjs",
+    "check": "node tests/run.mjs && node scripts/smoke.mjs http://localhost:8787",
+    "db:local": "wrangler d1 execute DB --local --file=schema.sql && wrangler d1 migrations apply DB --local && wrangler d1 execute DB --local --file=seed/home.sql",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}
