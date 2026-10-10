@@ -168,7 +168,7 @@ function onMidiMessage(e) {
     const [status, data1, data2] = e.data;
     const type = status & 0xf0;
     if (midiChannel && (status & 0x0f) + 1 !== midiChannel) return; // not the channel we're listening to
-    if (!ctx) return; // the audio isn't ready yet
+    if (!ctx || renderingOffline) return; // the audio isn't ready yet (or the song is being made into a file)
 
     if (type === 0x90 && data2 > 0) {
         // a note on: play it on the selected track (it sounds until the key is let go), and let the page know, so

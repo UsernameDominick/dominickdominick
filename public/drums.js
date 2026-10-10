@@ -352,24 +352,28 @@ const VOICES = {
     },
 };
 
-// the drum track's ATK, DEC, SUS and REL dials shape every hit on top of the way the drum fades by itself: each hit
+// a drum's ATK, DEC, SUS and REL dials shape each hit of that drum on top of the way the drum fades by itself: each hit
 // rises over ATK, falls over DEC to the SUS level, and is let go half way through the time the drum rings for, then
 // fades out over REL (so a short REL cuts the drum's tail short).
 // (They start at nothing: no fade in, full volume, and a long release, so a drum sounds as it is until you turn them)
 const DRUM_HELD = 0.5; // how much of the drum's ringing time the hit is held for before it's let go
-function drumShapeEnv() {
-    const env = envelopeOf(DRUM_TRACK);
-    if (trackSettings[DRUM_TRACK].attack === 0) env.attack = 0.0005; // all the way down is no fade in at all
-    return env;
+function drumShapeEnv(fx) {
+    return {
+        attack: fx.attack === 0 ? 0.0005 : attackFromSlider(fx.attack), // (all the way down is no fade in at all)
+        decay: decayFromSlider(fx.edecay),
+        sustain: sustainFromSlider(fx.sustain),
+        release: releaseFromSlider(fx.release),
+    };
 }
 
-// plays one drum from the list (when is the audio clock time to start it). Every hit goes through the
-// drum track's filter, so CUT and RES on the strips shape the drums too
-function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5, releaseScale = 1, fx = null) {
+// plays one drum from the list (when is the audio clock time to start it, and slot is the drum's place in the kit: its own
+// settings and its own chain are used, see fx.js). Every hit goes through the chain of its drum, so the dials shape each
+// drum on its own
+function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5, releaseScale = 1, slot = 0) {
+    const fx = drumFx[slot];
     const base = DRUM_SOUNDS[soundIndex];
-    // (with the drum's own settings: its pitch and how long it rings)
-    const sound = fx ? { ...base, p: tunedDrum(base.p, fx) } : base;
-    const env = drumShapeEnv();
+    const sound = { ...base, p: tunedDrum(base.p, fx) }; // (with the drum's own pitch and how long it rings)
+    const env = drumShapeEnv(fx);
     env.release *= releaseScale; // (the release setting in params.js)
     const held = Math.max(0.02, drumTiming(sound).decay * DRUM_HELD); // how long the hit is held for before it's let go
 
@@ -377,25 +381,17 @@ function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5, release
     const shape = ctx.createGain();
     scheduleEnvelope(shape.gain, when, env, held, 1);
     scheduleRelease(shape.gain, when, held, env, 1);
-    shape.connect(trackFilters[DRUM_TRACK]);
+    shape.connect(drumChannel(slot).filter);
 
     const out = ctx.createGain();
     out.gain.value = 0.55 * sound.boost * (sound.p.level === undefined ? 1 : sound.p.level) * volume;
-    // each drum has its own pan, and its own amounts for the echo and the room
-    let node = out;
-    if (fx && fx.pan !== 0.5) {
-        node = ctx.createStereoPanner();
-        node.pan.value = panFrom(fx.pan);
-        out.connect(node);
-    }
-    node.connect(shape);
-    if (fx) sendTo(node, fx.dly, fx.rev, DRUM_TRACK);
+    out.connect(shape);
     VOICES[sound.type](sound.p, when, out);
 }
 
 // plays whatever drum a key is set to
 function playDrumNote(note, when = ctx.currentTime, velocity = 1, releaseScale = 1) {
-    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note) * velocity, releaseScale, drumFxAt(note));
+    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note) * velocity, releaseScale, drumSlot(note));
 }
 
 // a drum with its PITCH and DECAY dials turned: the pitches are multiplied and the lengths are multiplied

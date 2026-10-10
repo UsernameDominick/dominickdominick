@@ -3,21 +3,22 @@
 // press play to hear the whole thing. It uses the synth from synth.js (so load that first).
 
 // (TRACKS, how many tracks there are, and each track's settings (trackSettings) live in synth.js)
-const BARS = 8; // blocks per track
+const MAX_BARS = 32; // the most bars a song can have. The data for all of them is kept, a shorter song just doesn't show or play the rest
+let BARS = 8; // bars in the song right now (blocks per track)
 const BEATS = 4; // beats in a bar
 const LOOKAHEAD = 0.12; // seconds ahead that the scheduler plans notes
 const TICK_MS = 25; // how often the scheduler wakes up (in milliseconds)
 
 // song[track][bar] is a list of notes: { beat: 0 up to just under 4, note: MIDI number }
-const song = Array.from({ length: TRACKS }, () => Array.from({ length: BARS }, () => []));
+const song = Array.from({ length: MAX_TRACKS }, () => Array.from({ length: MAX_BARS }, () => []));
 // a block can be stretched over more bars (the pattern in it loops). clipLen[track][bar] is how many bars the
 // block that starts at that bar covers. The bars a block covers hide their own blocks, they come back if it shrinks
-const clipLen = Array.from({ length: TRACKS }, () => new Array(BARS).fill(1));
-const muted = new Array(TRACKS).fill(false);
+const clipLen = Array.from({ length: MAX_TRACKS }, () => new Array(MAX_BARS).fill(1));
+const muted = new Array(MAX_TRACKS).fill(false);
 // a track on loop repeats what's in it to fill the rest of the song: its blocks, up to the last one with notes in,
 // go round again and again until bar 8 (the repeats show as faded blocks)
-const looped = new Array(TRACKS).fill(false);
-const soloed = new Array(TRACKS).fill(false); // with any track on solo, only the soloed tracks are heard
+const looped = new Array(MAX_TRACKS).fill(false);
+const soloed = new Array(MAX_TRACKS).fill(false); // with any track on solo, only the soloed tracks are heard
 let selTrack = 0; // the selected block
 let selBar = 0;
 let clipboard = null; // a copied block ({ notes, len }), or null if nothing is copied
@@ -101,7 +102,7 @@ const TRACK_PALETTE = [
     { name: "Violet", color: "#9b7fd1" },
     { name: "Cream", color: "#e6d5ab" },
 ];
-const trackColors = Array.from({ length: TRACKS }, (_, t) => TRACK_PALETTE[t].color);
+const trackColors = Array.from({ length: MAX_TRACKS }, (_, t) => TRACK_PALETTE[t % TRACK_PALETTE.length].color);
 try {
     const savedColors = JSON.parse(localStorage.getItem("trackColors"));
     if (Array.isArray(savedColors)) {
@@ -186,6 +187,19 @@ document.addEventListener("keydown", (e) => {
 });
 
 const handleEl = make("div", "block-handle"); // the grip on the selected block's right edge, drag it to resize the block
+// the corner above the track names holds the button for the size of the song: how many bars, and how many tracks (it opens a popup)
+const cornerEl = make("div", "corner");
+const sizeButton = make("button", "tool size-button");
+sizeButton.id = "sizeButton";
+sizeButton.setAttribute("aria-expanded", "false");
+const sizeText = make("span", "size-text");
+sizeButton.append(sizeText, make("span", "menu-arrow"));
+sizeButton.querySelector(".menu-arrow").setAttribute("aria-hidden", "true");
+cornerEl.appendChild(sizeButton);
+function showSizeText() {
+    sizeText.textContent = BARS + " BARS, " + TRACKS + " TRACKS";
+    sizeButton.setAttribute("aria-label", "Song size: " + BARS + " bars and " + TRACKS + " tracks. Change it");
+}
 const cells = []; // cells[track][bar] is { block, canvas }
 const barHeads = []; // the numbers 1 to 8 along the top
 const trackHeads = []; // trackHeads[track] is { name, mute, solo }
@@ -205,7 +219,7 @@ let foldBtn; // the arrow by DRUMS
 // the lane under a track (or under a drum row) where each note's velocity, randomness and so on are edited, opened by the
 // arrow at the end of its header. Each lane shows one setting at a time (the tabs on its header choose which)
 const PARAM_ROW = 64; // how tall a lane is
-const paramOpen = new Array(TRACKS).fill(false);
+const paramOpen = new Array(MAX_TRACKS).fill(false);
 const drumParamOpen = new Array(DRUM_COUNT).fill(false);
 const paramLanes = []; // paramLanes[track] is a lane
 const drumParamLanes = []; // drumParamLanes[slot] is a lane
@@ -407,7 +421,12 @@ function showLane(lane, shown, row, t) {
 let lastBlockClick = { t: -1, b: -1, time: 0 }; // the last block that was clicked, and when (to spot a double click or tap)
 
 function buildSong() {
-    songEl.appendChild(make("div", "corner"));
+    // a block is never narrower than 88px (64px when there are more than 8 bars), the song scrolls sideways instead
+    const blockMin = BARS <= 8 ? 88 : 64;
+    songEl.style.gridTemplateColumns = "248px repeat(" + BARS + ", minmax(" + blockMin + "px, 1fr))";
+    songEl.style.minWidth = "calc(248px + " + BARS + " * " + blockMin + "px + " + BARS + " * var(--gap))";
+    showSizeText();
+    songEl.appendChild(cornerEl);
 
     for (let b = 0; b < BARS; b++) {
         const head = make("div", "bar-head", String(b + 1));
@@ -832,7 +851,7 @@ async function setSound(index) {
     if (drumMode) {
         setDrumSound(selectedDrumNote, index);
         showSound();
-        playDrumSound(index, ctx.currentTime, drumVolumeAt(selectedDrumNote));
+        playDrumNote(selectedDrumNote); // (it's the new drum now)
         return;
     }
 
@@ -851,6 +870,7 @@ function stepSound(delta) {
 soundSelect.addEventListener("change", () => {
     if (/^[pf]:/.test(soundSelect.value)) applyPresetValue(soundSelect.value); // a preset, built in (f:) or yours (p:) (presets.js)
     else setSound(Number(soundSelect.value));
+    soundSelect.blur(); // (so the letter keys play the piano again, and don't jump to another sound in the list)
 });
 soundUp.addEventListener("click", () => stepSound(-1)); // up the list
 soundDown.addEventListener("click", () => stepSound(1)); // down the list
@@ -1701,6 +1721,98 @@ function showMetro() {
     });
 }
 showMetro();
+
+// ---- the size of the song ----
+// The button in the corner of the song opens a popup: how many bars (4 to 32) and how many tracks (the drums and 1 to 9
+// more). The audio and the data are made for the most there can be, so changing the size only changes what is shown and played:
+// the grid is built again, and what was in a bar or track that is hidden comes back if it is added again.
+const SIZE_BARS = [4, 8, 12, 16, 24, 32];
+const MIN_TRACKS = 2;
+const sizePopover = document.getElementById("sizePopover");
+const sizeTracksText = document.getElementById("sizeTracks");
+const addTrackButton = document.getElementById("addTrack");
+const removeTrackButton = document.getElementById("removeTrack");
+
+// builds the grid again, for the bars and tracks there are now
+function rebuildSong() {
+    closePanel("steps");
+    closeTrackMenu();
+    while (songEl.firstChild) songEl.removeChild(songEl.firstChild);
+    [barHeads, trackHeads, lanes, cells, drumRows, paramLanes, drumParamLanes].forEach((list) => (list.length = 0));
+    selTrack = Math.min(selTrack, TRACKS - 1);
+    selBar = Math.min(selBar, BARS - 1);
+    buildSong();
+    trackHeads.forEach((head, t) => head.settings.setAttribute("aria-expanded", String(paramOpen[t])));
+    foldBtn.setAttribute("aria-expanded", String(drumsOpen));
+    foldBtn.setAttribute("aria-label", drumsOpen ? "Hide the drum rows" : "Show each drum on its own row");
+    layoutSong();
+    showAudible();
+    selectBlock(selTrack, selBar);
+}
+
+function setSongBars(bars) {
+    if (bars === BARS) return;
+    if (running) stopTransport();
+    stopStepRecording();
+    BARS = bars;
+    rebuildSong();
+    showSizePopup();
+}
+
+function addTrack() {
+    if (TRACKS >= MAX_TRACKS) return;
+    if (running) stopTransport();
+    stopStepRecording();
+    TRACKS++;
+    const t = TRACKS - 1;
+    if (ctx) {
+        applyFx(t);
+        applyFilter(t);
+        trackGains[t].gain.value = trackSettings[t].volume;
+    }
+    rebuildSong();
+    selectBlock(t, selBar); // (the new track is selected)
+    showSizePopup();
+}
+
+function removeLastTrack() {
+    if (TRACKS <= MIN_TRACKS) return;
+    if (running) stopTransport();
+    stopStepRecording();
+    TRACKS--;
+    rebuildSong();
+    showSizePopup();
+}
+
+// fills the popup: the choices of bars, and what the track buttons can do
+function showSizePopup() {
+    fillChoices([document.getElementById("sizeBars")], SIZE_BARS.map(String), SIZE_BARS.indexOf(BARS), (i) => setSongBars(SIZE_BARS[i]));
+    sizeTracksText.textContent = TRACKS + " tracks (the drums and " + (TRACKS - 1) + " more)";
+    addTrackButton.disabled = TRACKS >= MAX_TRACKS;
+    removeTrackButton.disabled = TRACKS <= MIN_TRACKS;
+    showSizeText();
+}
+
+registerPanel("size", sizeButton, sizePopover, null, showSizePopup, { popupOnly: true }); // a popup on a phone too
+addTrackButton.addEventListener("click", addTrack);
+removeTrackButton.addEventListener("click", () => {
+    const last = TRACKS - 1;
+    const hasNotes = song[last].some((bar, b) => b < BARS && bar.length > 0);
+    // (a track with notes in asks first: it hides it, and the notes only come back if a track is added again before the page is closed)
+    if (!hasNotes || removeTrackButton.dataset.armed) {
+        clearTimeout(removeTrackButton.armTimer);
+        delete removeTrackButton.dataset.armed;
+        removeTrackButton.textContent = "REMOVE LAST TRACK";
+        removeLastTrack();
+        return;
+    }
+    removeTrackButton.dataset.armed = "true";
+    removeTrackButton.textContent = "SURE? IT HAS NOTES";
+    removeTrackButton.armTimer = setTimeout(() => {
+        delete removeTrackButton.dataset.armed;
+        removeTrackButton.textContent = "REMOVE LAST TRACK";
+    }, 3000);
+});
 
 buildSong();
 selectBlock(0, 0);

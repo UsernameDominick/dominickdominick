@@ -1,15 +1,16 @@
 // undo and redo, and the keyboard shortcuts. (There's no button for the shortcuts, they're just there on a computer.)
 //
 //   Space            play and stop (while step recording, a rest)
-//   R                record
+//   Shift+R          record
 //   Ctrl+Z           undo
 //   Ctrl+Shift+Z     redo (Ctrl+Y does too)
 //   Ctrl+C, Ctrl+V   copy the selected block, paste into it
 //   Delete           clear the selected block (while step recording, Backspace goes back a step)
 //   Ctrl+S           save the song (save.js)
-//   M, S, L          mute, solo and loop the selected track
+//   Shift+M, S, L    mute, solo and loop the selected track
 //   arrow keys       left and right pick the next block along, up and down the track above or below
-//   E                open the step sequencer for the selected block
+//   Shift+E          open the step sequencer for the selected block
+// (the letters on their own play the piano, see keyboard.js)
 //
 // Undo goes back through the music: the notes (and their velocity and so on), and how long the blocks are. It's one step for
 // a drag, for a recording, or for a click. It uses the song and the blocks from studio.js, so load this after it.
@@ -47,8 +48,8 @@ function showHistory() {
 // puts the music back to how it was in the text
 function restoreMusic(look) {
     const data = JSON.parse(look);
-    for (let t = 0; t < TRACKS; t++) {
-        for (let b = 0; b < BARS; b++) {
+    for (let t = 0; t < MAX_TRACKS; t++) { // (all of them: the ones that are hidden are kept too)
+        for (let b = 0; b < MAX_BARS; b++) {
             song[t][b] = data.song[t][b];
             clipLen[t][b] = data.clipLen[t][b];
         }
@@ -94,9 +95,10 @@ document.addEventListener("keyup", checkSoon);
 
 // ---- the keys ----
 
-// is the key press for something you're typing into (or a dial, a dropdown or a popup), and not for the song?
+// is the key press for something you're typing into (or a dropdown), and not for the song? (A dial isn't: after you've turned
+// one the keys still work, except the arrows, which turn it)
 function typingIn(target) {
-    return target instanceof Element && target.closest("input, textarea, select, [contenteditable]") !== null;
+    return target instanceof Element && target.closest("input:not([type=range]), textarea, select, [contenteditable]") !== null;
 }
 
 document.addEventListener("keydown", (e) => {
@@ -123,13 +125,13 @@ document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target) || inPopup) return;
 
     const arrow = { arrowleft: [0, -1], arrowright: [0, 1], arrowup: [-1, 0], arrowdown: [1, 0] }[key];
-    if (arrow && e.target instanceof Element && e.target.closest(".piano-scroll")) return; // (the arrows scroll the piano)
+    if (arrow && e.target instanceof Element && e.target.closest(".piano-scroll, input[type=range]")) return; // (the arrows scroll the piano, or turn the dial)
 
     if (key === " " && !e.repeat) {
         e.preventDefault();
         if (stepCursor !== null) stepRest();
         else playBtn.click();
-    } else if (key === "r" && !e.repeat) {
+    } else if (key === "r" && e.shiftKey && !e.repeat) {
         e.preventDefault();
         recBtn.click();
     } else if (key === "delete") {
@@ -139,13 +141,13 @@ document.addEventListener("keydown", (e) => {
         e.preventDefault();
         if (stepCursor !== null) stepBack();
         else clearBlock();
-    } else if (key === "m" && !e.repeat) {
+    } else if (key === "m" && e.shiftKey && !e.repeat) {
         toggleMute(selTrack);
-    } else if (key === "s" && !e.repeat) {
+    } else if (key === "s" && e.shiftKey && !e.repeat) {
         toggleSolo(selTrack);
-    } else if (key === "l" && !e.repeat) {
+    } else if (key === "l" && e.shiftKey && !e.repeat) {
         toggleLoop(selTrack);
-    } else if (key === "e" && !e.repeat) {
+    } else if (key === "e" && e.shiftKey && !e.repeat) {
         openStepPopup();
     } else if (key === "escape") {
         stopStepRecording();

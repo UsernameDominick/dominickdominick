@@ -1979,9 +1979,21 @@ body {
 }
 
 .knob {
-    fill: url(#knobCream);
-    stroke: none;
-    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+    fill: url(#knobRim);
+    stroke: rgba(48, 36, 18, 0.7);
+    stroke-width: 1;
+}
+
+.knob-face {
+    fill: url(#knobFace);
+    stroke: rgba(120, 96, 50, 0.35);
+    stroke-width: 1;
+}
+
+.knob-shine {
+    fill: #fff;
+    fill-opacity: 0.35;
+    pointer-events: none;
 }
 
 .pointer {
@@ -2495,4 +2507,67 @@ body {
     padding: 16px;
     color: var(--ink);
     font-size: 18px;
+}
+
+/* NEW SONG and OPEN FILE side by side, and the box a link is shown in */
+.start-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+}
+
+.start-row .tool {
+    min-width: 0;
+}
+
+.share-box {
+    margin-top: var(--gap);
+    font-size: 16px;
+}
+
+.start-row .tool[data-armed] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+/* the song size button in the corner above the track names, and its popup */
+.size-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 24px;
+    min-width: 0;
+    padding: 0 var(--gap);
+    font-size: 16px;
+    letter-spacing: 0.06em;
+}
+
+.popover.size {
+    width: 420px;
+}
+
+.popover .choices.size6 {
+    grid-template-columns: repeat(6, 1fr);
+}
+
+.popover.size .save-status {
+    margin: 0 0 var(--gap);
+}
+
+.start-row .tool:disabled {
+    opacity: 0.4;
+}
+
+/* the starter songs and the drum patterns in the saved songs popup */
+.popover .choices.starter-list {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.popover .choices.pattern-list {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.popover.size {
+    width: 500px;
 }

@@ -56,9 +56,19 @@ function drumDecayScale(v) {
     return 4 ** (2 * v - 1); // how many times longer than usual a drum rings: a quarter to four times
 }
 
-// ---- what each drum has, on its own (the drum track's dials follow the selected drum) ----
-// pan: where it is, dly and rev: how much goes to the echo and the room, pitch and decay: how it's tuned and how long it rings
-const drumFx = DRUM_NOTES.map(() => ({ pan: 0.5, dly: 0, rev: 0, pitch: 0.5, decay: 0.5 }));
+// ---- what each drum has, on its own (the dials follow the selected drum) ----
+// Every dial is each drum's own, so turning one changes the selected drum and nothing else:
+//   pan: where it is, dly and rev: how much goes to the echo and the room, pitch and decay: how it's tuned and how long it rings
+//   drive, ftype, cutoff and resonance: the distortion and the filter, attack, edecay, sustain and release: the fade it is given
+//   (edecay is the fade's DEC dial: a drum's own decay is how long it rings), dtime and dfb: the echo's time and repeats, trate
+//   and tdep: the tremolo. They all start with no change to the sound
+const DRUM_FX_DEFAULTS = {
+    pan: 0.5, dly: 0, rev: 0, pitch: 0.5, decay: 0.5,
+    drive: 0, ftype: 0, cutoff: 1, resonance: 0,
+    attack: DIAL_DEFAULTS.drums.attack, edecay: DIAL_DEFAULTS.drums.decay, sustain: DIAL_DEFAULTS.drums.sustain, release: DIAL_DEFAULTS.drums.release,
+    dtime: FX_DEFAULTS.dtime, dfb: FX_DEFAULTS.dfb, trate: FX_DEFAULTS.trate, tdep: FX_DEFAULTS.tdep,
+};
+const drumFx = DRUM_NOTES.map(() => ({ ...DRUM_FX_DEFAULTS }));
 try {
     const savedFx = JSON.parse(localStorage.getItem("drumFx"));
     if (Array.isArray(savedFx) && savedFx.length === drumFx.length) {
@@ -72,11 +82,16 @@ function drumFxAt(note) {
     return drumFx[drumSlot(note)];
 }
 
-function setDrumFx(note, key, v) {
-    drumFxAt(note)[key] = v;
+function saveDrumFx() {
     try {
         localStorage.setItem("drumFx", JSON.stringify(drumFx));
     } catch {}
+}
+
+function setDrumFx(note, key, v) {
+    drumFxAt(note)[key] = v;
+    saveDrumFx();
+    applyDrumChannel(drumSlot(note));
 }
 
 // ---- the audio: what every track's sound goes through after its notes ----
@@ -101,8 +116,8 @@ const vibGain = [];
 const cutCtl = []; // a signal for each track that the cutoff of every one of its notes' filters follows (in cents)
 const resCtl = []; // and the same for the resonance
 let reverbIn; // the room, shared by all tracks
-const activeFilters = Array.from({ length: TRACKS }, () => new Set()); // the filters of the notes sounding now, for each track
-const lastFrequency = new Array(TRACKS).fill(0); // the last note each track played, for the glide
+const activeFilters = Array.from({ length: MAX_TRACKS }, () => new Set()); // the filters of the notes sounding now, for each track
+const lastFrequency = new Array(MAX_TRACKS).fill(0); // the last note each track played, for the glide
 
 // a room: two channels of noise that fades away, which the convolver turns into reverb
 function makeRoom() {
@@ -115,6 +130,71 @@ function makeRoom() {
     return buffer;
 }
 
+// the drive curve: the louder it goes in, the more it's squashed into a soft limit
+const DRIVE_CURVE = new Float32Array(2048);
+for (let i = 0; i < DRIVE_CURVE.length; i++) DRIVE_CURVE[i] = Math.tanh(3 * ((i / (DRIVE_CURVE.length - 1)) * 2 - 1));
+
+// makes one chain of the nodes a sound goes through, and gives them back: a filter that is where a sound goes in (a drum hit
+// goes into it, a synth note has a filter of its own instead) into the bus, then drive, tremolo, pan, the volume and the song's
+// volume, with an echo and a send to the room (the room is shared). A track has one, and so does each drum (a drum has
+// the same dials as a track, and each drum's own)
+function makeChain() {
+    const filter = ctx.createBiquadFilter();
+    const bus = ctx.createGain();
+    filter.connect(bus);
+
+    // drive: some of the sound goes through the squashing and some doesn't (DRIVE is how much)
+    const dry = ctx.createGain();
+    const pre = ctx.createGain();
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = DRIVE_CURVE;
+    shaper.oversample = "2x";
+    const post = ctx.createGain();
+    const wet = ctx.createGain();
+    const trem = ctx.createGain();
+    bus.connect(dry);
+    dry.connect(trem);
+    bus.connect(pre);
+    pre.connect(shaper);
+    shaper.connect(post);
+    post.connect(wet);
+    wet.connect(trem);
+
+    // tremolo: a slow wave (an LFO) turns the volume up and down
+    const tremWave = ctx.createOscillator();
+    const depth = ctx.createGain();
+    tremWave.connect(depth);
+    depth.connect(trem.gain);
+    tremWave.start();
+
+    const pan = ctx.createStereoPanner();
+    const gain = ctx.createGain();
+    trem.connect(pan);
+    pan.connect(gain);
+    gain.connect(master);
+
+    // the echo: the sound goes into a delay that feeds itself (a little duller each time round)
+    const dSend = ctx.createGain();
+    const delay = ctx.createDelay(4);
+    const feedback = ctx.createGain();
+    const tone = ctx.createBiquadFilter();
+    tone.type = "lowpass";
+    tone.frequency.value = 3500;
+    gain.connect(dSend);
+    dSend.connect(delay);
+    delay.connect(tone);
+    tone.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(master);
+
+    // the room
+    const rSend = ctx.createGain();
+    gain.connect(rSend);
+    rSend.connect(reverbIn);
+
+    return { filter, bus, dry, pre, post, wet, trem, tremWave, depth, pan, gain, dSend, delay, feedback, rSend };
+}
+
 // builds all of it, once, when the audio starts (getCtx calls this)
 function buildTrackChains() {
     reverbIn = ctx.createConvolver();
@@ -124,65 +204,8 @@ function buildTrackChains() {
     reverbIn.connect(reverbOut);
     reverbOut.connect(master);
 
-    // the drive curve: the louder it goes in, the more it's squashed into a soft limit
-    const curve = new Float32Array(2048);
-    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(3 * ((i / (curve.length - 1)) * 2 - 1));
-
-    for (let t = 0; t < TRACKS; t++) {
-        // the drum track's own filter (a drum hit goes through it, a synth note has its own filter instead)
-        const filter = ctx.createBiquadFilter();
-        const bus = ctx.createGain();
-        filter.connect(bus);
-
-        // drive: some of the sound goes through the squashing and some doesn't (DRIVE is how much)
-        const dry = ctx.createGain();
-        const pre = ctx.createGain();
-        const shaper = ctx.createWaveShaper();
-        shaper.curve = curve;
-        shaper.oversample = "2x";
-        const post = ctx.createGain();
-        const wet = ctx.createGain();
-        const trem = ctx.createGain();
-        bus.connect(dry);
-        dry.connect(trem);
-        bus.connect(pre);
-        pre.connect(shaper);
-        shaper.connect(post);
-        post.connect(wet);
-        wet.connect(trem);
-
-        // tremolo: a slow wave (an LFO) turns the volume up and down
-        const tremWave = ctx.createOscillator();
-        const depth = ctx.createGain();
-        tremWave.connect(depth);
-        depth.connect(trem.gain);
-        tremWave.start();
-
-        const pan = ctx.createStereoPanner();
-        const trackGain = ctx.createGain();
-        trackGain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
-        trem.connect(pan);
-        pan.connect(trackGain);
-        trackGain.connect(master);
-
-        // the echo: the sound goes into a delay that feeds itself (a little duller each time round)
-        const dSend = ctx.createGain();
-        const delay = ctx.createDelay(4);
-        const feedback = ctx.createGain();
-        const tone = ctx.createBiquadFilter();
-        tone.type = "lowpass";
-        tone.frequency.value = 3500;
-        trackGain.connect(dSend);
-        dSend.connect(delay);
-        delay.connect(tone);
-        tone.connect(feedback);
-        feedback.connect(delay);
-        delay.connect(master);
-
-        // the room
-        const rSend = ctx.createGain();
-        trackGain.connect(rSend);
-        rSend.connect(reverbIn);
+    for (let t = 0; t < MAX_TRACKS; t++) { // (for every track the song could have, so adding one later needs nothing built)
+        const c = makeChain();
 
         // what the filter of each note follows, and the vibrato
         const cut = ctx.createConstantSource();
@@ -194,107 +217,141 @@ function buildTrackChains() {
         vib.connect(vibDepth);
         vib.start();
 
-        trackFilters.push(filter);
-        trackGains.push(trackGain);
-        trackBus.push(bus);
-        driveDry.push(dry);
-        drivePre.push(pre);
-        drivePost.push(post);
-        driveWet.push(wet);
-        tremGain.push(trem);
-        tremDepth.push(depth);
-        tremLfo.push(tremWave);
-        trackPan.push(pan);
-        dlySend.push(dSend);
-        dlyNode.push(delay);
-        dlyFeedback.push(feedback);
-        revSend.push(rSend);
+        trackFilters.push(c.filter);
+        trackGains.push(c.gain);
+        trackBus.push(c.bus);
+        driveDry.push(c.dry);
+        drivePre.push(c.pre);
+        drivePost.push(c.post);
+        driveWet.push(c.wet);
+        tremGain.push(c.trem);
+        tremDepth.push(c.depth);
+        tremLfo.push(c.tremWave);
+        trackPan.push(c.pan);
+        dlySend.push(c.dSend);
+        dlyNode.push(c.delay);
+        dlyFeedback.push(c.feedback);
+        revSend.push(c.rSend);
         vibLfo.push(vib);
         vibGain.push(vibDepth);
         cutCtl.push(cut);
         resCtl.push(res);
 
-        applyFilter(t);
-        applyFx(t);
-        trackGain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
+        applyFilter(t, true);
+        applyFx(t, true);
+        c.gain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
     }
 }
 
-// puts the filter settings of a track on its filters (the drum track's own filter, and the control signals every note's
-// filter follows). Notes that are sounding change type at once
-function applyFilter(t) {
-    if (!ctx || !trackFilters[t]) return;
-    const s = trackSettings[t];
-    const now = ctx.currentTime;
-    const hz = cutoffFromSlider(s.cutoff);
-    const dB = resonanceFromSlider(s.resonance);
-    const type = filterTypeFrom(s.ftype);
-    cutCtl[t].offset.setTargetAtTime(1200 * Math.log2(hz / FILTER_BASE), now, 0.015);
-    resCtl[t].offset.setTargetAtTime(dB, now, 0.015);
-    const filter = trackFilters[t];
-    filter.type = type;
-    filter.frequency.setTargetAtTime(hz, now, 0.015);
-    filter.Q.setTargetAtTime(type === "bandpass" ? 0.7 + dB : dB, now, 0.015);
-    activeFilters[t].forEach((f) => (f.type = type));
+// a track's chain, put together from the lists of its nodes
+function chainOf(t) {
+    return {
+        filter: trackFilters[t], bus: trackBus[t], dry: driveDry[t], pre: drivePre[t], post: drivePost[t], wet: driveWet[t],
+        trem: tremGain[t], tremWave: tremLfo[t], depth: tremDepth[t], pan: trackPan[t], gain: trackGains[t], dSend: dlySend[t],
+        delay: dlyNode[t], feedback: dlyFeedback[t], rSend: revSend[t],
+    };
 }
 
-// puts everything else a track has on its nodes: the drive, the tremolo, the vibrato, the pan, the echo and the room
-function applyFx(t) {
-    if (!ctx || !trackPan[t]) return;
-    const s = trackSettings[t];
+// puts a value on a node's setting: it glides there (so turning a dial doesn't click), or, for a chain that has just been made
+// (instant), it is there at once, because a new chain starts out as the browser makes it (a filter at 350Hz, the drive all the
+// way up) and the first sound through it would be wrong while it glided
+function setParam(param, value, instant, now, smooth) {
+    if (instant) param.value = value;
+    else param.setTargetAtTime(value, now, smooth);
+}
+
+// the filter of a chain, from the settings (a track's or a drum's: they have the same names)
+function applyChainFilter(c, s, instant = false) {
+    const now = ctx.currentTime;
+    const dB = resonanceFromSlider(s.resonance);
+    const type = filterTypeFrom(s.ftype);
+    c.filter.type = type;
+    setParam(c.filter.frequency, cutoffFromSlider(s.cutoff), instant, now, 0.015);
+    setParam(c.filter.Q, type === "bandpass" ? 0.7 + dB : dB, instant, now, 0.015);
+}
+
+// everything else a chain has, from the settings: the pan, the drive, the tremolo, the echo and the room
+function applyChainFx(c, s, instant = false) {
     const now = ctx.currentTime;
     const smooth = 0.02;
-    const drums = t === DRUM_TRACK;
-
-    trackPan[t].pan.setTargetAtTime(drums ? 0 : panFrom(s.pan), now, smooth); // (each drum is panned as it's hit)
+    const set = (param, value, time = smooth) => setParam(param, value, instant, now, time);
+    set(c.pan.pan, panFrom(s.pan));
 
     // drive: how much goes through the squashing, and how hard it's pushed. The squashed sound is brought back down so it's
     // about as loud as the clean one
     const push = 1 + 14 * s.drive;
-    drivePre[t].gain.setTargetAtTime(push, now, smooth);
-    drivePost[t].gain.setTargetAtTime(0.3 / Math.tanh(3 * Math.min(1, 0.3 * push)), now, smooth);
-    driveWet[t].gain.setTargetAtTime(s.drive, now, smooth);
-    driveDry[t].gain.setTargetAtTime(1 - s.drive, now, smooth);
+    set(c.pre.gain, push);
+    set(c.post.gain, 0.3 / Math.tanh(3 * Math.min(1, 0.3 * push)));
+    set(c.wet.gain, s.drive);
+    set(c.dry.gain, 1 - s.drive);
 
     // tremolo: the volume swings between full and (1 - depth)
-    tremGain[t].gain.setTargetAtTime(1 - s.tdep / 2, now, smooth);
-    tremDepth[t].gain.setTargetAtTime(s.tdep / 2, now, smooth);
-    tremLfo[t].frequency.setTargetAtTime(tremRateHz(s.trate), now, smooth);
+    set(c.trem.gain, 1 - s.tdep / 2);
+    set(c.depth.gain, s.tdep / 2);
+    set(c.tremWave.frequency, tremRateHz(s.trate));
 
-    vibLfo[t].frequency.setTargetAtTime(vibRateHz(s.vrate), now, smooth);
-    vibGain[t].gain.setTargetAtTime(vibCents(s.vdep), now, smooth);
+    // the echo and the room
+    set(c.dSend.gain, s.dly * 0.8);
+    set(c.feedback.gain, s.dfb * 0.85);
+    set(c.rSend.gain, s.rev * 0.8);
+    set(c.delay.delayTime, echoSeconds(s), 0.03);
+}
 
-    // the echo and the room (a drum is sent by its own amounts as it's hit, so the drum track's are off)
-    dlySend[t].gain.setTargetAtTime(drums ? 0 : s.dly * 0.8, now, smooth);
-    dlyFeedback[t].gain.setTargetAtTime(s.dfb * 0.85, now, smooth);
-    revSend[t].gain.setTargetAtTime(drums ? 0 : s.rev * 0.8, now, smooth);
-    updateDelayTimes(t);
+// how long the echo is, in seconds, from the settings (it's in time with the song)
+function echoSeconds(s) {
+    return Math.min(3.9, (DELAY_BEATS[delayIndex(s.dtime)] * 60) / bpm);
+}
+
+// puts the filter settings of a track on its chain, and on the control signals every note's filter follows. Notes that are
+// sounding change type at once
+function applyFilter(t, instant = false) {
+    if (!ctx || !trackFilters[t]) return;
+    const s = trackSettings[t];
+    const now = ctx.currentTime;
+    setParam(cutCtl[t].offset, 1200 * Math.log2(cutoffFromSlider(s.cutoff) / FILTER_BASE), instant, now, 0.015);
+    setParam(resCtl[t].offset, resonanceFromSlider(s.resonance), instant, now, 0.015);
+    applyChainFilter(chainOf(t), s, instant);
+    activeFilters[t].forEach((f) => (f.type = filterTypeFrom(s.ftype)));
+}
+
+// puts everything else a track has on its nodes: the drive, the tremolo, the vibrato, the pan, the echo and the room
+function applyFx(t, instant = false) {
+    if (!ctx || !trackPan[t]) return;
+    const s = trackSettings[t];
+    applyChainFx(chainOf(t), s, instant);
+    setParam(vibLfo[t].frequency, vibRateHz(s.vrate), instant, ctx.currentTime, 0.02);
+    setParam(vibGain[t].gain, vibCents(s.vdep), instant, ctx.currentTime, 0.02);
 }
 
 // the echo is in time with the song, so it follows the BPM (studio.js calls this when the BPM changes)
 function updateDelayTimes(only) {
     if (!ctx || !dlyNode.length) return;
-    for (let t = 0; t < TRACKS; t++) {
+    for (let t = 0; t < MAX_TRACKS; t++) {
         if (only !== undefined && t !== only) continue;
-        const seconds = (DELAY_BEATS[delayIndex(trackSettings[t].dtime)] * 60) / bpm;
-        dlyNode[t].delayTime.setTargetAtTime(Math.min(3.9, seconds), ctx.currentTime, 0.03);
+        dlyNode[t].delayTime.setTargetAtTime(echoSeconds(trackSettings[t]), ctx.currentTime, 0.03);
     }
+    if (only === undefined) drumChannels.forEach((c, slot) => c && c.delay.delayTime.setTargetAtTime(echoSeconds(drumFx[slot]), ctx.currentTime, 0.03));
 }
 
-// sends a sound to the echo and the room (for a drum hit: each drum has its own amounts)
-function sendTo(node, echo, room, track) {
-    if (echo > 0) {
-        const g = ctx.createGain();
-        g.gain.value = echo * 0.8;
-        node.connect(g);
-        g.connect(dlyNode[track]);
+// ---- each drum's own chain ----
+// A drum hit goes through the chain of its drum, made the first time that drum is hit, so each drum can have its own filter,
+// drive, fade, echo, room, pan and tremolo (the dials change the selected drum, not all of them)
+const drumChannels = new Array(DRUM_NOTES.length).fill(null);
+
+function drumChannel(slot) {
+    if (!drumChannels[slot]) {
+        drumChannels[slot] = makeChain();
+        applyDrumChannel(slot, true);
     }
-    if (room > 0) {
-        const g = ctx.createGain();
-        g.gain.value = room * 0.8;
-        node.connect(g);
-        g.connect(reverbIn);
-    }
+    return drumChannels[slot];
+}
+
+// puts a drum's settings on its chain (if it has been made)
+function applyDrumChannel(slot, instant = false) {
+    const c = drumChannels[slot];
+    if (!c || !ctx) return;
+    applyChainFilter(c, drumFx[slot], instant);
+    applyChainFx(c, drumFx[slot], instant);
 }
 
 // opens a note's filter with its fade: it starts at the cutoff and opens up by octs octaves as the note rises, and
@@ -316,21 +373,26 @@ function scheduleFilterEnvelope(param, now, env, held, octs) {
 // when it's turned, and how to write its value.
 
 const isDrums = () => liveTrack === DRUM_TRACK;
-const DRUM_ONLY_KEYS = ["pitch", "decay"]; // these are only for a drum
-const PER_DRUM_KEYS = ["pan", "dly", "rev", "pitch", "decay"]; // on the drum track these are each drum's own
+// A dial's setting is kept in the selected synth track, or on the drum track in the selected drum (see drumFx). The fade's DEC
+// dial is called envdecay here, because a drum keeps it as edecay (its decay is how long it rings) and a track as decay
+const DRUM_SETTING_KEYS = { envdecay: "edecay" };
+const TRACK_SETTING_KEYS = { envdecay: "decay" };
 
 // where a setting is kept for the selected sound
 function getSetting(key) {
-    return isDrums() && PER_DRUM_KEYS.includes(key) ? drumFxAt(selectedDrumNote)[key] : trackSettings[liveTrack][key];
+    if (isDrums()) return drumFxAt(selectedDrumNote)[DRUM_SETTING_KEYS[key] || key];
+    return trackSettings[liveTrack][TRACK_SETTING_KEYS[key] || key];
 }
 
 function setSetting(key, v) {
-    if (isDrums() && PER_DRUM_KEYS.includes(key)) {
-        setDrumFx(selectedDrumNote, key, v);
-        return;
+    if (isDrums()) {
+        setDrumFx(selectedDrumNote, DRUM_SETTING_KEYS[key] || key, v);
+    } else {
+        trackSettings[liveTrack][TRACK_SETTING_KEYS[key] || key] = v;
+        applyFx(liveTrack);
+        applyFilter(liveTrack);
     }
-    trackSettings[liveTrack][key] = v;
-    applyFx(liveTrack);
+    drawGraphs(); // (the filter and the fade graphs follow the dials)
 }
 
 const pct = (v) => Math.round(v * 100) + "%";
@@ -349,6 +411,7 @@ const DIAL_TABS = [
     { id: "env", name: "ENV" },
     { id: "fx", name: "FX" },
     { id: "mod", name: "MOD" },
+    { id: "play", name: "PLAY" },
 ];
 
 const DIALS = [
@@ -363,22 +426,15 @@ const DIALS = [
     settingDial("sound", "PITCH", "pitch", "Pitch of the selected drum", "drums", 0.5, (v) => signed(pitchSemis(v))),
     settingDial("sound", "DECAY", "decay", "How long the selected drum rings", "drums", 0.5, (v) => "x" + drumDecayScale(v).toFixed(2)),
     // FILTER
-    { group: "filter", label: "TYPE", aria: "Filter type: low pass, high pass or band pass", scope: "both", def: 0, defDrums: 0, format: (v) => FILTER_TYPE_NAMES[Math.min(2, Math.round(v * 2))], id: "dial-ftype", step: 0.5,
-      get: () => trackSettings[liveTrack].ftype, apply: (v) => { trackSettings[liveTrack].ftype = v; applyFilter(liveTrack); drawGraphs(); } },
-    { group: "filter", label: "CUT", aria: "Filter cutoff", scope: "both", def: 1, defDrums: 1, format: (v) => formatCutoff(cutoffFromSlider(v)), id: "cutoffSlider",
-      get: () => trackSettings[liveTrack].cutoff, apply: (v) => setCutoff(v) },
-    { group: "filter", label: "RES", aria: "Filter resonance", scope: "both", def: 0, defDrums: 0, format: (v) => Math.round(resonanceFromSlider(v)) + "dB", id: "resonanceSlider",
-      get: () => trackSettings[liveTrack].resonance, apply: (v) => setResonance(v) },
+    settingDial("filter", "TYPE", "ftype", "Filter type: low pass, high pass or band pass", "both", 0, (v) => FILTER_TYPE_NAMES[Math.min(2, Math.round(v * 2))]),
+    { ...settingDial("filter", "CUT", "cutoff", "Filter cutoff", "both", 1, (v) => formatCutoff(cutoffFromSlider(v))), id: "cutoffSlider" },
+    { ...settingDial("filter", "RES", "resonance", "Filter resonance", "both", 0, (v) => Math.round(resonanceFromSlider(v)) + "dB"), id: "resonanceSlider" },
     settingDial("filter", "FENV", "fenv", "Filter envelope: how far the fade opens the filter", "synth", 0, (v) => "+" + fenvOctaves(v).toFixed(1)),
     // ENV
-    { group: "env", label: "ATK", aria: "Attack time", scope: "both", def: DIAL_DEFAULTS.synth.attack, defDrums: DIAL_DEFAULTS.drums.attack, format: (v) => formatSeconds(attackFromSlider(v)), id: "attackSlider",
-      get: () => trackSettings[liveTrack].attack, apply: (v) => setAttack(v) },
-    { group: "env", label: "DEC", aria: "Decay time", scope: "both", def: DIAL_DEFAULTS.synth.decay, defDrums: DIAL_DEFAULTS.drums.decay, format: (v) => formatSeconds(decayFromSlider(v)), id: "decaySlider",
-      get: () => trackSettings[liveTrack].decay, apply: (v) => setDecay(v) },
-    { group: "env", label: "SUS", aria: "Sustain level", scope: "both", def: DIAL_DEFAULTS.synth.sustain, defDrums: DIAL_DEFAULTS.drums.sustain, format: pct, id: "sustainSlider",
-      get: () => trackSettings[liveTrack].sustain, apply: (v) => setSustain(v) },
-    { group: "env", label: "REL", aria: "Release time", scope: "both", def: DIAL_DEFAULTS.synth.release, defDrums: DIAL_DEFAULTS.drums.release, format: (v) => releaseFromSlider(v).toFixed(1) + "s", id: "releaseSlider",
-      get: () => trackSettings[liveTrack].release, apply: (v) => setRelease(v) },
+    { ...settingDial("env", "ATK", "attack", "Attack time", "both", DIAL_DEFAULTS.synth.attack, (v) => formatSeconds(attackFromSlider(v)), DIAL_DEFAULTS.drums.attack), id: "attackSlider" },
+    { ...settingDial("env", "DEC", "envdecay", "Decay time", "both", DIAL_DEFAULTS.synth.decay, (v) => formatSeconds(decayFromSlider(v)), DIAL_DEFAULTS.drums.decay), id: "decaySlider" },
+    { ...settingDial("env", "SUS", "sustain", "Sustain level", "both", DIAL_DEFAULTS.synth.sustain, pct, DIAL_DEFAULTS.drums.sustain), id: "sustainSlider" },
+    { ...settingDial("env", "REL", "release", "Release time", "both", DIAL_DEFAULTS.synth.release, (v) => releaseFromSlider(v).toFixed(1) + "s", DIAL_DEFAULTS.drums.release), id: "releaseSlider" },
     // FX
     settingDial("fx", "DLY", "dly", "Echo: how much of the sound goes to the echo", "both", 0, pct),
     settingDial("fx", "DTIME", "dtime", "Echo time, in time with the song", "both", 0.25, (v) => DELAY_NAMES[delayIndex(v)]),
@@ -389,17 +445,27 @@ const DIALS = [
     settingDial("mod", "VDEP", "vdep", "Vibrato depth", "synth", 0, (v) => Math.round(vibCents(v)) + "c"),
     settingDial("mod", "TRATE", "trate", "Tremolo speed", "both", 0.4, (v) => tremRateHz(v).toFixed(1)),
     settingDial("mod", "TDEP", "tdep", "Tremolo depth", "both", 0, pct),
+    // PLAY (chords and the arpeggiator, played in playNote in synth.js)
+    settingDial("play", "CHORD", "chord", "Chord: more notes played with each note", "synth", 0, (v) => CHORDS[placeOf(v, CHORDS.length)].name),
+    settingDial("play", "ARP", "arp", "Arpeggio: plays the chord one note after another, in this order", "synth", 0, (v) => ARP_MODES[placeOf(v, ARP_MODES.length)]),
+    settingDial("play", "RATE", "arate", "Arpeggio speed, in time with the song", "synth", 2 / 3, (v) => ARP_RATES[placeOf(v, ARP_RATES.length)].name),
 ];
 // the steps of the stepped dials, so they click from one choice to the next
 DIALS.forEach((dial) => {
     if (dial.id === "dial-oct") dial.step = 0.25;
     if (dial.id === "dial-semi") dial.step = 1 / 24;
     if (dial.id === "dial-dtime") dial.step = 0.25;
+    if (dial.id === "dial-ftype") dial.step = 0.5;
+    if (dial.id === "dial-chord") dial.step = 1 / (CHORDS.length - 1);
+    if (dial.id === "dial-arp") dial.step = 1 / (ARP_MODES.length - 1);
+    if (dial.id === "dial-arate") dial.step = 1 / (ARP_RATES.length - 1);
 });
 
 const dialPanel = document.getElementById("dialPanel");
 const dialEntries = []; // { spec, box, input, strip } for every dial
 let dialTab = "sound";
+let selectDialTab; // shows a tab (buildDialPanel sets it)
+let dialTabButtons = []; // the buttons of the tabs
 try {
     const savedTab = localStorage.getItem("dialTab");
     if (DIAL_TABS.some((tab) => tab.id === savedTab)) dialTab = savedTab;
@@ -410,12 +476,12 @@ function buildDialPanel() {
     const tabs = mk("div", "dial-tabs");
     tabs.setAttribute("role", "group");
     tabs.setAttribute("aria-label", "Which dials to show");
-    const tabButtons = DIAL_TABS.map((tab) => {
+    const tabButtons = (dialTabButtons = DIAL_TABS.map((tab) => {
         const button = mk("button", "dial-tab", tab.name);
         button.addEventListener("click", () => showDialTab(tab.id));
         tabs.appendChild(button);
         return button;
-    });
+    }));
     dialPanel.appendChild(tabs);
 
     const groups = {};
@@ -461,6 +527,7 @@ function buildDialPanel() {
             tabButtons[i].setAttribute("aria-pressed", String(tab.id === id));
         });
     }
+    selectDialTab = showDialTab;
     showDialTab(dialTab);
 }
 buildDialPanel();
@@ -469,6 +536,10 @@ buildDialPanel();
 // pick a track or a drum)
 function showTrackSettings() {
     const drums = isDrums();
+    // (the drums have no PLAY tab: no chords or arpeggios, a drum is a drum)
+    const playTab = DIAL_TABS.findIndex((tab) => tab.id === "play");
+    dialTabButtons[playTab].disabled = drums;
+    if (drums && dialTab === "play") selectDialTab("sound");
     dialEntries.forEach(({ spec, box, input, strip }) => {
         const shown = spec.scope === "both" || (spec.scope === "drums") === drums;
         box.hidden = !shown;

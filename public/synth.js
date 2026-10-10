@@ -3,11 +3,13 @@
 // audio state
 let ctx;
 let master;
+let renderingOffline = false; // true while the song is being rendered to an audio file (export.js): the page stays quiet and keeps its lights off
 // the volume of the whole song (the strip in the top box). Half way is the normal loudness, all the way up is twice
 // that. (The VOL dial is different: it's for the selected sound, see setVolume below)
 let songVolume = 0.5;
 
-const TRACKS = 5; // how many tracks there are (studio.js uses this too, so synth.js has to load first)
+const MAX_TRACKS = 10; // the most tracks a song can have. Everything for all of them is made when the page opens
+let TRACKS = 5; // how many tracks the song has right now (the first is drums). The tracks after the last one are kept, but are quiet and hidden
 const DRUM_TRACK = 0; // the first track is always the drum track (drums.js plays it, playNote hands its notes over)
 
 // each track has its own settings: which sound it plays (a place in the SOUNDS list below) and where
@@ -27,19 +29,20 @@ function filterTypeFrom(v) {
 const FX_DEFAULTS = {
     pan: 0.5, drive: 0, detune: 0, oct: 0.5, semi: 0.5, glide: 0, ftype: 0, fenv: 0,
     dly: 0, dtime: 0.25, dfb: 0.35, rev: 0, vrate: 0.4, vdep: 0, trate: 0.4, tdep: 0,
+    chord: 0, arp: 0, arate: 2 / 3, // (the PLAY tab: a chord for each note, an arpeggio, and how fast it steps. See playNote)
 };
 const DIAL_DEFAULTS = {
     synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
     drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
 };
-const trackSettings = Array.from({ length: TRACKS }, (_, t) => ({
+const trackSettings = Array.from({ length: MAX_TRACKS }, (_, t) => ({
     sound: 0, volume: 0.5, cutoff: 1, resonance: 0, ...FX_DEFAULTS, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
 }));
 const trackFilters = []; // one lowpass filter for each track, made when the audio starts
 const trackGains = []; // and one volume for each track, after its filter (the drum track's stays at full, each drum has its own volume)
 
 // what a track is called on the page
-const trackNames = Array.from({ length: TRACKS }, (_, t) => t === DRUM_TRACK ? "DRUMS" : "TRK " + (t + 1));
+const trackNames = Array.from({ length: MAX_TRACKS }, (_, t) => t === DRUM_TRACK ? "DRUMS" : "TRK " + (t + 1));
 try {
     const savedNames = JSON.parse(localStorage.getItem("trackNames"));
     if (Array.isArray(savedNames)) {
@@ -201,17 +204,24 @@ function envelopeOf(track) {
 // it gives back { release(time) }, and calling that lets it go (a key held on the piano or a MIDI keyboard)
 // velocity (0 to 1) is how hard it's hit, and releaseScale is how many times longer than usual it takes to fade out
 // (the settings in params.js)
-function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE, velocity = 1, releaseScale = 1) {
+function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE, velocity = 1, releaseScale = 1) {
     // the drum track doesn't use the synth: each piano key is a drum (drums.js), so hand the note over
     if (track === DRUM_TRACK) {
         const drumNote = Math.round(69 + 12 * Math.log2(frequency / 440)); // turn the frequency back into a key
         playDrumNote(drumNote, when, velocity, releaseScale);
-        document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: drumNote, time: when, track } }));
+        if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: drumNote, time: when, track } }));
         return hold ? { release() {} } : undefined; // a drum hit is over by itself, there's nothing to hold
     }
 
     const settings = trackSettings[track];
     const layers = SOUNDS[settings.sound].layers;
+    // the nodes this note is plugged into are kept here, so when it ends it unplugs from the same ones, even if the page has
+    // moved on to a different audio context by then (as it does while the song is made into a file, export.js)
+    const wheelBend = bendNode;
+    const wheelMod = modDepth;
+    const trackVibrato = vibGain[track];
+    const filterCut = cutCtl[track];
+    const filterRes = resCtl[track];
     const env = envelopeOf(track);
     env.release *= releaseScale;
     const peak = PEAK * velocity; // how loud the top of the fade is
@@ -232,12 +242,12 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     const filter = ctx.createBiquadFilter();
     filter.type = filterTypeFrom(settings.ftype);
     filter.frequency.value = FILTER_BASE;
-    cutCtl[track].connect(filter.detune);
+    filterCut.connect(filter.detune);
     if (filter.type === "bandpass") {
         filter.Q.value = 0.7 + resonanceFromSlider(settings.resonance);
     } else {
         filter.Q.value = 0;
-        resCtl[track].connect(filter.Q);
+        filterRes.connect(filter.Q);
     }
     activeFilters[track].add(filter);
     gain.connect(filter);
@@ -282,9 +292,9 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
 
             // pitch wheel, mod wheel vibrato and the track's vibrato all feed this oscillator's detune (they add together
             // with its own tuning)
-            bendNode.connect(osc.detune);
-            modDepth.connect(osc.detune);
-            vibGain[track].connect(osc.detune);
+            wheelBend.connect(osc.detune);
+            wheelMod.connect(osc.detune);
+            trackVibrato.connect(osc.detune);
 
             osc.start(now);
             oscillators.push(osc);
@@ -292,13 +302,13 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
 
             // once it's done, unplug the wheels from it, and when the last one is done, the filter's controls
             osc.addEventListener("ended", () => {
-                bendNode.disconnect(osc.detune);
-                modDepth.disconnect(osc.detune);
-                vibGain[track].disconnect(osc.detune);
+                wheelBend.disconnect(osc.detune);
+                wheelMod.disconnect(osc.detune);
+                trackVibrato.disconnect(osc.detune);
                 alive--;
                 if (alive === 0) {
-                    cutCtl[track].disconnect(filter.detune);
-                    if (filter.type !== "bandpass") resCtl[track].disconnect(filter.Q);
+                    filterCut.disconnect(filter.detune);
+                    if (filter.type !== "bandpass") filterRes.disconnect(filter.Q);
                     activeFilters[track].delete(filter);
                 }
             });
@@ -306,7 +316,7 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     });
 
     // tell the rest of the page a note is going to start, and when (leds.js flashes the LED over its key at that moment)
-    document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: now, track } }));
+    if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: now, track } }));
 
     if (!hold) {
         fadeOut(gate);
@@ -330,6 +340,77 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
             fadeOut(seconds);
         },
     };
+}
+
+// ---- chords and the arpeggiator ----
+// The CHORD, ARP and RATE dials (the PLAY tab). CHORD plays more notes with each note: a major chord, a minor one, and so on.
+// ARP plays a chord (or, with no chord, the note and the octaves above it) one note after another instead of all at once, in an
+// order (up, down, up and down, or by chance), a step every RATE (in time with the song). Playing the song or a key does it
+// the same: it is done here, so every note the page plays goes through it
+const CHORDS = [
+    { name: "OFF", steps: [0] },
+    { name: "MAJ", steps: [0, 4, 7] },
+    { name: "MIN", steps: [0, 3, 7] },
+    { name: "7TH", steps: [0, 4, 7, 10] },
+    { name: "MIN7", steps: [0, 3, 7, 10] },
+    { name: "SUS4", steps: [0, 5, 7] },
+    { name: "POWER", steps: [0, 7, 12] },
+    { name: "OCT", steps: [0, 12] },
+];
+const ARP_MODES = ["OFF", "UP", "DOWN", "UP DOWN", "RANDOM"];
+const ARP_RATES = [
+    { name: "1/4", beats: 1 },
+    { name: "1/8", beats: 0.5 },
+    { name: "1/16", beats: 0.25 },
+    { name: "1/32", beats: 0.125 },
+];
+
+// a dial (0 to 1) as a place in a list: it clicks from one to the next
+const placeOf = (v, count) => Math.min(count - 1, Math.round(v * (count - 1)));
+
+// how many semitones above the note step number i of an arpeggio is
+function arpOffset(tones, mode, i) {
+    const n = tones.length;
+    if (mode === 1) return tones[i % n]; // up
+    if (mode === 2) return tones[n - 1 - (i % n)]; // down
+    if (mode === 3) {
+        const cycle = Math.max(1, 2 * n - 2); // up and back down (the top and the bottom are only played once each time round)
+        const k = i % cycle;
+        return tones[k < n ? k : cycle - k];
+    }
+    return tones[Math.floor(Math.random() * n)]; // by chance
+}
+
+// plays a note the way its track says: as it is, or as a chord, or as an arpeggio. It takes and gives back the same things
+// as playVoice (one single sound, above), a held note gives back { release(time) }
+function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE, velocity = 1, releaseScale = 1) {
+    if (track === DRUM_TRACK) return playVoice(frequency, when, track, hold, gate, velocity, releaseScale);
+    const settings = trackSettings[track];
+    const chord = CHORDS[placeOf(settings.chord, CHORDS.length)].steps;
+    const mode = placeOf(settings.arp, ARP_MODES.length);
+    if (chord.length === 1 && mode === 0) return playVoice(frequency, when, track, hold, gate, velocity, releaseScale); // the usual
+    const pitch = (semitones) => frequency * 2 ** (semitones / 12);
+
+    if (mode === 0) {
+        // a chord: all its notes at once, and let go of together
+        const voices = chord.map((semitones) => playVoice(pitch(semitones), when, track, hold, gate, velocity, releaseScale));
+        return hold ? { release: (time) => voices.forEach((voice) => voice.release(time)) } : undefined;
+    }
+
+    const step = (ARP_RATES[placeOf(settings.arate, ARP_RATES.length)].beats * 60) / bpm; // seconds between notes
+    const tones = chord.length > 1 ? chord : [0, 12, 24];
+    const stepNote = (i, time) => playVoice(pitch(arpOffset(tones, mode, i)), time, track, false, step * 0.9, velocity, releaseScale);
+    if (!hold) {
+        // a note in the song: as many steps as fit in the time it is held for
+        const count = Math.max(1, Math.floor(gate / step + 0.001));
+        for (let i = 0; i < count; i++) stepNote(i, when + i * step);
+        return;
+    }
+    // a key held down: it keeps stepping, on the clock of the page, until it is let go
+    let i = 0;
+    stepNote(i++, when);
+    const timer = setInterval(() => stepNote(i++, ctx.currentTime), step * 1000);
+    return { release: () => clearInterval(timer) };
 }
 
 // changes the volume of the selected sound: the selected track's, or on the drum track the drum you last played.
@@ -386,43 +467,12 @@ function formatSeconds(seconds) {
     return seconds < 1 ? Math.round(seconds * 1000) + "ms" : seconds.toFixed(1) + "s";
 }
 
-// the three functions below change the selected track (liveTrack), not every track.
-// changes where its filter cuts off (v is the strip position, 0 to 1)
-function setCutoff(v) {
-    trackSettings[liveTrack].cutoff = v;
-    applyFilter(liveTrack);
-    drawGraphs();
-}
+// (the dials for the filter and the fade change the selected sound, a synth track or a drum: setSetting in fx.js)
 
-// changes how much the filter boosts around the cutoff (v is the strip position, 0 to 1)
-function setResonance(v) {
-    trackSettings[liveTrack].resonance = v;
-    applyFilter(liveTrack);
-    drawGraphs();
-}
-
-// changes how long notes take to fade out (v is the strip position, 0 to 1)
-// it applies to the next note you play
-function setRelease(v) {
-    trackSettings[liveTrack].release = v;
-    drawGraphs();
-}
-
-// the same for the attack (how long a note takes to rise), the decay (how long it takes to fall to the sustain
-// level) and the sustain (how loud it stays while it's held). They apply to the next note you play
-function setAttack(v) {
-    trackSettings[liveTrack].attack = v;
-    drawGraphs();
-}
-
-function setDecay(v) {
-    trackSettings[liveTrack].decay = v;
-    drawGraphs();
-}
-
-function setSustain(v) {
-    trackSettings[liveTrack].sustain = v;
-    drawGraphs();
+// the settings of the selected sound that the graphs draw: the selected track's, or on the drum track the selected drum's
+// (they have the same names for the filter)
+function selectedSettings() {
+    return liveTrack === DRUM_TRACK && typeof drumFxAt === "function" ? drumFxAt(selectedDrumNote) : trackSettings[liveTrack];
 }
 
 // turns a cutoff in Hz into the short text the strip and the graph show ("440", "1.1k", "16k")
@@ -742,7 +792,11 @@ function buildDial(box) {
         box.dialTicks.push(dot);
     }
 
+    // the knob: its shadow, its rim, its face and a little shine on the top (all plain shapes, so it stays sharp at any size)
+    svg.appendChild(svgElement("circle", { cx: 48, cy: 52, r: 38, fill: "url(#knobShadow)" }));
     svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 31, class: "knob" }));
+    svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 27, class: "knob-face" }));
+    svg.appendChild(svgElement("ellipse", { cx: 42, cy: 36, rx: 15, ry: 8, class: "knob-shine", transform: "rotate(-24 42 36)" }));
 
     // the trail: dots that follow the dot round the knob a little behind it, each one smaller and fainter, so a moving dot
     // leaves a streak (see stepTrail)
@@ -923,7 +977,7 @@ function setUpStrip(slider, format, apply) {
 }
 
 // the small dial by the MIDI button is the volume of the whole song
-setUpStrip(document.getElementById("songVolume"), (v) => Math.round(v * 100) + "%", setSongVolume);
+const songVolumeStrip = setUpStrip(document.getElementById("songVolume"), (v) => Math.round(v * 100) + "%", setSongVolume);
 
 // (the dials for the selected sound, and showTrackSettings that moves them when you pick a track or a drum, are in fx.js)
 
@@ -1033,11 +1087,12 @@ function drawGraphLabel(g, text, h) {
 function drawFilterGraph() {
     const { g, w, h } = prepGraph(filterGraph);
 
-    // the graphs show the selected track
-    const cutoffHz = cutoffFromSlider(trackSettings[liveTrack].cutoff);
-    const resonance = resonanceFromSlider(trackSettings[liveTrack].resonance);
+    // the graphs show the selected sound
+    const shown = selectedSettings();
+    const cutoffHz = cutoffFromSlider(shown.cutoff);
+    const resonance = resonanceFromSlider(shown.resonance);
 
-    const filterType = filterTypeFrom(trackSettings[liveTrack].ftype);
+    const filterType = filterTypeFrom(shown.ftype);
     graphFilter.type = filterType;
     graphFilter.frequency.value = cutoffHz;
     graphFilter.Q.value = filterType === "bandpass" ? 0.7 + resonance : resonance;
@@ -1058,11 +1113,12 @@ function drawFilterGraph() {
         y: yFor(20 * Math.log10(graphMags[i])),
     }));
     drawLine(g, points, h);
-    drawGraphLabel(g, "FILTER " + trackName(liveTrack), h); // the label says whose filter this is
+    const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
+    drawGraphLabel(g, "FILTER " + whose, h); // the label says whose filter this is
 
     filterGraph.setAttribute(
         "aria-label",
-        "Filter graph for " + trackName(liveTrack) + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
+        "Filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
             Math.round(resonance) + " decibels there"
     );
 }
@@ -1081,7 +1137,7 @@ function drawFadeGraph() {
     let points, name, words;
     if (drum) {
         // the drum's own fade (it rises over attack and has gone quiet at end) multiplied by the shape the dials give it
-        const env = drumShapeEnv();
+        const env = drumShapeEnv(drumFxAt(selectedDrumNote));
         const end = Math.max(drum.decay, drum.attack + 0.01);
         const span = Math.min(GRAPH_SECONDS, Math.max(end * 1.25, env.attack * 1.3, 0.1)); // the time the graph covers, stretched to fit this drum
         const xFor = (seconds) => (seconds / span) * w;

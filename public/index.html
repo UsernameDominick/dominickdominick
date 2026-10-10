@@ -31,10 +31,20 @@
     <!-- a gradient the knobs are filled with (the dials are drawn by synth.js, CSS fills them with it) -->
     <svg class="svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
         <defs>
-            <radialGradient id="knobCream" cx="38%" cy="32%" r="80%">
-                <stop offset="0" stop-color="#fff7e4"></stop>
-                <stop offset="0.6" stop-color="#e7d4a8"></stop>
-                <stop offset="1" stop-color="#b9a173"></stop>
+            <!-- the knobs, all drawn as plain shapes (a soft drop shadow made with a CSS filter went blurry and muddy): a shadow
+                 under it, a rim that is light on top and darker underneath, and a creamy face -->
+            <radialGradient id="knobShadow" cx="50%" cy="50%" r="50%">
+                <stop offset="0.55" stop-color="#000" stop-opacity="0.5"></stop>
+                <stop offset="1" stop-color="#000" stop-opacity="0"></stop>
+            </radialGradient>
+            <linearGradient id="knobRim" x1="0.2" y1="0" x2="0.8" y2="1">
+                <stop offset="0" stop-color="#fffaf0"></stop>
+                <stop offset="1" stop-color="#a98f5f"></stop>
+            </linearGradient>
+            <radialGradient id="knobFace" cx="40%" cy="34%" r="75%">
+                <stop offset="0" stop-color="#fffdf6"></stop>
+                <stop offset="0.55" stop-color="#f6e9c6"></stop>
+                <stop offset="1" stop-color="#dcc895"></stop>
             </radialGradient>
         </defs>
     </svg>
@@ -268,27 +278,28 @@
         <div class="popover-body">
             <div class="about">
         <h1 id="aboutTitle">Studio Synth</h1>
-            <p>Make beats, melodies and whole songs right here. There is nothing to download and nothing to sign up for. Play the piano on the screen or with a MIDI keyboard, record into five tracks of eight bars, build drum patterns, shape every sound with dials, and save your song in your browser.</p>
+            <p>Make beats, melodies and whole songs right here. There is nothing to download and nothing to sign up for. Play the piano on the screen or with a MIDI keyboard, record into up to ten tracks and thirty-two bars, build drum patterns, shape every sound with dials, and keep your song.</p>
     
             <h2>What you can do</h2>
             <ul>
-                <li><strong>Record and loop.</strong> Five tracks, one of them drums, with eight bars each. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
-                <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, a MIDI keyboard if you have one, and a step sequencer for every block.</li>
+                <li><strong>Record and loop.</strong> Up to ten tracks, one of them drums, and from four to thirty-two bars. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
+                <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, your computer keyboard, a MIDI keyboard if you have one, and a step sequencer for every block. Any synth track can play chords or an arpeggio.</li>
                 <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
                 <li><strong>Shape the sound.</strong> Eight oscillator sounds and more than twenty ready-made presets, then dials for the filter, envelope, echo, reverb, drive, vibrato and tremolo. Save your own presets.</li>
                 <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
-                <li><strong>Keep your songs.</strong> Save them in your browser, download a song file and open it later, and undo or redo as you go.</li>
+                <li><strong>Keep your songs.</strong> Your latest work is kept for when you come back. Save songs by name, download a song file, export the song as a WAV audio file, or copy a link that opens it for someone else. Undo and redo as you go.</li>
+            <li><strong>Start fast.</strong> Open one of five starter songs, or drop one of eight drum patterns into a block.</li>
             </ul>
     
             <h2>Keyboard shortcuts</h2>
-            <p>Space plays and stops. R records. Ctrl+Z undoes and Ctrl+Shift+Z redoes. Ctrl+C and Ctrl+V copy and paste a block, and Delete clears it. M, S and L mute, solo and loop the selected track. Ctrl+S saves the song.</p>
+            <p>The letters Z to M and Q to I play the piano, and [ and ] move it an octave down and up. Space plays and stops. Shift+R records. Ctrl+Z undoes and Ctrl+Shift+Z redoes. Ctrl+C and Ctrl+V copy and paste a block, and Delete clears it. Shift+M, Shift+S and Shift+L mute, solo and loop the selected track. Ctrl+S saves the song.</p>
     
             <h2>Questions</h2>
             <dl>
                 <dt>Is it free?</dt>
                 <dd>Yes. There is nothing to pay for and no ads.</dd>
                 <dt>Do I need an account?</dt>
-                <dd>No. Your songs stay in your browser, and you can download them as files to keep or share.</dd>
+                <dd>No. Your songs stay in your browser, and you can download them as files or send a link to keep or share them.</dd>
                 <dt>Why is there no sound at first?</dt>
                 <dd>Browsers only allow sound after you click or tap. Press a piano key or PLAY and it starts.</dd>
                 <dt>Can I use a MIDI keyboard?</dt>
@@ -422,6 +433,21 @@
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>
 
+    <!-- the song size popup, from the button in the corner of the song: how many bars and tracks (studio.js) -->
+    <div class="popover size" id="sizePopover" role="dialog" aria-label="Song size" hidden>
+        <div class="popover-body">
+            <div class="popover-title">BARS</div>
+            <div class="choices size6" id="sizeBars"></div>
+            <div class="popover-title">TRACKS</div>
+            <p class="save-status" id="sizeTracks"></p>
+            <div class="start-row">
+                <button class="tool" id="addTrack">ADD TRACK</button>
+                <button class="tool" id="removeTrack">REMOVE LAST TRACK</button>
+            </div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
     <!-- the quick save popup: the song's name and a button to save it (save.js). It saves in this browser -->
     <div class="popover save" id="savePopover" role="dialog" aria-label="Save the song" hidden>
         <div class="popover-body">
@@ -431,6 +457,9 @@
             <button class="tool save-now" id="saveNow">SAVE</button>
             <p class="save-status" id="saveStatus" role="status"></p>
             <button class="tool save-file" id="saveDownload" aria-label="Download this song as a file">DOWNLOAD FILE</button>
+            <button class="tool save-file" id="shareLink" aria-label="Copy a link that opens this song">COPY LINK</button>
+            <input class="text-input share-box" type="text" id="shareBox" readonly hidden aria-label="The link to this song">
+            <button class="tool save-file" id="exportAudio" aria-label="Save the song as a WAV audio file">EXPORT AUDIO (WAV)</button>
         </div>
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>
@@ -440,8 +469,15 @@
         <div class="popover-body">
             <div class="popover-title">SAVED SONGS</div>
             <div class="song-list" id="songList"></div>
-            <div class="popover-title">FROM A FILE</div>
-            <button class="tool save-file" id="songOpenFile">OPEN FILE</button>
+            <div class="popover-title">START SOMETHING</div>
+            <div class="start-row">
+                <button class="tool" id="songNew">NEW SONG</button>
+                <button class="tool" id="songOpenFile">OPEN FILE</button>
+            </div>
+            <div class="popover-title">STARTER SONGS</div>
+            <div class="choices starter-list" id="starterSongs"></div>
+            <div class="popover-title">DRUM PATTERNS (INTO THE SELECTED DRUM BLOCK)</div>
+            <div class="choices pattern-list" id="drumPatterns"></div>
             <input type="file" id="songFile" accept=".json,application/json" hidden>
             <p class="save-status" id="songsStatus" role="status"></p>
         </div>
@@ -459,8 +495,11 @@
     <script src="studio.js"></script>
     <script src="record.js"></script>
     <script src="keys.js"></script>
+    <script src="keyboard.js"></script>
     <script src="save.js"></script>
+    <script src="export.js"></script>
     <script src="presets.js"></script>
+    <script src="starters.js"></script>
     <script src="about.js"></script>
 </body>
 </html>

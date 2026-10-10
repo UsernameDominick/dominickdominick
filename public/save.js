@@ -42,13 +42,14 @@ function songSnapshot() {
             muted: muted[t],
             soloed: soloed[t],
             looped: looped[t],
-            clipLen: clipLen[t].slice(),
-            bars: song[t].map((bar) => bar.map((n) => ({ ...n }))),
+            clipLen: clipLen[t].slice(0, BARS),
+            bars: song[t].slice(0, BARS).map((bar) => bar.map((n) => ({ ...n }))),
         });
     }
     return {
         tempo: bpm,
         volume: songVolume,
+        barCount: BARS, // (how many bars long it is. The tracks are as many as there are in the list)
         tracks,
         drums: {
             kit: drumKit.slice(),
@@ -90,9 +91,12 @@ function cleanSong(raw) {
     const tracks = Array.isArray(raw.tracks) ? raw.tracks : [];
     const drums = raw.drums && typeof raw.drums === "object" ? raw.drums : {};
     const tempo = typeof raw.tempo === "number" && Number.isFinite(raw.tempo) ? Math.round(raw.tempo) : 100;
-    const clean = { tempo: Math.min(BPM_MAX, Math.max(BPM_MIN, tempo)), volume: unit(raw.volume, 0.5), tracks: [] };
+    // how long it is and how many tracks it has (a song from before there was a choice has 8 bars and 5 tracks)
+    const barCount = Number.isInteger(raw.barCount) ? Math.min(MAX_BARS, Math.max(4, raw.barCount)) : 8;
+    const trackCount = tracks.length ? Math.min(MAX_TRACKS, Math.max(MIN_TRACKS, tracks.length)) : 5;
+    const clean = { tempo: Math.min(BPM_MAX, Math.max(BPM_MIN, tempo)), volume: unit(raw.volume, 0.5), barCount, tracks: [] };
 
-    for (let t = 0; t < TRACKS; t++) {
+    for (let t = 0; t < trackCount; t++) {
         const r = tracks[t] && typeof tracks[t] === "object" ? tracks[t] : {};
         const settings = usualSettings(t);
         for (const key in settings) settings[key] = unit(r.settings && r.settings[key], settings[key]);
@@ -100,13 +104,13 @@ function cleanSong(raw) {
         settings.sound = Number.isInteger(sound) && sound >= 0 && sound < SOUNDS.length ? sound : 0;
         const length = [];
         const bars = [];
-        for (let b = 0; b < BARS; b++) {
+        for (let b = 0; b < barCount; b++) {
             const len = Array.isArray(r.clipLen) ? r.clipLen[b] : 1;
-            length.push(Number.isInteger(len) && len >= 1 ? Math.min(len, BARS - b) : 1);
+            length.push(Number.isInteger(len) && len >= 1 ? Math.min(len, barCount - b) : 1);
             const notes = [];
             (Array.isArray(r.bars) && Array.isArray(r.bars[b]) ? r.bars[b] : []).forEach((n) => {
                 if (!n || !Number.isInteger(n.note) || n.note < 0 || n.note > 127) return;
-                if (typeof n.beat !== "number" || !Number.isFinite(n.beat) || n.beat < 0 || n.beat >= BEATS * BARS) return;
+                if (typeof n.beat !== "number" || !Number.isFinite(n.beat) || n.beat < 0 || n.beat >= BEATS * barCount) return;
                 const note = { beat: n.beat, note: n.note };
                 for (const key in PARAM_DEFAULTS) if (typeof n[key] === "number" && Number.isFinite(n[key])) note[key] = unit(n[key], PARAM_DEFAULTS[key]);
                 notes.push(note);
@@ -115,7 +119,7 @@ function cleanSong(raw) {
         }
         clean.tracks.push({
             name: cleanSongName(r.name).slice(0, 24) || (t === DRUM_TRACK ? "DRUMS" : "TRK " + (t + 1)),
-            color: TRACK_PALETTE.some((entry) => entry.color === r.color) ? r.color : TRACK_PALETTE[t].color,
+            color: TRACK_PALETTE.some((entry) => entry.color === r.color) ? r.color : TRACK_PALETTE[t % TRACK_PALETTE.length].color,
             settings,
             muted: r.muted === true,
             soloed: r.soloed === true,
@@ -132,8 +136,15 @@ function cleanSong(raw) {
         }),
         volumes: DRUM_NOTES.map((_, i) => unit(Array.isArray(drums.volumes) ? drums.volumes[i] : null, 0.5)),
         fx: DRUM_NOTES.map((_, i) => {
-            const fx = { pan: 0.5, dly: 0, rev: 0, pitch: 0.5, decay: 0.5 };
-            for (const key in fx) fx[key] = unit(Array.isArray(drums.fx) && drums.fx[i] ? drums.fx[i][key] : null, fx[key]);
+            const fx = { ...DRUM_FX_DEFAULTS };
+            const saved = Array.isArray(drums.fx) && drums.fx[i] && typeof drums.fx[i] === "object" ? drums.fx[i] : {};
+            // (a song saved when the drums shared the filter, the fade, the drive and so on has those on the drum track's own
+            // settings, so every drum starts from them)
+            const shared = tracks[DRUM_TRACK] && tracks[DRUM_TRACK].settings ? tracks[DRUM_TRACK].settings : {};
+            for (const key in fx) {
+                const fromTrack = key === "edecay" ? shared.decay : key === "pan" || key === "dly" || key === "rev" || key === "pitch" || key === "decay" ? undefined : shared[key];
+                fx[key] = unit(typeof saved[key] === "number" ? saved[key] : fromTrack, fx[key]);
+            }
             return fx;
         }),
         muted: flags(drums.muted, DRUM_COUNT),
@@ -146,11 +157,35 @@ function cleanSong(raw) {
 // puts a (clean) song on the screen, in place of the one that's there
 function showSong(clean) {
     if (running) stopTransport();
-    getCtx(); // (this is after a click) the tracks' audio has to exist for the dials to be applied
+    // (no audio is made here: a song that comes back when the page opens must stay quiet until you click. If the audio is
+    // running its dials are moved to match, and if it isn't they are used when it starts)
+    // the size first: the grid is built again if it isn't the size of the song. Everything the song doesn't use is cleared (the
+    // tracks after its last one are as new, so they are as they start if a track is added)
+    if (clean.barCount !== BARS || clean.tracks.length !== TRACKS) {
+        BARS = clean.barCount;
+        TRACKS = clean.tracks.length;
+        rebuildSong();
+    }
+    for (let t = 0; t < MAX_TRACKS; t++) {
+        for (let b = 0; b < MAX_BARS; b++) {
+            song[t][b] = [];
+            clipLen[t][b] = 1;
+        }
+        if (t >= TRACKS) {
+            Object.assign(trackSettings[t], usualSettings(t));
+            muted[t] = soloed[t] = looped[t] = false;
+            if (ctx) {
+                applyFx(t);
+                applyFilter(t);
+                trackGains[t].gain.value = trackSettings[t].volume;
+            }
+        }
+    }
     setBpm(clean.tempo);
-    const volume = document.getElementById("songVolume");
-    volume.value = String(clean.volume);
-    volume.dispatchEvent(new Event("input")); // (the dial moves and the volume follows, like turning it)
+    songVolume = clean.volume;
+    document.getElementById("songVolume").value = String(clean.volume);
+    songVolumeStrip.update(); // (the dial turns and says the new volume)
+    if (ctx) master.gain.setTargetAtTime(songVolume * 2, ctx.currentTime, 0.015);
 
     clean.tracks.forEach((r, t) => {
         Object.assign(trackSettings[t], r.settings);
@@ -163,9 +198,11 @@ function showSong(clean) {
             song[t][b] = r.bars[b];
             clipLen[t][b] = r.clipLen[b];
         }
-        applyFx(t);
-        applyFilter(t);
-        trackGains[t].gain.value = t === DRUM_TRACK ? 1 : r.settings.volume;
+        if (ctx) {
+            applyFx(t);
+            applyFilter(t);
+            trackGains[t].gain.value = t === DRUM_TRACK ? 1 : r.settings.volume;
+        }
         setTrackColor(t, r.color);
     });
 
@@ -175,12 +212,14 @@ function showSong(clean) {
     refreshDrumKeys();
     DRUM_NOTES.forEach((note, i) => {
         setDrumVolume(note, d.volumes[i]);
-        for (const key in d.fx[i]) setDrumFx(note, key, d.fx[i][key]);
+        Object.assign(drumFx[i], d.fx[i]);
         drumMuted[i] = d.muted[i];
         drumSoloed[i] = d.soloed[i];
         drumLooped[i] = d.looped[i];
     });
 
+    saveDrumFx();
+    drumFx.forEach((_, slot) => applyDrumChannel(slot)); // (the drums that have been played are given their settings)
     selectBlock(selTrack, selBar); // (a block that now covers the selected bar is selected whole)
     layoutSong(); // draws every block again
     showAudible();
@@ -268,7 +307,7 @@ function flashSaved() {
 // what the quick save popup says about the song on the screen
 function saveSummary() {
     const found = storedSongs().find((entry) => sameName(entry.name, songName));
-    if (!found) return "Not saved yet.";
+    if (!found) return "Not saved yet. The page keeps your latest work and brings it back when you come back.";
     return songChanged() ? "Changed since the last save." : "All changes saved.";
 }
 
@@ -291,19 +330,24 @@ function askFirst(button, words, run, needed = true) {
 
 // ---- the files ----
 
-function fileNameFor(name) {
-    return (name.replace(/[^a-z0-9 _-]+/gi, "").trim().replace(/\s+/g, "-").toLowerCase() || "song") + ".json";
+function fileNameFor(name, extension = ".json") {
+    return (name.replace(/[^a-z0-9 _-]+/gi, "").trim().replace(/\s+/g, "-").toLowerCase() || "song") + extension;
 }
 
-function downloadSong(name, saved, snapshot) {
-    const text = JSON.stringify({ app: SONG_APP, version: SONG_VERSION, name, saved, song: snapshot });
+// gives the browser a file to save
+function downloadBlob(blob, fileName) {
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    link.download = fileNameFor(name);
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function downloadSong(name, saved, snapshot) {
+    const text = JSON.stringify({ app: SONG_APP, version: SONG_VERSION, name, saved, song: snapshot });
+    downloadBlob(new Blob([text], { type: "application/json" }), fileNameFor(name));
 }
 
 // reads a song file, and shows its song (the name comes from the file)
@@ -473,4 +517,179 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
+// ---- a new song ----
+
+function newSong() {
+    showSong(cleanSong({})); // (with nothing in it, everything is how a song starts)
+    songName = NEW_SONG_NAME;
+    rememberSongName();
+    saveName.value = songName;
+    savedLook = JSON.stringify(songSnapshot());
+    songsStatus.textContent = "A new song, with nothing in it.";
+}
+
+const songNewButton = document.getElementById("songNew");
+songNewButton.addEventListener("click", () => askFirst(songNewButton, "REPLACE?", newSong, songChanged()));
+
+// ---- a link to the song ----
+// The song is squashed (deflate) and written into the address after a #, so a link opens the song for whoever has it. Nothing
+// goes to a server: the part after the # never leaves the browser until they open the link.
+
+const SHARE_START = "#song=";
+const SHARE_LONG = 6000; // a link longer than this might be cut short by an app it's pasted into
+const SHARE_MAX_BYTES = 2 * 1024 * 1024; // the most a link can unpack to (so a link can't be made to fill the memory)
+const shareButton = document.getElementById("shareLink");
+const shareBox = document.getElementById("shareBox");
+
+function toBase64Url(bytes) {
+    let text = "";
+    bytes.forEach((byte) => (text += String.fromCharCode(byte)));
+    return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(text) {
+    const plain = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(plain, (c) => c.charCodeAt(0));
+}
+
+async function squash(text) {
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unsquash(bytes) {
+    const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+    const parts = [];
+    let size = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > SHARE_MAX_BYTES) {
+            reader.cancel();
+            throw new Error("That link is too big to be a song.");
+        }
+        parts.push(value);
+    }
+    return new TextDecoder().decode(await new Blob(parts).arrayBuffer());
+}
+
+async function shareLinkFor(name, snapshot) {
+    const bytes = await squash(JSON.stringify({ app: SONG_APP, version: SONG_VERSION, name, song: snapshot }));
+    return location.origin + location.pathname + SHARE_START + toBase64Url(bytes);
+}
+
+// the song a link holds, checked and cleaned like any other song, or null if the address has no song in it
+async function songFromLink(hash) {
+    if (!hash.startsWith(SHARE_START)) return null;
+    let raw;
+    try {
+        raw = JSON.parse(await unsquash(fromBase64Url(hash.slice(SHARE_START.length))));
+    } catch (err) {
+        throw new Error(err.message.startsWith("That link") ? err.message : "That link is not a song.");
+    }
+    if (!raw || raw.app !== SONG_APP) throw new Error("That link is not a song from here.");
+    return { name: cleanSongName(raw.name) || NEW_SONG_NAME, clean: cleanSong(raw.song) };
+}
+
+shareButton.addEventListener("click", async () => {
+    const name = cleanSongName(saveName.value) || songName;
+    try {
+        const link = await shareLinkFor(name, songSnapshot());
+        shareBox.value = link;
+        shareBox.hidden = false;
+        let copied = false;
+        try {
+            await navigator.clipboard.writeText(link);
+            copied = true;
+        } catch {
+            shareBox.select(); // (the browser won't let the page copy, so the link is selected to copy by hand)
+        }
+        saveStatus.textContent =
+            (copied ? "Link copied" : "Copy the link below") + " (" + link.length + " characters)." +
+            (link.length > SHARE_LONG ? " It is long: some apps may cut it short, so DOWNLOAD FILE is safer to send." : "");
+    } catch {
+        saveStatus.textContent = "This browser can't make a link. Use DOWNLOAD FILE to share.";
+    }
+});
+
+// opens the song in the address (when the page opens, or when a link is pasted into a page that is already open). The song that
+// was being worked on isn't lost: if it has changes that aren't saved it is saved first, as "Before opening a link"
+async function openSharedLink() {
+    let found;
+    try {
+        found = await songFromLink(location.hash);
+    } catch (err) {
+        history.replaceState(null, "", location.pathname + location.search);
+        songsStatus.textContent = err.message;
+        return false;
+    }
+    if (!found) return false;
+    history.replaceState(null, "", location.pathname + location.search); // (so a reload doesn't open it again)
+    if (songChanged() && hasMusic()) {
+        const list = storedSongs().filter((entry) => !sameName(entry.name, "Before opening a link"));
+        list.unshift({ name: "Before opening a link", saved: Date.now(), song: songSnapshot() });
+        keepSongs(list);
+    }
+    showSong(found.clean);
+    songName = found.name;
+    rememberSongName();
+    saveName.value = songName;
+    savedLook = ""; // (it isn't saved anywhere yet)
+    songsStatus.textContent = "Opened " + songName + " from a link. Press the save button to keep it.";
+    return true;
+}
+
+window.addEventListener("hashchange", openSharedLink);
+
+// is there anything in the song? (notes anywhere)
+function hasMusic() {
+    return song.some((track, t) => t < TRACKS && track.some((bar, b) => b < BARS && bar.length > 0));
+}
+
+// ---- autosave ----
+// The song on the screen is kept in the browser every couple of seconds (when it has changed) and when the page is closed or
+// hidden, and it comes back when the page opens, so a reload doesn't lose it. This is separate from the saved songs.
+
+const AUTOSAVE_KEY = "autosave";
+let autosavedLook = "";
+
+function autosave() {
+    const snapshot = songSnapshot();
+    const look = JSON.stringify(snapshot);
+    if (look === autosavedLook) return;
+    try {
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ name: songName, saved: Date.now(), song: snapshot }));
+        autosavedLook = look;
+    } catch {}
+}
+
+// puts the autosaved song back on the screen
+function restoreAutosave() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(AUTOSAVE_KEY));
+        if (!stored || !stored.song) return false;
+        showSong(cleanSong(stored.song));
+        songName = cleanSongName(stored.name) || NEW_SONG_NAME;
+        saveName.value = songName;
+        // (if it is a song that was saved, and it hasn't changed since, it counts as saved)
+        const found = storedSongs().find((entry) => sameName(entry.name, songName));
+        if (found && JSON.stringify(found.song) === JSON.stringify(songSnapshot())) savedLook = JSON.stringify(found.song);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 savedLook = JSON.stringify(songSnapshot()); // the song as the page starts: nothing to save yet
+
+(async () => {
+    restoreAutosave(); // (first, so that if the address has a song in it, the song that was being worked on is kept: see openSharedLink)
+    await openSharedLink();
+    autosavedLook = JSON.stringify(songSnapshot());
+    setInterval(autosave, 2000); // (only now, so the song that was kept isn't written over before it is back)
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") autosave();
+    });
+    window.addEventListener("pagehide", autosave);
+})();
