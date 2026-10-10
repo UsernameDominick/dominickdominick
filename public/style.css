@@ -1183,8 +1183,41 @@ output {
     background: #111;
 }
 
-.block-tools.away {
+.block-tools.away,
+.block-handle.away {
     display: none;
+}
+
+/* the grip on the selected block's right edge: drag it sideways to make the block longer or shorter. It's a dark
+   bar with two light lines on it, and a wider area than it looks so a finger can find it */
+.block-handle {
+    position: absolute;
+    z-index: 0; /* above the blocks, under the buttons */
+    box-sizing: border-box;
+    width: 18px;
+    border-radius: 0 6px 6px 0;
+    background: #111;
+    cursor: ew-resize;
+    touch-action: none; /* dragging it on a phone resizes the block, it doesn't scroll the song */
+}
+
+.block-handle::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 12px;
+    transform: translate(-50%, -50%);
+    border-left: 2px solid white;
+    border-right: 2px solid white;
+    box-sizing: content-box;
+}
+
+.block-handle::after {
+    content: "";
+    position: absolute;
+    inset: 0 -6px; /* the bar reaches 6px past its edges on each side, so it's easier to catch */
 }
 
 .tool-mini {

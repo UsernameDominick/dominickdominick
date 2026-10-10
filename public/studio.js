@@ -45,6 +45,7 @@ const soundUp = document.getElementById("soundUp");
 const soundDown = document.getElementById("soundDown");
 
 const toolsEl = make("div", "block-tools"); // the little buttons by the selected block's border
+const handleEl = make("div", "block-handle"); // the grip on the selected block's right edge, drag it to resize the block
 const cells = []; // cells[track][bar] is { block, canvas }
 const barHeads = []; // the numbers 1 to 8 along the top
 const trackHeads = []; // trackHeads[track] is { name, mute, solo }
@@ -194,6 +195,7 @@ function buildSong() {
 
     buildDrumRows();
     songEl.appendChild(toolsEl); // sits on top of the grid, placeTools moves it to the selected block
+    songEl.appendChild(handleEl);
 }
 
 // ---- the drums, one row each ----
@@ -425,7 +427,7 @@ function hideTools() {
 }
 
 document.addEventListener("pointerdown", (e) => {
-    if (toolsShown && !e.target.closest?.(".block, .block-tools")) hideTools();
+    if (toolsShown && !e.target.closest?.(".block, .block-tools, .block-handle")) hideTools();
 });
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && toolsShown && !editing) hideTools();
@@ -433,14 +435,19 @@ document.addEventListener("keydown", (e) => {
 
 function placeTools() {
     toolsEl.classList.toggle("away", !toolsShown);
+    handleEl.classList.toggle("away", !toolsShown);
     const block = cells[selTrack][selBar].block;
     if (!toolsShown || block.offsetWidth === 0) return;
     const width = toolsEl.offsetWidth;
     const firstBlock = cells[0][0].block.offsetLeft;
-    const right = block.offsetLeft + block.offsetWidth;
+    const right = block.offsetLeft + block.offsetWidth - handleEl.offsetWidth; // (the buttons end where the grip starts)
     const left = Math.max(firstBlock, Math.min(right - width, songEl.scrollWidth - width));
     toolsEl.style.left = left + "px";
     toolsEl.style.top = block.offsetTop - toolsEl.offsetHeight / 2 + "px";
+    // the grip is on the block's right edge, the same height as the block
+    handleEl.style.left = block.offsetLeft + block.offsetWidth - handleEl.offsetWidth + "px";
+    handleEl.style.top = block.offsetTop + "px";
+    handleEl.style.height = block.offsetHeight + "px";
     shorterBtn.disabled = clipLen[selTrack][selBar] <= 1;
     longerBtn.disabled = selBar + clipBars(selTrack, selBar) >= BARS;
 }
@@ -451,6 +458,32 @@ function setLength(len) {
     layoutSong();
     showEditorTitle();
 }
+
+// dragging the grip: the block grows or shrinks a whole bar at a time, to the bar the pointer is over
+let resizing = false;
+
+handleEl.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); // (so dragging doesn't select text)
+    resizing = true;
+    try {
+        handleEl.setPointerCapture(e.pointerId); // keeps the drag going when the pointer leaves the grip
+    } catch {}
+});
+
+handleEl.addEventListener("pointermove", (e) => {
+    if (!resizing) return;
+    const stride = barHeads[1].offsetLeft - barHeads[0].offsetLeft; // from one bar to the next
+    const gap = stride - barHeads[0].offsetWidth;
+    const x = e.clientX - songEl.getBoundingClientRect().left; // (the song may be scrolled, its left moves with it)
+    const bars = Math.round((x - barHeads[selBar].offsetLeft + gap) / stride); // how many bars reach to the pointer
+    const len = Math.max(1, Math.min(bars, BARS - selBar));
+    if (len !== clipBars(selTrack, selBar)) setLength(len);
+});
+
+const stopResizing = () => (resizing = false);
+handleEl.addEventListener("pointerup", stopResizing);
+handleEl.addEventListener("pointercancel", stopResizing);
+handleEl.addEventListener("lostpointercapture", stopResizing);
 
 shorterBtn.addEventListener("click", () => setLength(clipBars(selTrack, selBar) - 1));
 longerBtn.addEventListener("click", () => setLength(clipBars(selTrack, selBar) + 1));
