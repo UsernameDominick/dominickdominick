@@ -3,10 +3,224 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>dominickdominick.com</title>
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="style.css">
+<title>Home - DominickDominick</title>
 </head>
 <body>
-<h1>dominickdominick.com</h1>
+    <div class="parent">
+        <div class="div1">
+            <!-- the settings button. On a computer it shows the key and scale (short, like C MAJ) and opens a
+                 popup. On a phone it just says SETTINGS and flips the dials box over to the settings on its
+                 back. leds.js decides which, and CSS shows the matching text -->
+            <button class="tool settings-button" id="pianoSettings" aria-expanded="false">
+                <span class="settings-text">C MAJ</span>
+                <span class="settings-arrow" aria-hidden="true"></span>
+                <span class="settings-label">SETTINGS</span>
+            </button>
+            <!-- the MIDI button, the same kind of button for the MIDI options (midi.js) -->
+            <button class="tool settings-button" id="midiButton" aria-expanded="false">
+                <span class="settings-text">MIDI OFF</span>
+                <span class="settings-arrow" aria-hidden="true"></span>
+                <span class="settings-label">MIDI</span>
+            </button>
+        </div>
+        <div class="div2">
+            <!-- the scope sits on a dark panel like the graphs -->
+            <div class="scope-panel">
+                <canvas id="scope" role="img" aria-label="Scope: the waveform of the sound coming out"></canvas>
+            </div>
+            <!-- two graphs of what the CUT, RES and REL strips are doing to the selected track, beside the scope
+                 (synth.js draws them in here) -->
+            <div class="graph">
+                <canvas id="filterGraph" role="img" aria-label="Filter graph"></canvas>
+            </div>
+            <div class="graph">
+                <canvas id="fadeGraph" role="img" aria-label="Fade graph"></canvas>
+            </div>
+        </div>
+        <div class="div4">
+            <div class="studio">
+                <div class="toolbar">
+                    <!-- the sound of the selected track: its name (a dropdown) and up / down arrows to step through them.
+                         studio.js fills the dropdown from the SOUNDS list in synth.js -->
+                    <div class="picker sound-picker">
+                        <select id="soundSelect" aria-label="Sound for the selected track"></select>
+                        <div class="arrows">
+                            <button class="arrow up" id="soundUp" aria-label="Previous sound"></button>
+                            <button class="arrow down" id="soundDown" aria-label="Next sound"></button>
+                        </div>
+                    </div>
+                    <button class="tool" id="playButton">PLAY</button>
+                    <button class="tool rec" id="recButton">REC</button>
+                    <!-- tempo, a small strip like VOL (it shows the BPM while you use it) -->
+                    <div class="wheel mini">
+                        <input type="range" id="bpmSlider" aria-label="Tempo in beats per minute" min="0" max="1" step="0.01" value="0.33">
+                        <label for="bpmSlider">BPM</label>
+                        <output for="bpmSlider" aria-hidden="true">100</output>
+                    </div>
+                    <span class="toolbar-gap"></span>
+                    <button class="tool" id="copyButton">COPY</button>
+                    <button class="tool" id="pasteButton">PASTE</button>
+                    <button class="tool" id="clearButton">CLEAR</button>
+                </div>
+                <!-- studio.js builds the grid of tracks and blocks in here -->
+                <div class="song" id="song"></div>
+                <!-- the block editor: it takes the place of the toolbar and the song while you edit a block (the
+                     EDIT button by a block opens it, studio.js fills in the grid) -->
+                <div class="note-editor" id="noteEditor" hidden>
+                    <div class="editor-bar">
+                        <button class="tool" id="editorBack" aria-label="Back to the song">&larr; SONG</button>
+                        <div class="editor-title" id="editorTitle">BLOCK</div>
+                        <div class="tabs" role="group" aria-label="How to see the notes">
+                            <button class="tool on" id="tabRoll" aria-pressed="true">PIANO ROLL</button>
+                            <button class="tool" id="tabSteps" aria-pressed="false">STEP SEQ</button>
+                        </div>
+                        <span class="toolbar-gap"></span>
+                        <button class="tool" id="editorClear">CLEAR</button>
+                        <button class="tool" id="editorPlay">PLAY</button>
+                    </div>
+                    <div class="editor-body" id="editorBody">
+                        <div class="editor-grid" id="editorGrid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="div5">
+          <!-- this box can flip over: the front has the strips and graphs, the back has the piano settings -->
+          <div class="flipper">
+            <div class="face front">
+            <div class="mini-controls">
+                <!-- four dials. Each is a knob with tick marks round it (synth.js draws the knob in the
+                     dial-face), with its name and value beside it. You turn a dial by dragging it up or down,
+                     or with the arrow keys (the range input is the real control underneath, you just can't
+                     see it), and double-clicking it puts it back to where it started (data-default).
+                     The aria-labels are so screen readers say the full name and not "VOL" or "CUT" -->
+                <div class="dial" data-default="0.5">
+                    <label for="gainSlider">VOL</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="gainSlider" aria-label="Volume" min="0" max="1" step="0.01" value="0.5">
+                    <output for="gainSlider" aria-hidden="true">50%</output>
+                </div>
+                <div class="dial" data-default="1">
+                    <label for="cutoffSlider">CUT</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="cutoffSlider" aria-label="Filter cutoff" min="0" max="1" step="0.01" value="1">
+                    <output for="cutoffSlider" aria-hidden="true">16k</output>
+                </div>
+                <div class="dial" data-default="0">
+                    <label for="resonanceSlider">RES</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="resonanceSlider" aria-label="Filter resonance" min="0" max="1" step="0.01" value="0">
+                    <output for="resonanceSlider" aria-hidden="true">0dB</output>
+                </div>
+                <div class="dial" data-default="0.25">
+                    <label for="releaseSlider">REL</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="releaseSlider" aria-label="Release time" min="0" max="1" step="0.01" value="0.25">
+                    <output for="releaseSlider" aria-hidden="true">0.8s</output>
+                </div>
+            </div>
+            </div>
+            <!-- the back: the piano settings for the LEDs above the keys. The x on the far left flips back.
+                 leds.js fills in the buttons for each group -->
+            <!-- (the back has two sides: the piano settings, and the MIDI options. panels.js puts data-panel on the
+                 back to say which one to show, and CSS hides the other) -->
+            <div class="face back" id="settingsFace" role="group" aria-label="Settings" data-panel="piano">
+                <div class="settings-controls" data-panel="piano">
+                    <button class="tool close-settings" id="closeSettings" aria-label="Close the settings">&times;</button>
+                    <div class="settings-group">
+                        <div class="group-label">KEY</div>
+                        <div class="choices keys" id="keyChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">SCALE</div>
+                        <div class="choices scales" id="scaleChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">SHOW</div>
+                        <div class="choices modes" id="modeChoices"></div>
+                    </div>
+                </div>
+                <div class="settings-controls" data-panel="midi">
+                    <button class="tool close-settings" id="closeMidi" aria-label="Close the MIDI options">&times;</button>
+                    <div class="settings-group">
+                        <div class="group-label">IN</div>
+                        <div class="choices devices" id="inputChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">CH</div>
+                        <div class="choices channels" id="channelChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">OCT</div>
+                        <div class="choices octaves" id="octaveChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">OUT</div>
+                        <div class="choices devices" id="outputChoices"></div>
+                    </div>
+                </div>
+            </div>
+          </div>
+        </div>
+        <div class="div6">
+            <div class="keyboard">
+                <!-- pitch wheel (springs back to the middle) and mod wheel (stays put) -->
+                <div class="wheels">
+                    <!-- each label sits on top of its strip (CSS turns it sideways) -->
+                    <div class="wheel">
+                        <input type="range" id="pitchWheel" min="-1" max="1" step="0.01" value="0">
+                        <label for="pitchWheel">Pitch</label>
+                    </div>
+                    <div class="wheel">
+                        <input type="range" id="modWheel" min="0" max="1" step="0.01" value="0">
+                        <label for="modWheel">Mod</label>
+                    </div>
+                </div>
+                <!-- tabindex lets keyboard users scroll it with the arrow keys -->
+                <div class="piano-scroll" tabindex="0" role="group" aria-label="Piano, scrolls sideways">
+                    <!-- synth.js builds the keys and puts them in here -->
+                    <div class="piano" id="piano"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- the piano settings popup, for computers. It sits out here (not inside a box) so no box can cut it
+         off, and leds.js puts it above or below the settings button with the arrow pointing at the button -->
+    <div class="popover" id="pianoPopover" role="dialog" aria-label="Piano settings" hidden>
+        <div class="popover-body">
+            <div class="popover-title">KEY</div>
+            <div class="choices keys" id="popKeyChoices"></div>
+            <div class="popover-title">SCALE</div>
+            <div class="choices scales" id="popScaleChoices"></div>
+            <div class="popover-title">SHOW ON THE LEDS</div>
+            <div class="choices modes" id="popModeChoices"></div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the MIDI popup, the same kind of popup. midi.js fills in the device lists -->
+    <div class="popover" id="midiPopover" role="dialog" aria-label="MIDI options" hidden>
+        <div class="popover-body">
+            <div class="popover-title">INPUT (A MIDI KEYBOARD)</div>
+            <div class="choices devices" id="popInputChoices"></div>
+            <div class="popover-title">CHANNEL</div>
+            <div class="choices channels" id="popChannelChoices"></div>
+            <div class="popover-title">OCTAVE</div>
+            <div class="choices octaves" id="popOctaveChoices"></div>
+            <div class="popover-title">OUTPUT (SENDS WHAT PLAYS)</div>
+            <div class="choices devices" id="popOutputChoices"></div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <script src="synth.js"></script>
+    <script src="drums.js"></script>
+    <script src="panels.js"></script>
+    <script src="leds.js"></script>
+    <script src="midi.js"></script>
+    <script src="studio.js"></script>
 </body>
 </html>

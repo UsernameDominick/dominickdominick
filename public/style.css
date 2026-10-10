@@ -1,0 +1,1459 @@
+
+/* Karla (a variable font, so it covers every weight from 200 to 800), served from this site
+   instead of Google so the page makes no outside requests. License is in fonts/OFL.txt */
+@font-face {
+    font-family: "Karla";
+    font-style: normal;
+    font-weight: 200 800;
+    font-display: swap;
+    src: url("fonts/karla-latin.woff2") format("woff2");
+}
+
+:root {
+    --page: #121212; /* the colour of the page */
+
+    /* the spacing used inside the containers, so everything lines up the same way:
+       --gap is the space between any two elements (buttons, strips, graphs, blocks) and between
+       an element and the edge of its container (except where it touches the edge on purpose),
+       --gap-tight is only for the two halves of one control, the sound picker and its arrows */
+    --gap: 8px;
+    --gap-tight: 4px;
+
+    --radius: 8px; /* how round the corners of the buttons are (the pitch and mod wheels had this first) */
+}
+
+body {
+    margin: 0px;
+    padding: 0px;
+    font-family: "Karla", sans-serif;
+    background: var(--page);
+}
+
+/* buttons and inputs don't use the page font unless you tell them to */
+button,
+input,
+label,
+output {
+    font-family: inherit;
+}
+
+.parent {
+    /* on a very wide screen (an ultrawide monitor) the boxes stop growing at 1600px and sit in the middle,
+       so the keys, the scope and the blocks don't get stretched out. Anything narrower is unchanged */
+    max-width: 1600px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(11, 1fr); /* one more row than before: the dials box is two rows tall now */
+    gap: 7px;
+}
+
+/* a grid item normally refuses to be narrower than what's inside it, which would stretch the
+   whole page sideways on a phone. This lets each box get narrower than its content, so the
+   box scrolls (sideways) instead of the page. */
+.parent > * {
+    min-width: 0;
+}
+
+.div1 {
+    grid-column: span 8 / span 8;
+    border: 2px solid #ff8c1a;
+    border-radius: 12px;
+    box-sizing: border-box;
+    padding: var(--gap); /* the same gap as the other containers */
+    contain: size; /* the box is one grid row tall, whatever is inside it */
+    display: flex; /* the settings button is in here, more can go beside it */
+    align-items: center;
+    gap: var(--gap);
+    overflow-x: auto; /* on a narrow screen the box scrolls sideways, like the others */
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+.div2 {
+    grid-column: span 8 / span 8;
+    grid-row: span 2 / span 2;
+    grid-row-start: 2;
+    border: 2px solid #ff8c1a;
+    border-radius: 12px;
+    box-sizing: border-box;
+    padding: var(--gap); /* the same gap as the other containers */
+    contain: size; /* the box is as tall as its two grid rows, whatever is inside it */
+    display: flex; /* the scope, then the two graphs, side by side */
+    gap: var(--gap);
+    overflow-x: auto; /* on a narrow screen they keep their size and the box scrolls sideways */
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+/* the scope's dark panel, the same as the graphs: it fills the box inside the padding and takes up whatever
+   room the graphs leave (but never less than 320px), and the canvas is positioned inside it so it can't
+   make the box any taller */
+.scope-panel {
+    position: relative;
+    flex: 1;
+    min-width: 320px;
+    background: #1c1c1c;
+    border-radius: var(--radius);
+    overflow: hidden; /* trims the drawing to the rounded corners */
+}
+
+#scope {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* sliders and their labels */
+input[type="range"] {
+    accent-color: #ff8c1a;
+}
+
+label,
+output {
+    font-size: 16px;
+}
+
+/* wheels on the left, piano on the right */
+.keyboard {
+    display: flex;
+}
+
+.wheels {
+    display: flex;
+    gap: var(--gap);
+    padding: 0 var(--gap); /* the right padding is the space before the first key */
+}
+
+.wheel {
+    --from: 0%; /* synth.js changes these two as the wheel moves */
+    --to: 0%;
+    --strip-w: 36px; /* how wide the strip (and the bar on it) is */
+    position: relative; /* so the label can sit on top of the strip */
+    width: var(--strip-w);
+    height: calc(160px - 2 * var(--gap)); /* the keys are 160px tall, so with a gap above and below */
+    margin: var(--gap) 0;
+}
+
+/* a dial: the name on top, a knob with tick marks round it, and the value underneath. The knob is drawn by
+   synth.js. You drag it up or down to turn it. The real control is the range input hidden over it. */
+.dial {
+    position: relative;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap-tight);
+    width: 88px;
+    color: #111; /* dark text, white would be hard to read on the orange */
+    user-select: none;
+}
+
+.dial label,
+.dial output {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    color: #111;
+}
+
+.dial-face {
+    width: 88px;
+    height: 88px;
+    touch-action: none; /* dragging a dial on a phone turns it, it doesn't scroll the page */
+    cursor: ns-resize;
+}
+
+.dial-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* the hidden range input sits over the knob (so the keyboard can turn it and screen readers can find it),
+   and the mouse and touch go through it to the drawing underneath */
+.dial-input {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 88px;
+    height: 88px;
+    margin: 0;
+    opacity: 0;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+/* the tick marks are dark when they're past the value and white up to it, like LEDs. The knob is dark
+   with a white pointer, and gets a white edge when the dial is focused (arrow keys turn it) */
+.tick {
+    stroke: #262626;
+    stroke-width: 4;
+    stroke-linecap: round;
+}
+
+.tick.lit {
+    stroke: white;
+}
+
+.knob {
+    fill: #262626;
+}
+
+.pointer {
+    stroke: white;
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+
+.dial:focus-within .knob {
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* the small strips (VOL, CUT, RES, REL) are narrower versions of the wheels that fill the height of
+   their box (inside its padding). Each strip is positioned inside its own box, so none of them
+   can make the container any taller */
+.mini {
+    --strip-w: 28px;
+    flex: none; /* never squashed, the box scrolls instead (see .mini-controls) */
+    height: auto;
+    min-height: 56px;
+    margin: 0;
+}
+
+.mini input {
+    position: absolute;
+    inset: 0;
+}
+
+.mini-controls {
+    display: flex;
+    gap: calc(2 * var(--gap)); /* a bit more room between the dials */
+    align-items: center; /* the dials and the button sit in the middle of the box, top to bottom... */
+    height: 100%; /* ...and this fills the box */
+    box-sizing: border-box;
+    padding: var(--gap); /* breathing room on all four sides */
+    overflow-y: hidden;
+    /* on a narrow screen the box gets narrower but the strips and graphs keep their size,
+       so you scroll sideways inside the box to reach the rest */
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+/* the two graphs beside the scope: a dark panel like the scope's, as tall as the space inside the box's
+   padding (the canvas is positioned inside it so it can't make the box taller) */
+.graph {
+    position: relative;
+    flex: none; /* always 150px wide, on a narrow screen the box (the scope's) scrolls instead */
+    width: 150px;
+    background: #1c1c1c;
+    border-radius: var(--radius);
+    overflow: hidden; /* trims the drawing to the rounded corners */
+}
+
+.graph canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* a touch strip: the slider is the strip, the white fill shows where the wheel is
+   (writing-mode turns it up and down, direction: rtl puts the smallest value at the bottom)
+   synth.js sets --from and --to (percent of the strip height) as the wheel moves */
+.wheel input {
+    -webkit-appearance: none;
+    appearance: none;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    /* the fill is white, because the box behind the strips is orange (the small strips use
+       the same fill, set again further down for when it's active) */
+    background: linear-gradient(
+        to top,
+        #1c1c1c var(--from),
+        white var(--from),
+        white var(--to),
+        #1c1c1c var(--to)
+    );
+}
+
+/* the label runs up the strip. Its text is white over the dark part of the strip and
+   near black over the white fill, so you can read it either way (the gradient uses the
+   same --from and --to as the strip, and is clipped to the letters).
+   The label is turned upside down so it reads bottom to top, so its gradient points down. */
+.wheel label,
+.mini output {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    /* the label is upside down, so flex-end puts it at the top of the strip, away from the
+       middle where the pitch bar rests (otherwise the bar sits on top of the letters) */
+    justify-content: flex-end;
+    padding-bottom: 12px;
+    box-sizing: border-box;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    pointer-events: none; /* clicks and drags go through to the strip */
+    color: transparent;
+    background: linear-gradient(
+        to bottom,
+        white var(--from),
+        #111 var(--from),
+        #111 var(--to),
+        white var(--to)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* the track is see through so you see the strip behind it */
+.wheel input::-webkit-slider-runnable-track {
+    background: transparent;
+}
+
+.wheel input::-moz-range-track {
+    background: transparent;
+}
+
+/* the thumb is a thin bar across the strip, like a finger on a touch strip */
+.wheel input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: var(--strip-w);
+    height: 8px;
+    border: 2px solid #1c1c1c;
+    border-radius: 4px;
+    background: white;
+}
+
+.wheel input::-moz-range-thumb {
+    box-sizing: border-box;
+    width: var(--strip-w);
+    height: 8px;
+    border: 2px solid #1c1c1c;
+    border-radius: 4px;
+    background: white;
+}
+
+/* a small strip starts out as a button: dark, with its label ("VOL", "CUT"...) up the middle.
+   While you use it (synth.js adds .active) it turns into the strip: white fill, and the
+   percent up the middle instead. It has no bar, the edge of the fill is the level. */
+.mini input {
+    /* a faded preview of the fill, so you can see where the volume is without touching it
+       (the top layer is the faded white up to the volume, the dark colour is behind it) */
+    background:
+        linear-gradient(
+            to top,
+            rgba(255, 255, 255, 0.3) var(--to),
+            transparent var(--to)
+        ),
+        #262626;
+    border-radius: var(--radius);
+}
+
+.mini.active input {
+    background: linear-gradient(
+        to top,
+        #1c1c1c var(--from),
+        white var(--from),
+        white var(--to),
+        #1c1c1c var(--to)
+    );
+}
+
+.mini input::-webkit-slider-thumb {
+    border: none;
+    background: transparent;
+}
+
+.mini input::-moz-range-thumb {
+    border: none;
+    background: transparent;
+}
+
+.mini label,
+.mini output {
+    justify-content: center;
+    padding-bottom: 0;
+}
+
+/* at rest there's no fill, so the label is plain white (the background shorthand resets
+   background-clip, so it has to be set again after it) */
+.mini label {
+    background: white;
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* only one of the two shows at a time (opacity, not display, so the label still names the slider) */
+.mini.active label,
+.mini:not(.active) output {
+    opacity: 0;
+}
+
+/* the box the piano scrolls inside (scrolls sideways when the keys are wider than the space) */
+.piano-scroll {
+    flex: 1;
+    min-width: 0; /* lets it shrink so it scrolls instead of stretching the page */
+    overflow-x: auto;
+}
+
+/* piano: every white key is 6 columns, synth.js sets the number of columns (each one at least 8px wide) */
+.piano {
+    position: relative; /* so a key's offsetLeft is measured from the left of the piano */
+    display: grid;
+    grid-template-rows: 24px repeat(5, 1fr); /* the top row is for the LEDs, the keys use the other five */
+    width: 100%; /* fills the rest of the box, so the keys stretch to fit... */
+    min-width: min-content; /* ...but never get narrower than 48px each, it scrolls instead */
+    height: 160px;
+}
+
+.key {
+    margin: 0;
+    padding: 0 0 8px 0;
+    font-size: 16px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    cursor: pointer;
+}
+
+/* the LEDs above the keys: dark when off, white when lit, and a longer white one for the root of the
+   scale (or of the chord). A ring around one means that note is playing right now. */
+.led {
+    grid-row: 1;
+    justify-self: center; /* centered over its key */
+    align-self: center;
+    width: 14px;
+    height: 8px;
+    border-radius: 4px;
+    background: #262626;
+}
+
+.led.on {
+    background: white;
+}
+
+.led.root {
+    width: 24px;
+}
+
+.led.hit {
+    outline: 2px solid white;
+    outline-offset: 2px;
+}
+
+/* white keys run the full height (below the LEDs) */
+.white {
+    grid-row: 2 / span 5;
+    background: white;
+    color: black;
+    border: 1px solid black;
+    border-radius: 0;
+}
+
+/* drum mode (track 1 is selected): there are no black keys, and every white key is a drum.
+   The one you last played is orange, and it's the one the sound picker is changing. */
+.piano.drums .black,
+.piano.drums .led.black-key {
+    display: none;
+}
+
+.key.drum-selected {
+    background: #ff8c1a;
+    color: #111;
+}
+
+/* black keys sit on top and only go 3/5 of the way down */
+.black {
+    grid-row: 2 / span 3;
+    z-index: 1;
+    background: black;
+    border: 1px solid white;
+    border-radius: 0;
+}
+
+.white:active {
+    background: #b0b0b0;
+}
+
+.black:active {
+    background: #606060;
+}
+
+.div4 {
+    grid-column: span 8 / span 8;
+    grid-row: span 4 / span 4;
+    grid-row-start: 4;
+    border: 2px solid #ff8c1a;
+    border-radius: 12px;
+    contain: size; /* the box is as tall as its four grid rows, whatever is inside it (the song scrolls instead) */
+    overflow: clip;
+}
+
+/* the song: tracks and blocks (studio.js builds the grid) */
+.studio {
+    height: 100%;
+    box-sizing: border-box;
+    padding: var(--gap);
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a3a transparent;
+}
+
+/* the toolbar is always one row, the same as on a desktop. On a narrow screen the whole box
+   scrolls sideways (the toolbar goes along with the song) */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
+}
+
+.toolbar-gap {
+    flex: 1;
+    min-width: 0; /* it only stretches, the normal gap on either side is the least space there is */
+}
+
+.toolbar .mini {
+    height: 44px;
+    min-height: 0;
+}
+
+/* buttons: dark and square like the VOL strip, with bold spaced out capitals */
+.tool,
+.track-name,
+.mute {
+    border: none;
+    border-radius: var(--radius);
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.tool {
+    height: 44px;
+    min-width: 64px;
+    padding: 0 calc(2 * var(--gap)); /* space beside the text inside a button (the dropdown matches) */
+}
+
+.tool:active,
+.track-name:active,
+.mute:active {
+    background: #3a3a3a;
+}
+
+.tool.on {
+    background: white;
+    color: #111;
+}
+
+/* while recording, REC is white like PLAY is while playing (only one of the two is lit at a time) */
+.rec.counting {
+    background: white;
+    color: #111;
+}
+
+.tool:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* a picker: a dropdown with a little up and down arrow beside it (the sound, the key, the scale, and
+   what the LEDs show are all pickers) */
+.picker {
+    display: flex;
+    flex: none;
+    align-self: center; /* in the strips box this keeps it 44px tall in the middle, not stretched */
+    gap: var(--gap-tight);
+    height: 44px;
+}
+
+.picker select {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 160px;
+    height: 44px;
+    padding: 0 calc(2 * var(--gap));
+    border: none;
+    border-radius: var(--radius);
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+/* the sound picker lists synth sounds on the synth tracks and drums on the drum track, so it's one
+   fixed width for both (CLOSED HAT CLASSIC is the longest) */
+.sound-picker select {
+    width: 256px;
+}
+
+/* the piano settings button in the top box: it shows the key and a short scale name (like C MAJ), with a small
+   arrow that points down because the popup opens below it. It's only as wide as its text. */
+.settings-button {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap);
+    align-self: center;
+    text-align: left;
+}
+
+.settings-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-arrow {
+    flex: none;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 7px solid white;
+}
+
+/* the word SETTINGS is only for phones, where the button flips the box over instead of opening a popup */
+.settings-label {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .settings-text,
+    .settings-arrow {
+        display: none;
+    }
+
+    .settings-label {
+        display: inline;
+    }
+
+    .settings-button {
+        width: auto;
+        justify-content: center;
+    }
+}
+
+/* the popup: a dark panel with an orange edge like the containers, and a small arrow pointing at the
+   button it came from. It's fixed to the screen (leds.js places it) so no box can cut it off. */
+.popover {
+    position: fixed;
+    z-index: 50;
+    width: 400px;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
+    padding: var(--gap);
+    background: #1c1c1c;
+    color: white;
+    border: 2px solid #ff8c1a;
+    border-radius: var(--radius);
+}
+
+.popover[hidden] {
+    display: none;
+}
+
+/* if the screen isn't tall enough for everything, the inside scrolls (the arrow sits outside it, so it isn't cut off) */
+.popover-body {
+    max-height: calc(100vh - 2 * var(--gap) - 2 * 4px - 28px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a3a transparent;
+}
+
+.popover-title {
+    margin: var(--gap) 0 var(--gap);
+    color: #ff8c1a;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+}
+
+.popover-title:first-child {
+    margin-top: 0;
+}
+
+/* the choices are little buttons, the one that's chosen is white (like a selected block) */
+.choices {
+    display: grid;
+    gap: var(--gap);
+}
+
+/* a long device name is cut short with ... and a choice that's only a message can't be chosen */
+.choice {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.choice:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+/* in the popup they're laid out in a grid */
+.popover .choices.devices {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.popover .choices.channels {
+    grid-template-columns: repeat(6, 1fr);
+}
+
+.popover .choices.octaves {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+.popover .choices.keys {
+    grid-template-columns: repeat(6, 1fr);
+}
+
+.popover .choices.scales {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.popover .choices.modes {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.choice {
+    height: 32px;
+    padding: 0 var(--gap);
+    border: none;
+    border-radius: var(--radius);
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+}
+
+.choice:active {
+    background: #3a3a3a;
+}
+
+.choice[aria-pressed="true"] {
+    background: white;
+    color: #111;
+}
+
+/* ---- the flip (phones) ----
+   The strips box has two sides. The front is the strips and graphs. The back is the piano settings, and it
+   has an x on the far left that flips it back. On a computer the box never flips, the settings button opens
+   the popup instead (see leds.js). */
+.div5 {
+    perspective: 1200px;
+}
+
+.flipper {
+    position: relative;
+    height: 100%;
+    transform-style: preserve-3d;
+    border-radius: inherit;
+}
+
+.div5.flipped .flipper {
+    transform: rotateY(180deg);
+}
+
+/* the flip is an animation, so it only plays if the user hasn't asked for less motion. With it off, the box just switches sides at once */
+@media (prefers-reduced-motion: no-preference) {
+    .flipper {
+        transition: transform 0.5s;
+    }
+}
+
+/* each side fills the box, and you can't see the side that's turned away */
+.face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: inherit;
+    overflow: clip;
+}
+
+.back {
+    transform: rotateY(180deg);
+}
+
+/* the back: the x, then the three settings, in a row that scrolls sideways if it's too wide */
+.settings-controls {
+    display: flex;
+    gap: var(--gap);
+    align-items: stretch;
+    height: 100%;
+    box-sizing: border-box;
+    padding: var(--gap);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+.close-settings {
+    flex: none;
+    width: 44px;
+    min-width: 0;
+    height: 88px; /* the back is taller now, so the x and the groups are a good size in the middle of it */
+    align-self: center;
+    padding: 0;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.settings-group {
+    display: flex;
+    flex: none;
+    align-self: center;
+    height: 88px;
+    gap: var(--gap);
+}
+
+/* the name of a group, written up the side like the labels on the strips */
+.group-label {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    border-radius: var(--radius);
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+}
+
+/* on the back the choices are two rows, so they fit the height of the box (they read left to right, top row first) */
+.settings-controls .choices {
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.settings-controls .choices.keys {
+    grid-template-columns: repeat(6, 44px);
+}
+
+.settings-controls .choices.scales {
+    grid-template-columns: repeat(7, auto);
+}
+
+.settings-controls .choices.modes {
+    grid-template-columns: repeat(2, auto);
+}
+
+/* the MIDI side of the back: the device lists go in columns (so any number of devices fit), the channels and
+   octaves in rows */
+.settings-controls .choices.devices {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(80px, 220px);
+}
+
+.settings-controls .choices.channels {
+    grid-template-columns: repeat(9, 44px);
+}
+
+.settings-controls .choices.octaves {
+    grid-template-columns: repeat(3, 44px);
+}
+
+/* the back shows one side at a time: the piano settings, or the MIDI options (panels.js says which) */
+.back[data-panel="piano"] .settings-controls[data-panel="midi"],
+.back[data-panel="midi"] .settings-controls[data-panel="piano"] {
+    display: none;
+}
+
+.settings-controls .choice {
+    height: auto;
+    min-height: 0;
+    padding: 0 var(--gap);
+    white-space: nowrap;
+}
+
+/* the arrow: a square turned 45 degrees, the same colour as the panel, with an orange edge on the two
+   sides that show. leds.js sets --arrow-x so it sits over the middle of the button. */
+.popover-arrow {
+    position: absolute;
+    left: var(--arrow-x, 50%);
+    width: 14px;
+    height: 14px;
+    background: #1c1c1c;
+    transform: translateX(-50%) rotate(45deg);
+}
+
+.popover.above .popover-arrow {
+    bottom: -9px;
+    border-right: 2px solid #ff8c1a;
+    border-bottom: 2px solid #ff8c1a;
+}
+
+.popover.below .popover-arrow {
+    top: -9px;
+    border-left: 2px solid #ff8c1a;
+    border-top: 2px solid #ff8c1a;
+}
+
+.arrows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+}
+
+.arrow {
+    position: relative;
+    width: 30px;
+    flex: 1;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: #262626;
+    cursor: pointer;
+}
+
+.arrow:active {
+    background: #3a3a3a;
+}
+
+/* the arrows are drawn with borders (a triangle) so they're never turned into emoji on a phone */
+.arrow::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+}
+
+.arrow.up::before {
+    border-bottom: 7px solid white;
+}
+
+.arrow.down::before {
+    border-top: 7px solid white;
+}
+
+/* the grid: a column for the track names, then 8 blocks (a block is never narrower than 88px,
+   the song scrolls sideways instead) and a row of bar numbers along the top */
+.song {
+    position: relative; /* the buttons by the selected block are placed against this */
+    display: grid;
+    grid-template-columns: 176px repeat(8, minmax(88px, 1fr));
+    grid-template-rows: 24px repeat(5, 38px); /* with the gaps, this just fits in the box */
+    gap: var(--gap);
+    min-width: calc(176px + 8 * 88px + 8 * var(--gap));
+}
+
+.bar-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #111; /* dark on the orange */
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.bar-head.now {
+    color: white;
+}
+
+/* the track names stay put when the song is scrolled sideways */
+.corner,
+.track-head {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+/* a track, like a track in FL Studio: a grey header at the left (name, mute, solo) and a grey lane beside it
+   that the blocks sit in. The greys are solid, so nothing shows through when the song scrolls under the header */
+.track-head {
+    display: flex;
+    gap: var(--gap-tight);
+    padding: var(--gap-tight);
+    box-sizing: border-box;
+    border-radius: var(--radius);
+    background: #4a4a4a;
+}
+
+.lane {
+    border-radius: var(--radius);
+    background: #3a3a3a;
+}
+
+/* a track that isn't heard has a darker lane (still solid grey, not see through) */
+.lane.muted {
+    background: #2a2a2a;
+}
+
+.track-name {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+}
+
+.track-name.selected {
+    background: white;
+    color: #111;
+}
+
+/* mute and solo: grey buttons that light up when they're on (mute white, solo orange) */
+.mute,
+.solo {
+    width: 30px;
+    border: none;
+    border-radius: 4px;
+    background: #6a6a6a;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.mute:active,
+.solo:active {
+    background: #7a7a7a;
+}
+
+.mute[aria-pressed="true"] {
+    background: white;
+    color: #111;
+}
+
+.solo[aria-pressed="true"] {
+    background: #ff8c1a;
+    color: #111;
+}
+
+/* the arrow by DRUMS that opens up the drums: a triangle drawn with borders (so it's never an emoji), pointing
+   right when closed and down when open */
+.fold {
+    position: relative;
+    flex: none;
+    width: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.fold::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid white;
+}
+
+.fold[aria-expanded="true"]::before {
+    transform: translate(-50%, -50%) rotate(90deg);
+}
+
+/* the drum rows, shorter than a track and a step in from the left. A row that's folded away is gone */
+.folded {
+    display: none;
+}
+
+.track-head.sub {
+    padding-left: 28px; /* in line with the name on DRUMS (the arrow's width) */
+}
+
+.track-head.sub .track-name {
+    overflow: hidden;
+    padding: 0 var(--gap-tight);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+}
+
+/* a drum's box for one bar: a darker slot with an orange tick for each hit */
+.drum-cell {
+    position: relative;
+    margin: 3px 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #2e2e2e;
+    cursor: pointer;
+}
+
+.drum-cell canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.drum-cell.muted {
+    opacity: 0.5;
+}
+
+.drum-cell.covered {
+    display: none;
+}
+
+/* a block sits in its lane like a clip: a darker slot when it's empty, orange when it has notes, white when it's the
+   selected one */
+.block {
+    position: relative;
+    margin: 3px 0; /* the lane shows above and below it */
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    overflow: hidden; /* trims the marks drawn inside to the rounded corners */
+    background: #2e2e2e;
+    color: white; /* the marks are drawn in this colour */
+    cursor: pointer;
+}
+
+.block.has-notes {
+    background: #ff8c1a;
+    color: #111;
+}
+
+.block.selected {
+    background: white;
+    color: #111;
+}
+
+.block.muted {
+    opacity: 0.5;
+}
+
+/* a block that a longer block to its left covers: it's still there, just out of the way */
+.block.covered {
+    display: none;
+}
+
+/* the selected block gets a dark ring as well as the white fill, so it stands out from the ones beside it */
+.block.selected {
+    box-shadow: 0 0 0 3px #111;
+}
+
+/* the little buttons on the selected block's top border: shorter, longer, edit, delete */
+.block-tools {
+    position: absolute;
+    z-index: 1; /* above the blocks, but under the track names, which stay put when the song scrolls */
+    display: flex;
+    gap: var(--gap-tight);
+    padding: var(--gap-tight);
+    border-radius: var(--radius);
+    background: #111;
+}
+
+.tool-mini {
+    height: 28px;
+    min-width: 28px;
+    padding: 0 var(--gap);
+    border: none;
+    border-radius: 4px;
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tool-mini.wide {
+    letter-spacing: 0.1em;
+}
+
+.tool-mini:active {
+    background: #3a3a3a;
+}
+
+.tool-mini:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* the block editor: it takes the place of the toolbar and the song in their box (EDIT opens it, BACK closes it).
+   Like the song it keeps its size on a narrow screen and the box scrolls sideways */
+.studio.editing > .toolbar,
+.studio.editing > .song {
+    display: none;
+}
+
+.note-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    box-sizing: border-box;
+    height: 100%;
+    min-width: 800px;
+}
+
+.note-editor[hidden] {
+    display: none;
+}
+
+.editor-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--gap);
+}
+
+.editor-title {
+    padding: 0 var(--gap);
+    color: #111; /* dark on the orange */
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+}
+
+.tabs {
+    display: flex;
+    gap: var(--gap);
+}
+
+/* the grid sits on a dark panel and scrolls inside it (the numbers along the top and the box stay put) */
+.editor-body {
+    position: relative; /* so the squares' offsetTop is measured from the top of the grid (the editor scrolls to the notes) */
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border-radius: var(--radius);
+    background: #1c1c1c;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a3a transparent;
+}
+
+.editor-grid {
+    display: grid;
+    grid-template-columns: 56px repeat(16, minmax(24px, 1fr));
+    gap: 2px;
+    padding: 0 var(--gap) var(--gap);
+}
+
+.editor-grid.drums {
+    grid-template-columns: 104px repeat(16, minmax(24px, 1fr));
+}
+
+.step-corner,
+.step-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #1c1c1c;
+}
+
+.step-head {
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 28px;
+    text-align: left;
+    text-indent: 2px;
+}
+
+.step-head.now {
+    background: white;
+    color: #111;
+}
+
+.step-label {
+    padding-right: 6px;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* the squares. The piano roll is a roll of thin rows, with the labels drawn like piano keys */
+.editor-grid.roll .step,
+.editor-grid.roll .step-label {
+    height: 22px;
+    line-height: 22px;
+}
+
+.editor-grid.roll .step-label.key-white {
+    background: white;
+    border-radius: 0 4px 4px 0;
+    color: #111;
+}
+
+.editor-grid.roll .step-label.key-black {
+    background: #000;
+    border-radius: 0 4px 4px 0;
+    color: #c8c8c8;
+}
+
+/* the step sequencer is big pads, in groups of four (one for each beat) */
+.editor-grid.steps .step,
+.editor-grid.steps .step-label {
+    height: 30px;
+    line-height: 30px;
+}
+
+.step {
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: #2c2c2c;
+    cursor: pointer;
+}
+
+.step.sharp {
+    background: #141414;
+}
+
+.editor-grid.steps .step.alt {
+    background: #3a3a3a;
+}
+
+.editor-grid.roll .step.alt {
+    background: #333;
+}
+
+.editor-grid.roll .step.sharp.alt {
+    background: #1c1c1c;
+}
+
+.editor-grid.roll .step.on {
+    background: white;
+}
+
+.editor-grid.steps .step.on {
+    background: #ff8c1a;
+}
+
+/* the column that's playing */
+.step.now {
+    background: #555;
+}
+
+.editor-grid.roll .step.on.now {
+    background: #ff8c1a;
+}
+
+.editor-grid.steps .step.on.now {
+    background: white;
+}
+
+.block.now {
+    outline: 2px solid white;
+    outline-offset: -2px;
+}
+
+.block canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.div5 {
+    grid-column: span 8 / span 8;
+    grid-row: span 2 / span 2; /* two rows tall, to make room for the dials */
+    grid-row-start: 8;
+    border: 2px solid #ff8c1a;
+    /* no border along the top and bottom, so the contents reach the very edge of the box */
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 12px;
+    background: #ff8c1a; /* orange behind the strip, like the box the wheels are in */
+    overflow: clip; /* trims the strip to the box's rounded corners */
+}
+
+.div6 {
+    grid-column: span 8 / span 8;
+    grid-row: span 2 / span 2;
+    grid-row-start: 10; /* it moved down a row to make room for the taller dials box */
+    border: 2px solid #ff8c1a;
+    /* no border along the top and bottom, so the keys reach the very edge of the box */
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 12px;
+    background: #ff8c1a;
+    overflow: clip; /* trims the keys to the box's rounded corners */
+}
+
+/* the orange boxes (the top one, the scope, the song, the dials, the keyboard): the orange is a gradient
+   between three close oranges (it sits still unless motion is allowed, see below).
+   The borders are see through, so the gradient runs right out to the edge of the box. */
+.div1,
+.div2,
+.div4,
+.div5,
+.div6,
+.face {
+    border-color: transparent;
+    background:
+        linear-gradient(
+            110deg,
+            #ff8c1a 0%,
+            #ffa42e 25%,
+            #ff8c1a 50%,
+            #f07f10 75%,
+            #ff8c1a 100%
+        );
+    background-size: 300% 100%;
+    background-origin: border-box;
+}
+
+/* the slow drift: the gradient slides sideways and back, only if the user hasn't asked for less motion */
+@media (prefers-reduced-motion: no-preference) {
+    .div1,
+    .div2,
+    .div4,
+    .div5,
+    .div6,
+    .face {
+        animation: orange-drift 16s ease-in-out infinite alternate;
+    }
+
+    @keyframes orange-drift {
+        from {
+            background-position: 0% 50%;
+        }
+        to {
+            background-position: 100% 50%;
+        }
+    }
+}
+        
