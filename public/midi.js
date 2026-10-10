@@ -102,13 +102,6 @@ const markY = makeChoices([byId("popYChoices"), byId("yChoices")], XY_TARGETS, (
     markY(xyMod.y);
 });
 
-// and what how far down a key is pressed does (an analog keyboard, analog.js)
-const markZ = makeChoices([byId("popZChoices")], XY_TARGETS, (i) => {
-    xyMod.z = i;
-    saveXyMod();
-    markZ(xyMod.z);
-});
-
 // works out which devices we're using, listens to the input, and rewrites everything that shows MIDI
 function refreshMidi() {
     const inputs = connectedDevices(midiAccess && midiAccess.inputs);
@@ -138,7 +131,6 @@ function refreshMidi() {
     markOctave(MIDI_OCTAVES.indexOf(midiOctave));
     markX(xyMod.x);
     markY(xyMod.y);
-    markZ(xyMod.z);
     updateMidiButton();
 }
 
@@ -200,13 +192,11 @@ function onMidiMessage(e) {
         if (heldMidi.has(data1)) heldMidi.get(data1).release(now); // the same key again, let go of the old one
         // (the force you hit the key with, data2, is the note's velocity, and it's recorded with the note)
         heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, data2 / 127));
-        startExpression("midi" + data1, heldMidi.get(data1)); // (the mouse moves a held note, see synth.js)
         document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now, velocity: data2 / 127 } }));
     } else if (type === 0x80 || type === 0x90) {
         // a note off (or a note on with no force, which also means off): let go of that key's note
         if (heldMidi.has(data1)) heldMidi.get(data1).release(ctx.currentTime);
         heldMidi.delete(data1);
-        endExpression("midi" + data1);
     } else if (type === 0xe0) {
         // pitch bend: the wheel on the keyboard moves the pitch wheel (8192 is the middle)
         pitchWheel.value = Math.max(-1, Math.min(1, (((data2 << 7) | data1) - 8192) / 8192));

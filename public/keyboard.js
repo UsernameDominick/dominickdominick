@@ -56,8 +56,7 @@ document.addEventListener("keydown", (e) => {
     const note = keyboardNote(e.code);
     if (note === null) return;
     e.preventDefault();
-    // (not if an analog keyboard has already started it, analog.js)
-    if (!e.repeat && !heldKeys.has("kb" + e.code)) pressKey("kb" + e.code, note);
+    if (!e.repeat) pressKey("kb" + e.code, note);
 });
 
 document.addEventListener("keyup", (e) => {

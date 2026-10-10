@@ -789,7 +789,7 @@ async function pressKey(id, note, velocity = 1) {
     const handle = playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, velocity);
     if (stillDown) {
         heldKeys.set(id, handle);
-        startExpression(id, handle);
+        if (typeof id === "number") startExpression(id, handle); // (only a key played with the mouse or a finger, whose id is the pointer's number)
     } else {
         handle.release(now);
     }
@@ -805,25 +805,24 @@ function releaseKey(id) {
 }
 
 // ---- moving the mouse while holding a note ----
-// While a note is held (a piano key held with the mouse, a key of the computer keyboard, or a key of a MIDI keyboard), moving the
-// mouse moves it: sideways (X) and up and down (Y) each do one of these, chosen in the MIDI popup:
+// While a note is held on the on-screen piano with the mouse or a finger, moving it moves the note: sideways (X) and up and down
+// (Y) each do one of these, chosen in the MIDI popup. (A note from the computer keyboard or a MIDI keyboard isn't moved by the mouse.)
 //   PITCH       bends the note up and down (2 semitones each way)
 //   VIBRATO     adds a wobble (moving right, or up)
 //   PAN         moves it left and right in the speakers
 //   BRIGHT      opens and closes the filter (2 octaves each way), for that note only
 //   VOLUME      makes it louder (up to twice) and quieter (down to half)
-// It's measured from where the mouse was when the note started, and 240 pixels is all the way. A third thing can do the same:
-// how far down a key is pressed (KEY DEPTH, from an analog keyboard: analog.js), from nothing at the top to all the way at the
-// bottom. It only moves the note you're holding (it isn't recorded). A held note on the drum track or an arpeggio isn't moved.
+// It's measured from where the pointer was when the note started, and 240 pixels is all the way. It only moves the note you're
+// holding (it isn't recorded). A held note on the drum track or an arpeggio isn't moved.
 const XY_TARGETS = ["OFF", "PITCH", "VIBRATO", "PAN", "BRIGHT", "VOLUME"];
 const XY_RANGE_PX = 240; // how far the mouse goes for all the way
 const XY_PITCH_CENTS = 200;
 const XY_BRIGHT_CENTS = 2400;
 const XY_VIBRATO_CENTS = 60;
-const xyMod = { x: 1, y: 4, z: 0 }; // what X, Y and the key depth do: places in XY_TARGETS (pitch and brightness to start with, and the depth nothing). They're remembered
+const xyMod = { x: 1, y: 4 }; // what X and Y do: places in XY_TARGETS (pitch and brightness to start with). They're remembered
 try {
     const savedXy = JSON.parse(localStorage.getItem("xyMod"));
-    for (const axis of ["x", "y", "z"]) if (savedXy && Number.isInteger(savedXy[axis]) && savedXy[axis] >= 0 && savedXy[axis] < XY_TARGETS.length) xyMod[axis] = savedXy[axis];
+    for (const axis of ["x", "y"]) if (savedXy && Number.isInteger(savedXy[axis]) && savedXy[axis] >= 0 && savedXy[axis] < XY_TARGETS.length) xyMod[axis] = savedXy[axis];
 } catch {}
 
 function saveXyMod() {
@@ -832,23 +831,18 @@ function saveXyMod() {
     } catch {}
 }
 
-const pointerAt = new Map(); // where each pointer last was (by its pointerId): { x, y }
-let mouseAt = { x: 0, y: 0 }; // and the mouse (a note from the computer keyboard or MIDI follows the mouse)
-const expressive = new Map(); // the notes held right now that can be moved: id -> { handle, origin, dx, dy, depth }
+const pointerAt = new Map(); // where each pointer (the mouse, or a finger) last was (by its pointerId): { x, y }
+const expressive = new Map(); // the notes held right now that can be moved: pointer id -> { handle, origin, dx, dy }
 
-function notePointer(e) {
-    pointerAt.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.pointerType === "mouse") mouseAt = { x: e.clientX, y: e.clientY };
-}
-document.addEventListener("pointerdown", notePointer, true);
+document.addEventListener("pointerdown", (e) => pointerAt.set(e.pointerId, { x: e.clientX, y: e.clientY }), true);
+["pointerup", "pointercancel"].forEach((type) => document.addEventListener(type, (e) => pointerAt.delete(e.pointerId), true));
 
-// what the mouse being this far (dx and dy in px, from where the note started) and the key being pressed this far down (depth,
-// 0 to 1) do to the note: the values setExpression takes
-function expressionValues(dx, dy, depth = 0) {
+// what the pointer being this far (dx and dy in px, from where the note started) does to the note: the values setExpression takes
+function expressionValues(dx, dy) {
     const range = XY_RANGE_PX * uiScale; // (the page may be scaled up to fill a big screen)
-    const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range)), depth]; // (up is more)
+    const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range))]; // (up is more)
     const v = { pitch: 0, bright: 0, vib: 0, pan: 0, vol: 1 };
-    [xyMod.x, xyMod.y, xyMod.z].forEach((target, i) => {
+    [xyMod.x, xyMod.y].forEach((target, i) => {
         const a = axes[i];
         const name = XY_TARGETS[target];
         if (name === "PITCH") v.pitch += a * XY_PITCH_CENTS;
@@ -861,39 +855,26 @@ function expressionValues(dx, dy, depth = 0) {
 }
 
 function moveHeldNote(held) {
-    held.handle.expression(expressionValues(held.dx, held.dy, held.depth));
+    held.handle.expression(expressionValues(held.dx, held.dy));
 }
 
-// a note has started and is being held: from now the mouse moves it. (id is the pointer's number for a key held with a pointer,
-// or a name for a key of the computer keyboard or a MIDI keyboard)
+// a note has started and is being held by a pointer: from now moving that pointer moves the note
 function startExpression(id, handle) {
-    if (!handle || !handle.expression) return;
-    const origin = typeof id === "number" ? pointerAt.get(id) || mouseAt : mouseAt;
-    expressive.set(id, { handle, origin: { ...origin }, dx: 0, dy: 0, depth: 0 });
+    const origin = pointerAt.get(id);
+    if (!origin || !handle || !handle.expression) return;
+    expressive.set(id, { handle, origin: { ...origin }, dx: 0, dy: 0 });
 }
 
 function endExpression(id) {
     expressive.delete(id);
 }
 
-// how far down a held note's key is (0 to 1), from an analog keyboard
-function setKeyDepth(id, depth) {
-    const held = expressive.get(id);
-    if (!held) return;
-    held.depth = depth;
-    moveHeldNote(held);
-}
-
 document.addEventListener("pointermove", (e) => {
-    notePointer(e);
-    if (!expressive.size) return;
-    expressive.forEach((held, id) => {
-        const follows = id === e.pointerId || (typeof id === "string" && e.pointerType === "mouse");
-        if (!follows) return;
-        held.dx = e.clientX - held.origin.x;
-        held.dy = e.clientY - held.origin.y;
-        moveHeldNote(held);
-    });
+    const held = expressive.get(e.pointerId);
+    if (!held) return;
+    held.dx = e.clientX - held.origin.x;
+    held.dy = e.clientY - held.origin.y;
+    moveHeldNote(held);
 });
 
 function releaseAllKeys() {
@@ -903,15 +884,15 @@ window.addEventListener("blur", releaseAllKeys); // (don't leave a note stuck on
 
 document.querySelectorAll(".key").forEach((key) => {
     const note = Number(key.dataset.note);
-    let waiting = null; // a touch that hasn't started its note yet: { id, x, y, timer }
+    let waiting = null; // a touch that hasn't started its note yet: { id, x, y, timer, swipe, last }
 
-    // lets go of this key (the finger lifted, or the browser took the touch to scroll)
+    // lets go of this key (the finger lifted, or the browser took the touch away)
     function finish(e) {
         if (waiting && waiting.id === e.pointerId) {
             clearTimeout(waiting.timer);
-            const tapped = e.type === "pointerup";
+            const tapped = e.type === "pointerup" && !waiting.swipe;
             waiting = null;
-            if (!tapped) return; // it was a swipe that scrolled the piano, so no note
+            if (!tapped) return; // it was a swipe that scrolled the piano (or it was cancelled), so no note
             pressKey(e.pointerId, note); // a quick tap: the note is played and let go
         }
         releaseKey(e.pointerId);
@@ -939,10 +920,18 @@ document.querySelectorAll(".key").forEach((key) => {
         };
     });
 
+    // (the keys have touch-action: none so a finger held on a note can move it, see above, which means the piano is scrolled here:
+    // a finger that moves before its note has started is a swipe, and it scrolls the piano)
     key.addEventListener("pointermove", (e) => {
-        if (waiting && waiting.id === e.pointerId && Math.hypot(e.clientX - waiting.x, e.clientY - waiting.y) > 10) {
-            clearTimeout(waiting.timer); // it's moving, so it's a swipe
-            waiting = null;
+        if (!waiting || waiting.id !== e.pointerId) return;
+        if (!waiting.swipe && Math.hypot(e.clientX - waiting.x, e.clientY - waiting.y) > 10) {
+            clearTimeout(waiting.timer);
+            waiting.swipe = true;
+            waiting.last = waiting.x;
+        }
+        if (waiting.swipe) {
+            pianoScroll.scrollLeft -= e.clientX - waiting.last;
+            waiting.last = e.clientX;
         }
     });
 

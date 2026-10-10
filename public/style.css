@@ -479,6 +479,7 @@ output {
     align-items: flex-end;
     justify-content: center;
     cursor: pointer;
+    touch-action: none; /* a finger moving on a held key moves the note, so the page doesn't scroll (synth.js scrolls the piano for a swipe) */
 }
 
 /* the LEDs above the keys: dark when off, white when lit, and a longer white one for the root of the
