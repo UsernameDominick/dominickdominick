@@ -655,8 +655,7 @@ function drawScope() {
     }
 
     // the fill between the wave and the middle (strong at the top and the bottom, fading to the middle), then the line on top,
-    // which glows and goes from yellow through orange to red from left to right
-    const dpr = (window.devicePixelRatio || 1) * uiScale;
+    // which goes from yellow through orange to red from left to right
     const fill = canvasCtx.createLinearGradient(0, 0, 0, h);
     fill.addColorStop(0, withAlpha(SCOPE_COLORS[1], 0.55));
     fill.addColorStop(0.5, withAlpha(SCOPE_COLORS[1], 0.05));
@@ -676,10 +675,7 @@ function drawScope() {
     canvasCtx.strokeStyle = stroke;
     canvasCtx.lineWidth = 2.5;
     canvasCtx.lineJoin = "round";
-    canvasCtx.shadowColor = SCOPE_COLORS[1];
-    canvasCtx.shadowBlur = 10 * dpr;
     canvasCtx.stroke();
-    canvasCtx.shadowBlur = 0;
 
     // the scope always shows everything that's coming out (every track together), whichever track you're editing
     drawGraphLabel(canvasCtx, SCOPE_NAME, h);
@@ -1251,10 +1247,9 @@ function prepGraph(canvas) {
     return { g, w, h };
 }
 
-// draws a line in a colour, with a fill under it that fades down from the line, and a glow. The line goes from the colour
+// draws a line in a colour, with a fill under it that fades down from the line. The line goes from the colour
 // to a lighter one from left to right
 function drawLine(g, points, h, color, w) {
-    const dpr = (window.devicePixelRatio || 1) * uiScale;
     const fill = g.createLinearGradient(0, 0, 0, h);
     fill.addColorStop(0, withAlpha(color, 0.6));
     fill.addColorStop(1, withAlpha(color, 0.06));
@@ -1274,10 +1269,7 @@ function drawLine(g, points, h, color, w) {
     g.strokeStyle = stroke;
     g.lineWidth = 2.5;
     g.lineJoin = "round";
-    g.shadowColor = color;
-    g.shadowBlur = 8 * dpr;
     g.stroke();
-    g.shadowBlur = 0;
 }
 
 // the name of the graph, bottom left
@@ -1331,10 +1323,10 @@ function drawFilterGraph() {
     g.beginPath();
     g.arc(nearest.x, nearest.y, 4.5, 0, Math.PI * 2);
     g.fillStyle = tint(accent, 0.7);
-    g.shadowColor = accent;
-    g.shadowBlur = 10 * ((window.devicePixelRatio || 1) * uiScale);
     g.fill();
-    g.shadowBlur = 0;
+    g.lineWidth = 2;
+    g.strokeStyle = "#17130f";
+    g.stroke();
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
     drawGraphLabel(g, "FILTER " + whose, h); // the label says whose filter this is
 
