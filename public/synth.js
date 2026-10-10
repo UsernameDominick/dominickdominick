@@ -3,7 +3,9 @@
 // audio state
 let ctx;
 let master;
-let volume = 0.5;
+// the volume of the whole song (the strip in the top box). Half way is the normal loudness, all the way up is twice
+// that. (The VOL dial is different: it's for the selected sound, see setVolume below)
+let songVolume = 0.5;
 
 const TRACKS = 5; // how many tracks there are (studio.js uses this too, so synth.js has to load first)
 const DRUM_TRACK = 0; // the first track is always the drum track (drums.js plays it, playNote hands its notes over)
@@ -18,13 +20,31 @@ const DIAL_DEFAULTS = {
     drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
 };
 const trackSettings = Array.from({ length: TRACKS }, (_, t) => ({
-    sound: 0, cutoff: 1, resonance: 0, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
+    sound: 0, volume: 0.5, cutoff: 1, resonance: 0, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
 }));
 const trackFilters = []; // one lowpass filter for each track, made when the audio starts
+const trackGains = []; // and one volume for each track, after its filter (the drum track's stays at full, each drum has its own volume)
 
 // what a track is called on the page
+const trackNames = Array.from({ length: TRACKS }, (_, t) => t === DRUM_TRACK ? "DRUMS" : "TRK " + (t + 1));
+try {
+    const savedNames = JSON.parse(localStorage.getItem("trackNames"));
+    if (Array.isArray(savedNames)) {
+        savedNames.forEach((name, t) => {
+            if (typeof name === "string" && name.trim()) trackNames[t] = name.trim().slice(0, 24);
+        });
+    }
+} catch {}
+
 function trackName(t) {
-    return t === DRUM_TRACK ? "DRUMS" : "TRK " + (t + 1);
+    return trackNames[t];
+}
+
+function renameTrack(t, name) {
+    trackNames[t] = name;
+    try {
+        localStorage.setItem("trackNames", JSON.stringify(trackNames));
+    } catch {}
 }
 let liveTrack = 0; // the track the piano keys play and the strips show (studio.js sets it when you pick a track)
 
@@ -47,7 +67,7 @@ function getCtx() {
 
         // master gain node (every note goes through this)
         master = ctx.createGain();
-        master.gain.value = volume;
+        master.gain.value = songVolume * 2;
         master.connect(ctx.destination); // speakers
 
         // filter nodes, one for each track (a track's notes go through its filter, then the master volume)
@@ -56,8 +76,12 @@ function getCtx() {
             filter.type = "lowpass"; // lets low frequencies through and cuts the highs above the cutoff
             filter.frequency.value = cutoffFromSlider(trackSettings[t].cutoff);
             filter.Q.value = resonanceFromSlider(trackSettings[t].resonance);
-            filter.connect(master);
+            const trackGain = ctx.createGain();
+            trackGain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
+            filter.connect(trackGain);
+            trackGain.connect(master);
             trackFilters.push(filter);
+            trackGains.push(trackGain);
         }
 
         // analyser node (a side branch the scope reads from, it doesn't change the sound)
@@ -255,11 +279,28 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     };
 }
 
-// changes the master volume
+// changes the volume of the selected sound: the selected track's, or on the drum track the drum you last played.
+// (It's the sound the sound picker is showing)
 function setVolume(v) {
-    volume = Math.min(1, Math.max(0, v)); // keep it between 0 and 1
+    v = Math.min(1, Math.max(0, v)); // keep it between 0 and 1
+    if (liveTrack === DRUM_TRACK) {
+        setDrumVolume(selectedDrumNote, v);
+        return;
+    }
+    trackSettings[liveTrack].volume = v;
     // setTargetAtTime glides to the new value so you don't hear a click
-    master.gain.setTargetAtTime(volume, ctx.currentTime, 0.015);
+    trackGains[liveTrack].gain.setTargetAtTime(v, ctx.currentTime, 0.015);
+}
+
+// changes the volume of the whole song (v is the strip position, 0 to 1)
+function setSongVolume(v) {
+    songVolume = Math.min(1, Math.max(0, v));
+    master.gain.setTargetAtTime(songVolume * 2, ctx.currentTime, 0.015);
+}
+
+// where the VOL dial is for the selected sound
+function selectedVolume() {
+    return liveTrack === DRUM_TRACK ? drumVolumeAt(selectedDrumNote) : trackSettings[liveTrack].volume;
 }
 
 // what each small strip means (they all run from 0 to 1)
@@ -769,8 +810,11 @@ function setUpStrip(slider, format, apply) {
     return { update }; // so the strip can be redrawn after its slider is moved by code
 }
 
-gainSlider.value = volume; // start the slider at the starting volume
-setUpStrip(gainSlider, (v) => Math.round(v * 100) + "%", setVolume);
+// the strip by the MIDI button is the volume of the whole song
+setUpStrip(document.getElementById("songVolume"), (v) => String(Math.round(v * 100)), setSongVolume);
+
+// VOL is the volume of the selected sound, so it moves when you pick a different track or drum
+const gainStrip = setUpStrip(gainSlider, (v) => Math.round(v * 100) + "%", setVolume);
 
 // CUT, RES, ATK, DEC, SUS and REL belong to the selected track, so they change when you pick a different track
 const cutoffStrip = setUpStrip(cutoffSlider, (v) => formatCutoff(cutoffFromSlider(v)), setCutoff);
@@ -783,6 +827,8 @@ const releaseStrip = setUpStrip(releaseSlider, (v) => releaseFromSlider(v).toFix
 // moves the dials to the selected track's settings (studio.js calls this when you pick a track)
 function showTrackSettings() {
     const settings = trackSettings[liveTrack];
+    gainSlider.value = selectedVolume();
+    gainStrip.update();
     // double-clicking a dial puts it back to where this kind of track starts it
     const defaults = liveTrack === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth;
     attackSlider.closest(".dial").dataset.default = defaults.attack;

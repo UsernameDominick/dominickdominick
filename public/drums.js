@@ -170,6 +170,29 @@ function saveDrumKit() {
     } catch {}
 }
 
+// each drum has its own volume (what the VOL dial sets while that drum is the selected one), 0 to 1. They start at
+// 0.5, which is how loud the drums were before. They're remembered too
+const drumVolumes = DRUM_NOTES.map(() => 0.5);
+try {
+    const savedVolumes = JSON.parse(localStorage.getItem("drumVolumes"));
+    if (Array.isArray(savedVolumes) && savedVolumes.length === drumVolumes.length) {
+        savedVolumes.forEach((v, i) => {
+            if (typeof v === "number" && v >= 0 && v <= 1) drumVolumes[i] = v;
+        });
+    }
+} catch {}
+
+function drumVolumeAt(note) {
+    return drumVolumes[drumSlot(note)];
+}
+
+function setDrumVolume(note, v) {
+    drumVolumes[drumSlot(note)] = v;
+    try {
+        localStorage.setItem("drumVolumes", JSON.stringify(drumVolumes));
+    } catch {}
+}
+
 // which place in the kit a key is. A black key (from an older recording) uses the white key just below it
 function drumSlot(note) {
     let slot = DRUM_NOTES.indexOf(note);
@@ -342,7 +365,7 @@ function drumShapeEnv() {
 
 // plays one drum from the list (when is the audio clock time to start it). Every hit goes through the
 // drum track's filter, so CUT and RES on the strips shape the drums too
-function playDrumSound(soundIndex, when = ctx.currentTime) {
+function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5) {
     const sound = DRUM_SOUNDS[soundIndex];
     const env = drumShapeEnv();
     const held = Math.max(0.02, drumTiming(sound).decay * DRUM_HELD); // how long the hit is held for before it's let go
@@ -354,14 +377,14 @@ function playDrumSound(soundIndex, when = ctx.currentTime) {
     shape.connect(trackFilters[DRUM_TRACK]);
 
     const out = ctx.createGain();
-    out.gain.value = 0.55 * sound.boost * (sound.p.level === undefined ? 1 : sound.p.level);
+    out.gain.value = 0.55 * sound.boost * (sound.p.level === undefined ? 1 : sound.p.level) * volume;
     out.connect(shape);
     VOICES[sound.type](sound.p, when, out);
 }
 
 // plays whatever drum a key is set to
 function playDrumNote(note, when = ctx.currentTime) {
-    playDrumSound(drumSoundAt(note), when);
+    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note));
 }
 
 // how the selected drum fades out, for the FADE graph: how long it takes to rise (attack), how long until

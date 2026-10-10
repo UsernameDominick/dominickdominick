@@ -32,6 +32,7 @@ let startTime; // audio clock time of beat 0 for this run
 let nextBeat; // the next beat the scheduler hasn't planned yet
 let recTrack; // where this run is recording to
 let recBar;
+let countBeats = 0; // how many beats of count-in come before this recording starts (set when you press rec)
 let tickTimer;
 let lastNowBar = -1; // which bar is lit up as playing right now (-1 is none)
 
@@ -47,7 +48,100 @@ const soundSelect = document.getElementById("soundSelect");
 const soundUp = document.getElementById("soundUp");
 const soundDown = document.getElementById("soundDown");
 
-const toolsEl = make("div", "block-tools"); // the little buttons by the selected block's border
+const TRACK_PALETTE = [
+    { name: "Orange", color: "#ff8c1a" },
+    { name: "Red", color: "#ec5c4b" },
+    { name: "Pink", color: "#df6192" },
+    { name: "Violet", color: "#9475d8" },
+    { name: "Blue", color: "#5685dd" },
+    { name: "Teal", color: "#24a69a" },
+    { name: "Green", color: "#74a83b" },
+    { name: "Gold", color: "#d6ac35" },
+];
+const trackColors = new Array(TRACKS).fill(TRACK_PALETTE[0].color);
+try {
+    const savedColors = JSON.parse(localStorage.getItem("trackColors"));
+    if (Array.isArray(savedColors)) {
+        savedColors.forEach((color, t) => {
+            if (TRACK_PALETTE.some((entry) => entry.color === color)) trackColors[t] = color;
+        });
+    }
+} catch {}
+
+const trackMenu = make("div", "track-context-menu");
+trackMenu.setAttribute("role", "menu");
+trackMenu.setAttribute("aria-label", "Track options");
+trackMenu.hidden = true;
+const renameTrackButton = make("button", "track-menu-action", "RENAME TRACK");
+renameTrackButton.type = "button";
+renameTrackButton.setAttribute("role", "menuitem");
+const colorChoices = make("div", "track-color-choices");
+colorChoices.setAttribute("role", "group");
+colorChoices.setAttribute("aria-label", "Track color");
+TRACK_PALETTE.forEach(({ name, color }) => {
+    const choice = make("button", "track-color-choice");
+    choice.type = "button";
+    choice.style.backgroundColor = color;
+    choice.setAttribute("aria-label", "Set track color to " + name);
+    choice.setAttribute("role", "menuitemradio");
+    choice.dataset.color = color;
+    choice.addEventListener("click", () => setTrackColor(menuTrack, color));
+    colorChoices.appendChild(choice);
+});
+trackMenu.append(renameTrackButton, colorChoices);
+document.body.appendChild(trackMenu);
+let menuTrack = 0;
+
+function openTrackMenu(e, t) {
+    e.preventDefault();
+    selectBlock(t, selBar);
+    menuTrack = t;
+    trackMenu.hidden = false;
+    colorChoices.querySelectorAll(".track-color-choice").forEach((choice) => {
+        choice.setAttribute("aria-checked", String(choice.dataset.color === trackColors[t]));
+    });
+    const left = Math.max(8, Math.min(e.clientX, window.innerWidth - trackMenu.offsetWidth - 8));
+    const top = Math.max(8, Math.min(e.clientY, window.innerHeight - trackMenu.offsetHeight - 8));
+    trackMenu.style.left = left + "px";
+    trackMenu.style.top = top + "px";
+    renameTrackButton.focus();
+}
+
+function closeTrackMenu() {
+    trackMenu.hidden = true;
+}
+
+function setTrackColor(t, color) {
+    if (!TRACK_PALETTE.some((entry) => entry.color === color)) return;
+    trackColors[t] = color;
+    try {
+        localStorage.setItem("trackColors", JSON.stringify(trackColors));
+    } catch {}
+    trackHeads[t].head.style.setProperty("--track-color", color);
+    cells[t].forEach(({ block }) => block.style.setProperty("--track-color", color));
+    cells[t].forEach((_, b) => drawBlock(t, b));
+    closeTrackMenu();
+}
+
+renameTrackButton.addEventListener("click", () => {
+    const answer = window.prompt("Track name", trackName(menuTrack));
+    if (answer === null) return closeTrackMenu();
+    const name = answer.trim().slice(0, 24);
+    if (name) {
+        renameTrack(menuTrack, name);
+        trackHeads[menuTrack].name.textContent = name;
+        showSound();
+    }
+    closeTrackMenu();
+});
+
+document.addEventListener("pointerdown", (e) => {
+    if (!trackMenu.hidden && !trackMenu.contains(e.target)) closeTrackMenu();
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !trackMenu.hidden) closeTrackMenu();
+});
+
 const handleEl = make("div", "block-handle"); // the grip on the selected block's right edge, drag it to resize the block
 const cells = []; // cells[track][bar] is { block, canvas }
 const barHeads = []; // the numbers 1 to 8 along the top
@@ -59,6 +153,8 @@ const lanes = []; // the grey strip behind each track's blocks
 const DRUM_COUNT = DRUM_NOTES.length;
 const drumMuted = new Array(DRUM_COUNT).fill(false);
 const drumSoloed = new Array(DRUM_COUNT).fill(false);
+// a drum on loop repeats its own hits (up to the last bar that has one) to the end of the song, on its own
+const drumLooped = new Array(DRUM_COUNT).fill(false);
 let drumsOpen = false;
 const drumRows = []; // drumRows[slot] is { head, name, mute, solo, lane, cells: [{ el, canvas }] }
 let foldBtn; // the arrow by DRUMS
@@ -114,6 +210,39 @@ function loopSource(t, bar) {
     return length > 0 && bar >= length ? bar % length : bar;
 }
 
+// the same for one drum: how many bars its hits take up (up to the end of the last block with a hit of that drum in)
+function drumLoopLength(slot) {
+    const starts = clipStarts(DRUM_TRACK);
+    for (let bar = BARS - 1; bar >= 0; bar--) {
+        if (song[DRUM_TRACK][starts[bar]].some((n) => drumSlot(n.note) === slot)) return starts[bar] + clipBars(DRUM_TRACK, starts[bar]);
+    }
+    return 0;
+}
+
+// which bar a drum plays the hits of in a bar: its own loop if it's looping, or else the drum track's
+function drumSourceBar(slot, bar) {
+    if (!drumLooped[slot]) return loopSource(DRUM_TRACK, bar);
+    const length = drumLoopLength(slot);
+    return length > 0 && bar >= length ? bar % length : bar;
+}
+
+// is this bar a repeat for this drum (so its hits are drawn faded)? ownBars is true if the bar has notes of its own
+function drumIsRepeat(slot, bar, ownBars) {
+    if (drumLooped[slot]) return drumLoopLength(slot) > 0 && bar >= drumLoopLength(slot);
+    return !ownBars && isRepeat(DRUM_TRACK, bar);
+}
+
+// the notes that play in a bar of a track. The drum track also plays each looping drum from its own loop
+function notesForBar(t, bar) {
+    const notes = song[t][clipAt(t, loopSource(t, bar))];
+    if (t !== DRUM_TRACK || !drumLooped.includes(true)) return notes;
+    const mixed = notes.filter((n) => !drumLooped[drumSlot(n.note)]);
+    drumLooped.forEach((on, slot) => {
+        if (on) mixed.push(...song[t][clipAt(t, drumSourceBar(slot, bar))].filter((n) => drumSlot(n.note) === slot));
+    });
+    return mixed;
+}
+
 // is this bar one of the repeats of a looping track (so it's drawn faded)?
 function isRepeat(t, bar) {
     return looped[t] && bar >= loopLength(t) && loopLength(t) > 0;
@@ -159,7 +288,7 @@ function layoutSong() {
     cells.forEach((row) => row.forEach((cell) => cell.block.classList.remove("now")));
     lastNowBar = -1;
     drawAll();
-    placeTools();
+    placeHandle();
 }
 
 // builds the grid: the numbers along the top, then a row for each track
@@ -173,11 +302,13 @@ function buildSong() {
     }
 
     for (let t = 0; t < TRACKS; t++) {
-        // the left side of the row: the track name (click to select it) and its mute button
+            // the left side of the row: the track name (click to select, right-click to customize) and its mute button
         const head = make("div", "track-head");
         head.style.gridArea = t + 2 + " / 1";
+            head.style.setProperty("--track-color", trackColors[t]);
         const name = make("button", "track-name", trackName(t)); // the first track is always drums
         name.addEventListener("click", () => selectBlock(t, selBar));
+            name.addEventListener("contextmenu", (e) => openTrackMenu(e, t));
         const mute = make("button", "mute", "M");
         mute.setAttribute("aria-pressed", "false");
         mute.setAttribute("aria-label", "Mute track " + (t + 1));
@@ -215,15 +346,15 @@ function buildSong() {
             const block = make("button", "block");
             const canvas = document.createElement("canvas");
             block.appendChild(canvas);
-            block.addEventListener("click", () => selectBlock(t, b, true)); // (clicking a block brings up its buttons)
-            block.addEventListener("dblclick", openEditor); // (the first click of the double click selected it)
+            block.style.setProperty("--track-color", trackColors[t]);
+            block.addEventListener("click", () => selectBlock(t, b));
+            block.addEventListener("dblclick", openStepPopup); // (the first click of the double click selected it)
             songEl.appendChild(block);
             cells[t].push({ block, canvas });
         }
     }
 
     buildDrumRows();
-    songEl.appendChild(toolsEl); // sits on top of the grid, placeTools moves it to the selected block
     songEl.appendChild(handleEl);
 }
 
@@ -251,7 +382,13 @@ function buildDrumRows() {
             drumSoloed[slot] = !drumSoloed[slot];
             showAudible();
         });
-        head.append(name, mute, solo, make("span", "head-spacer")); // (the spacer keeps M and S lined up with the track's)
+        const loop = make("button", "loop", "L");
+        loop.addEventListener("click", () => {
+            drumLooped[slot] = !drumLooped[slot];
+            showAudible();
+            for (let b = 0; b < BARS; b++) drawDrumCells(b);
+        });
+        head.append(name, mute, solo, loop);
         songEl.appendChild(head);
 
         const lane = make("div", "lane folded");
@@ -268,7 +405,7 @@ function buildDrumRows() {
             songEl.appendChild(el);
             row.push({ el, canvas });
         }
-        drumRows.push({ head, name, mute, solo, lane, cells: row });
+        drumRows.push({ head, name, mute, solo, loop, lane, cells: row });
     });
 }
 
@@ -338,10 +475,10 @@ function drawDrumCells(b) {
             if (rep > 0) g.fillRect(Math.round(left), 0, 2, h);
             g.globalAlpha = 1;
             g.fillStyle = "#ff8c1a";
-            // on a looping drum track the bars after the content show the hits of the bar they repeat, faded
-            const repeat = !ownBars && isRepeat(DRUM_TRACK, b + rep);
+            // on a looping drum (or a looping drum track) the bars after the content show the hits they repeat, faded
+            const repeat = drumIsRepeat(slot, b + rep, ownBars);
             const shown = repeat
-                ? song[DRUM_TRACK][clipAt(DRUM_TRACK, loopSource(DRUM_TRACK, b + rep))].filter((n) => drumSlot(n.note) === slot)
+                ? song[DRUM_TRACK][clipAt(DRUM_TRACK, drumSourceBar(slot, b + rep))].filter((n) => drumSlot(n.note) === slot)
                 : hits;
             g.globalAlpha = repeat ? 0.4 : 1;
             shown.forEach((n) => g.fillRect(left + (n.beat / BEATS) * barW, 3, Math.max(4, barW / 16 - 1), h - 6));
@@ -423,10 +560,9 @@ function drawAll() {
 
 // selects a block (the white one), and the track it's in (the orange name). Pick a bar that a long block
 // covers and you get the whole block
-function selectBlock(t, b, withTools = false) {
-    toolsShown = withTools;
+function selectBlock(t, b) {
     b = clipAt(t, b);
-    closeEditor(); // the editor was for the old block
+    closePanel("steps"); // the step sequencer popup was for the old block
     const oldTrack = selTrack;
     const oldBar = selBar;
     selTrack = t;
@@ -440,66 +576,22 @@ function selectBlock(t, b, withTools = false) {
     drawBlock(t, b);
 
     showSound(); // the sound picker shows this track's sound
-    placeTools();
+    placeHandle();
 }
 
-// ---- the buttons by the border of the selected block ----
-// A row of little buttons sits across the top border of the selected block: shorter, longer, edit and delete.
-
-const shorterBtn = make("button", "tool-mini", "\u2212"); // a minus sign
-const longerBtn = make("button", "tool-mini", "+");
-const editBtn = make("button", "tool-mini wide", "EDIT");
-const deleteBtn = make("button", "tool-mini", "\u00d7"); // a times sign
-shorterBtn.setAttribute("aria-label", "Make the block one bar shorter");
-longerBtn.setAttribute("aria-label", "Make the block one bar longer");
-editBtn.setAttribute("aria-label", "Edit the notes in the block");
-deleteBtn.setAttribute("aria-label", "Delete the block: clear its notes and make it one bar");
-toolsEl.setAttribute("role", "group");
-toolsEl.setAttribute("aria-label", "Block tools");
-toolsEl.append(shorterBtn, longerBtn, editBtn, deleteBtn);
-
-// puts the buttons on the selected block's top border, lined up with its right end (but not off either end
-// of the song, and not over the track names)
-// the buttons only show after you click a block. They go away when you click anywhere else (or press Escape),
-// the block stays selected, you just click it again to bring them back
-let toolsShown = false;
-
-function hideTools() {
-    toolsShown = false;
-    placeTools();
-}
-
-document.addEventListener("pointerdown", (e) => {
-    if (toolsShown && !e.target.closest?.(".block, .block-tools, .block-handle")) hideTools();
-});
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && toolsShown && !editing) hideTools();
-});
-
-function placeTools() {
-    toolsEl.classList.toggle("away", !toolsShown);
-    handleEl.classList.toggle("away", !toolsShown);
+function placeHandle() {
     const block = cells[selTrack][selBar].block;
-    if (!toolsShown || block.offsetWidth === 0) return;
-    const width = toolsEl.offsetWidth;
-    const firstBlock = cells[0][0].block.offsetLeft;
-    const right = block.offsetLeft + block.offsetWidth - handleEl.offsetWidth; // (the buttons end where the grip starts)
-    const left = Math.max(firstBlock, Math.min(right - width, songEl.scrollWidth - width));
-    toolsEl.style.left = left + "px";
-    toolsEl.style.top = block.offsetTop - toolsEl.offsetHeight / 2 + "px";
+    if (block.offsetWidth === 0) return;
     // the grip is on the block's right edge, the same height as the block
     handleEl.style.left = block.offsetLeft + block.offsetWidth - handleEl.offsetWidth + "px";
     handleEl.style.top = block.offsetTop + "px";
     handleEl.style.height = block.offsetHeight + "px";
-    shorterBtn.disabled = clipLen[selTrack][selBar] <= 1;
-    longerBtn.disabled = selBar + clipBars(selTrack, selBar) >= BARS;
 }
 
 // changes how many bars the selected block covers (1 up to the end of the song)
 function setLength(len) {
     clipLen[selTrack][selBar] = Math.max(1, Math.min(len, BARS - selBar));
     layoutSong();
-    showEditorTitle();
 }
 
 // dragging the grip: the block grows or shrinks a whole bar at a time, to the bar the pointer is over
@@ -507,6 +599,7 @@ let resizing = false;
 
 handleEl.addEventListener("pointerdown", (e) => {
     e.preventDefault(); // (so dragging doesn't select text)
+    e.stopPropagation();
     resizing = true;
     try {
         handleEl.setPointerCapture(e.pointerId); // keeps the drag going when the pointer leaves the grip
@@ -527,16 +620,6 @@ const stopResizing = () => (resizing = false);
 handleEl.addEventListener("pointerup", stopResizing);
 handleEl.addEventListener("pointercancel", stopResizing);
 handleEl.addEventListener("lostpointercapture", stopResizing);
-
-shorterBtn.addEventListener("click", () => setLength(clipBars(selTrack, selBar) - 1));
-longerBtn.addEventListener("click", () => setLength(clipBars(selTrack, selBar) + 1));
-
-// delete: the block is emptied and goes back to one bar (what it covered comes back)
-deleteBtn.addEventListener("click", () => {
-    song[selTrack][selBar] = [];
-    clipLen[selTrack][selBar] = 1;
-    layoutSong();
-});
 
 // the sound picker: on a synth track it shows and changes the track's sound. On the drum track (track 1)
 // it shows and changes the drum on the key you last played
@@ -597,7 +680,7 @@ async function setSound(index) {
     if (drumMode) {
         setDrumSound(selectedDrumNote, index);
         showSound();
-        playDrumSound(index, ctx.currentTime);
+        playDrumSound(index, ctx.currentTime, drumVolumeAt(selectedDrumNote));
         return;
     }
 
@@ -637,6 +720,8 @@ function showAudible() {
         const heard = audible(DRUM_TRACK) && drumAudible(slot);
         r.mute.setAttribute("aria-pressed", String(drumMuted[slot]));
         r.solo.setAttribute("aria-pressed", String(drumSoloed[slot]));
+        r.loop.setAttribute("aria-pressed", String(drumLooped[slot]));
+        r.loop.setAttribute("aria-label", "Loop " + DRUM_SOUNDS[drumKit[slot]].name + ": repeat its hits to the end of the song");
         r.mute.setAttribute("aria-label", "Mute " + DRUM_SOUNDS[drumKit[slot]].name);
         r.solo.setAttribute("aria-label", "Solo " + DRUM_SOUNDS[drumKit[slot]].name);
         r.lane.classList.toggle("muted", !heard);
@@ -684,18 +769,45 @@ clearBtn.addEventListener("click", () => {
     drawBlock(selTrack, selBar);
 });
 
-// the metronome click for the count-in
+// ---- the metronome ----
+// The METRO button opens its settings. CLICK is when it ticks: never, only in the count-in before a recording, or
+// always (while playing and recording). COUNT-IN is how many bars of ticks come before a recording starts.
+const CLICK_WHEN = ["OFF", "COUNT-IN", "ALWAYS"];
+const COUNT_INS = ["OFF", "1 BAR", "2 BARS"]; // the place in this list is how many bars
+// the sounds the ticks can have: hi is the pitch of the first beat of a bar, lo is the others
+const CLICK_SOUNDS = [
+    { name: "CLICK", type: "sine", hi: 1500, lo: 1000, decay: 0.05 },
+    { name: "WOOD", type: "triangle", hi: 900, lo: 600, decay: 0.03 },
+    { name: "BEEP", type: "square", hi: 880, lo: 660, decay: 0.08, quieter: 0.4 },
+];
+const CLICK_LEVELS = [
+    { name: "LOW", gain: 0.08 },
+    { name: "MED", gain: 0.2 },
+    { name: "HIGH", gain: 0.4 },
+];
+// the settings: each is a place in the list above. They're remembered
+const metro = { when: 1, countIn: 1, sound: 0, level: 1 };
+const metroLists = { when: CLICK_WHEN, countIn: COUNT_INS, sound: CLICK_SOUNDS, level: CLICK_LEVELS };
+try {
+    const saved = JSON.parse(localStorage.getItem("metronome"));
+    for (const key in metro) {
+        if (saved && Number.isInteger(saved[key]) && saved[key] >= 0 && saved[key] < metroLists[key].length) metro[key] = saved[key];
+    }
+} catch {}
+
+// one tick of the metronome (accent is the first beat of a bar, which is higher)
 function playClick(time, accent) {
+    const sound = CLICK_SOUNDS[metro.sound];
     const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = accent ? 1500 : 1000;
+    osc.type = sound.type;
+    osc.frequency.value = accent ? sound.hi : sound.lo;
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    gain.gain.setValueAtTime(CLICK_LEVELS[metro.level].gain * (sound.quieter || 1), time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + sound.decay);
     osc.connect(gain);
     gain.connect(master);
     osc.start(time);
-    osc.stop(time + 0.06);
+    osc.stop(time + sound.decay + 0.01);
 }
 
 // plays every note that starts during one beat of one bar (skipTrack is left out, -1 leaves none out)
@@ -703,7 +815,7 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
     for (let t = 0; t < TRACKS; t++) {
         if (t === skipTrack || !audible(t)) continue;
         // (a long block plays its one bar of notes over and over, and a track on loop goes back to its start)
-        song[t][clipAt(t, loopSource(t, bar))].forEach((n) => {
+        notesForBar(t, bar).forEach((n) => {
             if (Math.floor(n.beat) !== beatInBar) return;
             if (t === DRUM_TRACK && !drumAudible(drumSlot(n.note))) return; // a drum that's muted (or not on solo)
             // (a note in the song only knows where it starts, so each one is held for a beat and then let go)
@@ -717,15 +829,17 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
 function scheduleBeat(n, time) {
     if (!recordArmed) {
         playBeatOf(Math.floor(n / BEATS) % BARS, n % BEATS, time, -1);
-    } else if (n < BEATS) {
-        playClick(time, n === 0);
+        if (metro.when === 2) playClick(time, n % BEATS === 0); // (the click is on all the time)
+    } else if (n < countBeats) {
+        if (metro.when >= 1) playClick(time, n % BEATS === 0); // the count-in
     } else {
-        if (n === BEATS) {
+        if (n === countBeats) {
             song[recTrack][recBar] = []; // recording replaces what was in the block
             drawBlock(recTrack, recBar);
         }
+        if (metro.when === 2) playClick(time, (n - countBeats) % BEATS === 0);
         // the other tracks play along, but not the one being recorded
-        playBeatOf(recBar, n - BEATS, time, recTrack);
+        playBeatOf(recBar, n - countBeats, time, recTrack);
     }
 }
 
@@ -734,11 +848,11 @@ function scheduleBeat(n, time) {
 function tick() {
     const horizon = ctx.currentTime + LOOKAHEAD;
     while (startTime + nextBeat * beatSec < horizon) {
-        if (recordArmed && nextBeat >= BEATS * 2) break; // a recording is one bar, nothing more to plan
+        if (recordArmed && nextBeat >= countBeats + BEATS) break; // a recording is the count-in and one bar, nothing more to plan
         scheduleBeat(nextBeat, startTime + nextBeat * beatSec);
         nextBeat++;
     }
-    if (recordArmed && ctx.currentTime >= startTime + BEATS * 2 * beatSec) stopTransport();
+    if (recordArmed && ctx.currentTime >= startTime + (countBeats + BEATS) * beatSec) stopTransport();
 }
 
 async function startTransport(record) {
@@ -750,6 +864,7 @@ async function startTransport(record) {
     recordArmed = record;
     recTrack = selTrack;
     recBar = selBar;
+    countBeats = record ? metro.countIn * BEATS : 0; // the count-in setting from the metronome
     startTime = ctx.currentTime + 0.1; // a moment from now, so the first beat isn't late
     nextBeat = 0;
     running = true;
@@ -765,13 +880,12 @@ function stopTransport() {
     recordArmed = false;
     updateButtons();
     showNow(-1);
-    showEditorStep(-1);
 }
 
 // notes you play on the piano while recording go into the recorded block
 document.addEventListener("noteplayed", (e) => {
     if (!running || !recordArmed) return;
-    const beat = (e.detail.time - startTime) / beatSec - BEATS; // 0 is the start of the recorded bar
+    const beat = (e.detail.time - startTime) / beatSec - countBeats; // 0 is the start of the recorded bar
     if (beat < 0 || beat >= BEATS) return; // during the count-in, or after the bar
     let snapped = QUANTIZE ? Math.round(beat / QUANTIZE) * QUANTIZE : beat;
     if (snapped >= BEATS) snapped = BEATS - QUANTIZE; // keep it inside the bar
@@ -796,17 +910,15 @@ function showNow(bar) {
 // the play and rec buttons: STOP while it's running, and REC shows the count-in (1 2 3 4)
 function updateButtons() {
     const beat = running ? (ctx.currentTime - startTime) / beatSec : -1;
-    const counting = running && recordArmed && beat < BEATS;
-    const recording = running && recordArmed && beat >= BEATS;
+    const counting = running && recordArmed && countBeats > 0 && beat < countBeats;
+    const recording = running && recordArmed && beat >= countBeats;
 
     playBtn.textContent = running ? "STOP" : "PLAY";
     playBtn.classList.toggle("on", running && !recordArmed);
     recBtn.classList.toggle("on", recording);
     recBtn.classList.toggle("counting", counting);
-    recBtn.textContent = counting ? String(Math.min(4, Math.max(0, Math.floor(beat)) + 1)) : "REC";
+    recBtn.textContent = counting ? String(Math.floor((Math.max(0, beat)) % BEATS) + 1) : "REC";
     pasteBtn.disabled = !clipboard;
-    editorPlay.textContent = playBtn.textContent;
-    editorPlay.classList.toggle("on", playBtn.classList.contains("on"));
 }
 
 // keeps the buttons and the lit up bar current while it's running (it only changes a class when
@@ -818,12 +930,11 @@ function uiLoop() {
     const beat = (ctx.currentTime - startTime) / beatSec;
     let bar = -1;
     if (recordArmed) {
-        if (beat >= BEATS) bar = recBar;
+        if (beat >= countBeats) bar = recBar;
     } else if (beat >= 0) {
         bar = Math.floor(beat / BEATS) % BARS;
     }
     showNow(bar);
-    showEditorStep(beat);
 
     requestAnimationFrame(uiLoop);
 }
@@ -843,87 +954,16 @@ setUpStrip(bpmSlider, (v) => Math.round(60 + v * 120), (v) => {
     bpm = Math.round(60 + v * 120);
 });
 
-// ---- the block editor ----
-// EDIT (or double-clicking a block) switches the song box over to an editor for the selected block, and BACK
-// switches it back. The editor has two tabs, which are two ways to look at the same notes (you choose, and it
-// remembers):
-//   PIANO ROLL: a row for every key (a keyboard down the left), a square for each sixteenth note of the bar.
-//   STEP SEQ: big pads, and only the rows you need: every drum on the drum track, the notes in the key of the
-//   LEDs on the other tracks (plus any other note already in the block).
+// ---- the step sequencer ----
+// Double-clicking a block opens a popup with a step sequencer for it, pointing at the block: a square for each
+// sixteenth note of the bar, and a row for each note you'd need. On the drum track that's every drum, on the other
+// tracks it's the notes in the key of the LEDs (plus any other note already in the block).
 // Click a square to put a note there, click it again to take it away, or hold the mouse down and drag across
-// squares to paint a lot at once. It plays each note you add. What you edit is the block's notes (the same
-// ones you record), and the song uses them straight away.
+// squares to paint a lot at once. It plays each note you add. What you change is the block's notes (the same ones
+// you record), and the song uses them straight away.
 
-const studioEl = document.querySelector(".studio");
-const noteEditor = document.getElementById("noteEditor");
-const editorTitle = document.getElementById("editorTitle");
-const editorBody = document.getElementById("editorBody");
-const editorGrid = document.getElementById("editorGrid");
-const editorBack = document.getElementById("editorBack");
-const editorClear = document.getElementById("editorClear");
-const editorPlay = document.getElementById("editorPlay");
-const tabRoll = document.getElementById("tabRoll");
-const tabSteps = document.getElementById("tabSteps");
 const EDIT_STEP = 0.25; // each square is a sixteenth note (a quarter of a beat)
 const EDIT_STEPS = Math.round(BEATS / EDIT_STEP); // 16 squares across
-
-let editing = false;
-let editorTab = "roll"; // "roll" or "steps"
-try {
-    if (localStorage.getItem("editorTab") === "steps") editorTab = "steps";
-} catch {}
-
-let editorHeads = []; // the 16 numbers along the top of the grid (the one that's playing lights up)
-let editorColumns = []; // editorColumns[step] is every square in that column
-let lastEditorStep = -1;
-
-function openEditor() {
-    editing = true;
-    studioEl.classList.add("editing");
-    noteEditor.hidden = false;
-    buildEditor();
-    updateButtons();
-    editorBack.focus({ preventScroll: true });
-}
-
-function closeEditor() {
-    if (!editing) return;
-    editing = false;
-    toolsShown = false; // (back from the editor, the buttons are put away)
-    studioEl.classList.remove("editing");
-    noteEditor.hidden = true;
-    layoutSong(); // the song was out of sight, so work out its size and draw it again
-    editBtn.focus({ preventScroll: true });
-}
-
-editBtn.addEventListener("click", openEditor);
-editorBack.addEventListener("click", closeEditor);
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && editing) closeEditor();
-});
-
-editorClear.addEventListener("click", () => {
-    song[selTrack][selBar] = [];
-    drawBlock(selTrack, selBar);
-    buildEditor();
-});
-editorPlay.addEventListener("click", () => playBtn.click());
-
-function setTab(tab) {
-    editorTab = tab;
-    try {
-        localStorage.setItem("editorTab", tab);
-    } catch {}
-    buildEditor();
-}
-tabRoll.addEventListener("click", () => setTab("roll"));
-tabSteps.addEventListener("click", () => setTab("steps"));
-
-function showEditorTitle() {
-    const bars = clipBars(selTrack, selBar);
-    editorTitle.textContent =
-        "TRACK " + (selTrack + 1) + ", " + (bars > 1 ? "BARS " + (selBar + 1) + " TO " + (selBar + bars) : "BAR " + (selBar + 1));
-}
 
 // is this note in the key the LEDs are set to?
 function inKey(note) {
@@ -931,16 +971,15 @@ function inKey(note) {
 }
 
 // the notes that get a row, highest first
-function editorNotes() {
+function sequencerNotes() {
     const notes = [];
     if (selTrack === DRUM_TRACK) {
-        // every drum, in both tabs (on the drum track a piano roll is a roll of drums)
-        for (let i = DRUM_NOTES.length - 1; i >= 0; i--) notes.push(DRUM_NOTES[i]);
+        for (let i = DRUM_NOTES.length - 1; i >= 0; i--) notes.push(DRUM_NOTES[i]); // every drum
         return notes;
     }
     const used = song[selTrack][selBar].map((n) => n.note);
     for (let n = LAST_NOTE; n >= FIRST_NOTE; n--) {
-        if (editorTab === "roll" || inKey(n) || used.includes(n)) notes.push(n);
+        if (inKey(n) || used.includes(n)) notes.push(n);
     }
     return notes;
 }
@@ -983,61 +1022,51 @@ function setSquare(cell, on) {
 let painting = null; // null, or the way dragging sets squares: true is on, false is off
 let lastPointer = "mouse";
 
-editorGrid.addEventListener("pointerdown", (e) => {
-    lastPointer = e.pointerType;
-    const cell = e.target.closest(".step");
-    if (!cell || e.pointerType === "touch") return;
-    e.preventDefault(); // (so dragging doesn't select text)
-    painting = !cell.classList.contains("on");
-    setSquare(cell, painting);
-});
+function setUpGrid(grid) {
+    grid.addEventListener("pointerdown", (e) => {
+        lastPointer = e.pointerType;
+        const cell = e.target.closest(".step");
+        if (!cell || e.pointerType === "touch") return;
+        e.preventDefault(); // (so dragging doesn't select text)
+        painting = !cell.classList.contains("on");
+        setSquare(cell, painting);
+    });
 
-editorGrid.addEventListener("pointerover", (e) => {
-    if (painting === null) return;
-    const cell = e.target.closest(".step");
-    if (cell) setSquare(cell, painting);
-});
+    grid.addEventListener("pointerover", (e) => {
+        if (painting === null) return;
+        const cell = e.target.closest(".step");
+        if (cell) setSquare(cell, painting);
+    });
+
+    // a tap on a touch screen, or a key press on a square (the mouse is handled above, a mouse click has detail 1 or more)
+    grid.addEventListener("click", (e) => {
+        const cell = e.target.closest(".step");
+        if (!cell || (e.detail !== 0 && lastPointer !== "touch")) return;
+        setSquare(cell, !cell.classList.contains("on"));
+    });
+}
 
 document.addEventListener("pointerup", () => (painting = null));
 document.addEventListener("pointercancel", () => (painting = null));
 
-// a tap on a touch screen, or a key press on a square (the mouse is handled above, a mouse click has detail 1 or more)
-editorGrid.addEventListener("click", (e) => {
-    const cell = e.target.closest(".step");
-    if (!cell || (e.detail !== 0 && lastPointer !== "touch")) return;
-    setSquare(cell, !cell.classList.contains("on"));
-});
-
-// fills the editor for the selected block (runs each time it opens, and when the tab changes)
-function buildEditor() {
-    showEditorTitle();
-    tabRoll.classList.toggle("on", editorTab === "roll");
-    tabSteps.classList.toggle("on", editorTab === "steps");
-    tabRoll.setAttribute("aria-pressed", String(editorTab === "roll"));
-    tabSteps.setAttribute("aria-pressed", String(editorTab === "steps"));
-
+// fills a grid with the squares for the selected block: the numbers along the top (1 2 3 4 for the four beats),
+// then a row of squares for each note
+function fillGrid(grid) {
     const drums = selTrack === DRUM_TRACK;
-    editorGrid.innerHTML = "";
-    editorGrid.className = "editor-grid " + editorTab + (drums ? " drums" : "");
-    editorHeads = [];
-    editorColumns = Array.from({ length: EDIT_STEPS }, () => []);
-    lastEditorStep = -1;
+    grid.innerHTML = "";
+    grid.className = "editor-grid steps" + (drums ? " drums" : "");
 
-    // the numbers along the top: 1 2 3 4 for the four beats of the bar
-    editorGrid.appendChild(make("div", "step-corner"));
+    grid.appendChild(make("div", "step-corner"));
     for (let step = 0; step < EDIT_STEPS; step++) {
-        const head = make("div", "step-head", step % 4 === 0 ? String(step / 4 + 1) : "");
-        editorHeads.push(head);
-        editorGrid.appendChild(head);
+        grid.appendChild(make("div", "step-head", step % 4 === 0 ? String(step / 4 + 1) : ""));
     }
 
-    editorNotes().forEach((note) => {
+    sequencerNotes().forEach((note) => {
         const sharp = !drums && NOTE_NAMES[note % 12].includes("#");
         const name = drums ? drumLabel(drumSlot(note)) : NOTE_NAMES[note % 12] + (Math.floor(note / 12) - 1);
-        // (in the piano roll the names are drawn like the keys: white keys white, black keys black)
-        const label = make("div", "step-label" + (editorTab === "roll" && !drums ? (sharp ? " key-black" : " key-white") : ""), name);
+        const label = make("div", "step-label", name);
         label.dataset.note = String(note);
-        editorGrid.appendChild(label);
+        grid.appendChild(label);
 
         for (let step = 0; step < EDIT_STEPS; step++) {
             const cell = make("button", "step" + (sharp ? " sharp" : "") + (Math.floor(step / 4) % 2 === 1 ? " alt" : ""));
@@ -1047,36 +1076,84 @@ function buildEditor() {
             cell.classList.toggle("on", on);
             cell.setAttribute("aria-pressed", String(on));
             cell.setAttribute("aria-label", name + ", beat " + (1 + step * EDIT_STEP));
-            editorColumns[step].push(cell);
-            editorGrid.appendChild(cell);
+            grid.appendChild(cell);
         }
     });
+}
 
-    // scroll to the notes in the block (or to the middle of the keyboard if it's empty)
-    const marked = editorGrid.querySelector(".step.on");
+// scrolls a grid's box to the notes in the block (or to the middle of the keyboard if it's empty)
+function scrollToNotes(grid, box) {
+    const marked = grid.querySelector(".step.on");
     const middle =
-        marked || editorGrid.querySelector(drums ? ".step-label[data-note]" : '.step-label[data-note="60"]') || editorGrid.querySelector(".step-label[data-note]");
-    if (middle) editorBody.scrollTop = Math.max(0, middle.offsetTop - editorBody.clientHeight / 2);
+        marked ||
+        grid.querySelector(selTrack === DRUM_TRACK ? ".step-label[data-note]" : '.step-label[data-note="60"]') ||
+        grid.querySelector(".step-label[data-note]");
+    if (middle) box.scrollTop = Math.max(0, middle.offsetTop - box.clientHeight / 2);
 }
 
-// while the song plays, the square column that's playing lights up (if the editor is open on the block that's playing)
-function showEditorStep(beat) {
-    let step = -1;
-    if (editing && running && !recordArmed && beat >= 0) {
-        const bar = Math.floor(beat / BEATS) % BARS;
-        if (clipAt(selTrack, bar) === selBar) step = Math.floor(((beat % BEATS) / BEATS) * EDIT_STEPS);
-    }
-    if (step === lastEditorStep) return;
-    if (lastEditorStep >= 0) {
-        editorHeads[lastEditorStep].classList.remove("now");
-        editorColumns[lastEditorStep].forEach((cell) => cell.classList.remove("now"));
-    }
-    if (step >= 0) {
-        editorHeads[step].classList.add("now");
-        editorColumns[step].forEach((cell) => cell.classList.add("now"));
-    }
-    lastEditorStep = step;
+const stepPopover = document.getElementById("stepPopover");
+const stepTitle = document.getElementById("stepTitle");
+const stepGrid = document.getElementById("stepGrid");
+const stepsTrigger = document.createElement("button"); // (the popup system wants a button, this one is never shown)
+registerPanel("steps", stepsTrigger, stepPopover, null, buildStepPopup, {
+    popupOnly: true, // it's a popup on a phone too
+    anchor: () => cells[selTrack][selBar].block, // and it points at the block, not at a button
+});
+setUpGrid(stepGrid);
+
+// fills the popup for the selected block (runs each time it opens)
+function buildStepPopup() {
+    const bars = clipBars(selTrack, selBar);
+    stepTitle.textContent =
+        "STEP SEQ: " + trackName(selTrack) + ", " + (bars > 1 ? "BARS " + (selBar + 1) + " TO " + (selBar + bars) : "BAR " + (selBar + 1));
+    fillGrid(stepGrid);
+    // (it isn't showing yet, so wait until it is to scroll to the notes)
+    requestAnimationFrame(() => scrollToNotes(stepGrid, stepGrid.parentElement));
 }
+
+function openStepPopup() {
+    if (stepPopover.hidden) togglePanel("steps");
+}
+
+// scrolling the song moves the block out from under the popup, so that closes it (scrolling inside the popup is fine)
+document.addEventListener(
+    "scroll",
+    (e) => {
+        if (!stepPopover.hidden && !stepPopover.contains(e.target)) closePanel("steps");
+    },
+    true
+);
+
+// ---- the metronome's settings (the METRO button by BPM) ----
+const metroButton = document.getElementById("metroButton");
+const metroPopover = document.getElementById("metroPopover");
+registerPanel("metro", metroButton, metroPopover, null, null, { popupOnly: true }); // a popup on a phone too
+
+async function previewClick() {
+    getCtx();
+    if (ctx.state === "suspended") await ctx.resume();
+    playClick(ctx.currentTime, true); // so you can hear a sound or a level you pick
+}
+
+// fills each group of choices and marks the one that's chosen. Choosing one changes the setting and saves it
+function showMetro() {
+    [
+        ["metroClick", "when", CLICK_WHEN],
+        ["metroCount", "countIn", COUNT_INS],
+        ["metroSound", "sound", CLICK_SOUNDS.map((sound) => sound.name)],
+        ["metroLevel", "level", CLICK_LEVELS.map((level) => level.name)],
+    ].forEach(([id, key, names]) => {
+        fillChoices([document.getElementById(id)], names, metro[key], (i) => {
+            metro[key] = i;
+            try {
+                localStorage.setItem("metronome", JSON.stringify(metro));
+            } catch {}
+            showMetro();
+            if (key === "sound" || key === "level") previewClick();
+        });
+    });
+}
+showMetro();
 
 buildSong();
 selectBlock(0, 0);

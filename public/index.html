@@ -24,6 +24,12 @@
                 <span class="settings-arrow" aria-hidden="true"></span>
                 <span class="settings-label">MIDI</span>
             </button>
+            <!-- the volume of the whole song: a small strip like BPM (the VOL dial is for the selected sound) -->
+            <div class="wheel mini">
+                <input type="range" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
+                <label for="songVolume">ALL</label>
+                <output for="songVolume" aria-hidden="true">50</output>
+            </div>
         </div>
         <div class="div2">
             <!-- the scope sits on a dark panel like the graphs -->
@@ -59,6 +65,11 @@
                         <label for="bpmSlider">BPM</label>
                         <output for="bpmSlider" aria-hidden="true">100</output>
                     </div>
+                    <!-- the metronome: opens a popup with its settings (studio.js) -->
+                    <button class="tool menu-button" id="metroButton" aria-expanded="false">
+                        <span>METRO</span>
+                        <span class="menu-arrow" aria-hidden="true"></span>
+                    </button>
                     <span class="toolbar-gap"></span>
                     <button class="tool" id="copyButton">COPY</button>
                     <button class="tool" id="pasteButton">PASTE</button>
@@ -66,24 +77,6 @@
                 </div>
                 <!-- studio.js builds the grid of tracks and blocks in here -->
                 <div class="song" id="song"></div>
-                <!-- the block editor: it takes the place of the toolbar and the song while you edit a block (the
-                     EDIT button by a block opens it, studio.js fills in the grid) -->
-                <div class="note-editor" id="noteEditor" hidden>
-                    <div class="editor-bar">
-                        <button class="tool" id="editorBack" aria-label="Back to the song">&larr; SONG</button>
-                        <div class="editor-title" id="editorTitle">BLOCK</div>
-                        <div class="tabs" role="group" aria-label="How to see the notes">
-                            <button class="tool on" id="tabRoll" aria-pressed="true">PIANO ROLL</button>
-                            <button class="tool" id="tabSteps" aria-pressed="false">STEP SEQ</button>
-                        </div>
-                        <span class="toolbar-gap"></span>
-                        <button class="tool" id="editorClear">CLEAR</button>
-                        <button class="tool" id="editorPlay">PLAY</button>
-                    </div>
-                    <div class="editor-body" id="editorBody">
-                        <div class="editor-grid" id="editorGrid"></div>
-                    </div>
-                </div>
             </div>
         </div>
         <div class="div5">
@@ -99,7 +92,7 @@
                 <div class="dial" data-default="0.5">
                     <label for="gainSlider">VOL</label>
                     <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="gainSlider" aria-label="Volume" min="0" max="1" step="0.01" value="0.5">
+                    <input type="range" class="dial-input" id="gainSlider" aria-label="Volume of the selected sound" min="0" max="1" step="0.01" value="0.5">
                     <output for="gainSlider" aria-hidden="true">50%</output>
                 </div>
                 <div class="dial" data-default="1">
@@ -233,6 +226,30 @@
             <div class="choices octaves" id="popOctaveChoices"></div>
             <div class="popover-title">OUTPUT (SENDS WHAT PLAYS)</div>
             <div class="choices devices" id="popOutputChoices"></div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the metronome popup, the same kind of popup. studio.js fills in the choices -->
+    <div class="popover" id="metroPopover" role="dialog" aria-label="Metronome" hidden>
+        <div class="popover-body">
+            <div class="popover-title">CLICK</div>
+            <div class="choices metro3" id="metroClick"></div>
+            <div class="popover-title">COUNT-IN WHEN RECORDING</div>
+            <div class="choices metro3" id="metroCount"></div>
+            <div class="popover-title">SOUND</div>
+            <div class="choices metro3" id="metroSound"></div>
+            <div class="popover-title">VOLUME</div>
+            <div class="choices metro3" id="metroLevel"></div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the step sequencer popup, for a block (double-click a block). studio.js fills in the squares -->
+    <div class="popover steps" id="stepPopover" role="dialog" aria-label="Step sequencer for the block" hidden>
+        <div class="popover-body">
+            <div class="popover-title" id="stepTitle">STEP SEQ</div>
+            <div class="editor-grid steps" id="stepGrid"></div>
         </div>
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>

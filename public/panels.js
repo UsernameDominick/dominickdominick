@@ -13,11 +13,14 @@ const panels = {}; // every panel by name: { name, button, popover, closeButton,
 
 // sets up a panel. button opens it, popover is its popup, closeButton is the x on its side of the back of
 // the box, and onOpen (if there is one) runs each time it's opened, just before it shows (on a click, so it can
-// ask for permissions or fill the popup in)
-function registerPanel(name, button, popover, closeButton, onOpen) {
-    panels[name] = { name, button, popover, closeButton, onOpen };
+// ask for permissions or fill the popup in). options is optional: popupOnly is for a panel with no back to the box
+// (the metronome, the step sequencer), it's a popup on a phone too, so it has no x and closeButton can be null. And
+// anchor is a function that gives the element the popup points at, if that isn't the button (the step sequencer
+// points at its block)
+function registerPanel(name, button, popover, closeButton, onOpen, options = {}) {
+    panels[name] = { name, button, popover, closeButton, onOpen, popupOnly: options.popupOnly, anchor: options.anchor };
     button.addEventListener("click", () => togglePanel(name));
-    closeButton.addEventListener("click", () => setFlipped(false, true, name));
+    if (closeButton) closeButton.addEventListener("click", () => setFlipped(false, true, name));
 }
 
 // is this panel showing right now, as a popup or on the back of the box?
@@ -27,7 +30,7 @@ function isPanelOpen(name) {
 
 function togglePanel(name) {
     const panel = panels[name];
-    if (phoneScreen.matches) {
+    if (phoneScreen.matches && !panel.popupOnly) {
         // on a phone: flip to this panel. (If it's already showing flip back. If the other panel is showing, switch to this one)
         const showing = flipBox.classList.contains("flipped") && backFace.dataset.panel === name;
         if (!showing && panel.onOpen) panel.onOpen();
@@ -51,10 +54,10 @@ function closePanel(name) {
 
 // opens a popup above its button (or below it if there's no room above), with its arrow pointing at the button
 function openPopover(name) {
-    const { button, popover } = panels[name];
+    const { button, popover, anchor } = panels[name];
     popover.hidden = false;
     const gap = 14; // room for the arrow
-    const rect = button.getBoundingClientRect();
+    const rect = (anchor ? anchor() : button).getBoundingClientRect();
     const width = popover.offsetWidth;
     const height = popover.offsetHeight;
 
