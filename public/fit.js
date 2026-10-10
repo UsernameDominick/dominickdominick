@@ -30,9 +30,6 @@ function fitScreen() {
     uiParent.style.transformOrigin = "0 0";
     uiParent.style.transform = uiScale === 1 ? "none" : "scale(" + uiScale + ")";
     if (uiScale === 1) uiParent.style.width = width + "px";
-    // a scaled page still takes up its normal height in the layout, so the text under it (the about part) would be drawn
-    // underneath it. This leaves room: the extra height it's drawn with
-    uiParent.style.marginBottom = uiScale === 1 ? "" : uiParent.offsetHeight * (uiScale - 1) + "px";
 }
 
 let lastFit = "";

@@ -2427,28 +2427,37 @@ body {
     grid-template-columns: repeat(3, 1fr);
 }
 
-/* the words about the page, under the music maker: cream writing on the dark page, with the amber headings of the popups */
+/* the words about the page, in the popup from the i button: cream writing with the amber headings of the popups */
+.info-button {
+    margin-left: auto; /* (pushed over to the right edge of the top box) */
+}
+
+.popover.info {
+    width: 640px;
+}
+
+/* short enough to open under the i button without covering it (the words scroll inside) */
+.popover.info .popover-body {
+    max-height: calc(100vh / var(--ui-scale, 1) - 130px);
+}
+
 .about {
-    box-sizing: border-box;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 32px 16px 48px;
     color: var(--ink);
-    font-size: 18px;
-    line-height: 1.55;
+    font-size: 17px;
+    line-height: 1.5;
 }
 
 .about h1 {
     margin: 0 0 12px;
     color: var(--amber);
-    font-size: 28px;
+    font-size: 24px;
     line-height: 1.2;
 }
 
 .about h2 {
-    margin: 28px 0 8px;
+    margin: 22px 0 8px;
     color: var(--amber);
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
@@ -2475,7 +2484,7 @@ body {
 }
 
 .about-foot {
-    margin-top: 28px;
+    margin-top: 22px;
     color: #d6c9ac;
     font-size: 16px;
 }

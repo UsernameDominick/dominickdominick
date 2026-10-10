@@ -88,6 +88,14 @@
                 <input type="range" class="dial-input" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
                 <output for="songVolume" aria-hidden="true">50%</output>
             </div>
+            <!-- the i button: opens the popup about the page (about.js). It is pushed over to the right edge of the box -->
+            <button class="tool icon-button info-button" id="infoButton" aria-expanded="false" aria-label="About this music maker" title="About">
+                <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                    <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2"></circle>
+                    <path d="M12 11 V17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
+                    <circle cx="12" cy="7.2" r="1.7" fill="currentColor"></circle>
+                </svg>
+            </button>
         </div>
         <div class="div2">
             <!-- the scope sits on a dark panel like the graphs -->
@@ -254,40 +262,46 @@
         </div>
     </main>
 
-    <!-- what the page is, in words (for people who land here and for search engines): under the music maker, so it is
-         down the page from the first screen -->
-    <section class="about" aria-labelledby="aboutTitle">
+    <!-- what the page is, in words (the i button at the right of the top box opens this). It is in the page whether or not the popup is
+         open, so search engines can read it -->
+    <div class="popover info" id="infoPopover" role="dialog" aria-labelledby="aboutTitle" hidden>
+        <div class="popover-body">
+            <div class="about">
         <h1 id="aboutTitle">DominickDominick: a free music maker for your browser</h1>
-        <p>Make beats, melodies and whole songs right here. There is nothing to download and nothing to sign up for. Play the piano on the screen or with a MIDI keyboard, record into five tracks of eight bars, build drum patterns, shape every sound with dials, and save your song in your browser.</p>
-
-        <h2>What you can do</h2>
-        <ul>
-            <li><strong>Record and loop.</strong> Five tracks, one of them drums, with eight bars each. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
-            <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, a MIDI keyboard if you have one, and a step sequencer for every block.</li>
-            <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
-            <li><strong>Shape the sound.</strong> Eight oscillator sounds and more than twenty ready-made presets, then dials for the filter, envelope, echo, reverb, drive, vibrato and tremolo. Save your own presets.</li>
-            <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
-            <li><strong>Keep your songs.</strong> Save them in your browser, download a song file and open it later, and undo or redo as you go.</li>
-        </ul>
-
-        <h2>Keyboard shortcuts</h2>
-        <p>Space plays and stops. R records. Ctrl+Z undoes and Ctrl+Shift+Z redoes. Ctrl+C and Ctrl+V copy and paste a block, and Delete clears it. M, S and L mute, solo and loop the selected track. Ctrl+S saves the song.</p>
-
-        <h2>Questions</h2>
-        <dl>
-            <dt>Is it free?</dt>
-            <dd>Yes. There is nothing to pay for and no ads.</dd>
-            <dt>Do I need an account?</dt>
-            <dd>No. Your songs stay in your browser, and you can download them as files to keep or share.</dd>
-            <dt>Why is there no sound at first?</dt>
-            <dd>Browsers only allow sound after you click or tap. Press a piano key or PLAY and it starts.</dd>
-            <dt>Can I use a MIDI keyboard?</dt>
-            <dd>Yes, in browsers that support Web MIDI, such as Chrome and Edge. Pick your keyboard with the MIDI button at the top left.</dd>
-            <dt>Does it work on a phone or tablet?</dt>
-            <dd>Yes, with touch. A computer gives you the most room, and the page scales up to fill a big screen.</dd>
-        </dl>
-        <p class="about-foot">&copy; 2026 DominickDominick</p>
-    </section>
+            <p>Make beats, melodies and whole songs right here. There is nothing to download and nothing to sign up for. Play the piano on the screen or with a MIDI keyboard, record into five tracks of eight bars, build drum patterns, shape every sound with dials, and save your song in your browser.</p>
+    
+            <h2>What you can do</h2>
+            <ul>
+                <li><strong>Record and loop.</strong> Five tracks, one of them drums, with eight bars each. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
+                <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, a MIDI keyboard if you have one, and a step sequencer for every block.</li>
+                <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
+                <li><strong>Shape the sound.</strong> Eight oscillator sounds and more than twenty ready-made presets, then dials for the filter, envelope, echo, reverb, drive, vibrato and tremolo. Save your own presets.</li>
+                <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
+                <li><strong>Keep your songs.</strong> Save them in your browser, download a song file and open it later, and undo or redo as you go.</li>
+            </ul>
+    
+            <h2>Keyboard shortcuts</h2>
+            <p>Space plays and stops. R records. Ctrl+Z undoes and Ctrl+Shift+Z redoes. Ctrl+C and Ctrl+V copy and paste a block, and Delete clears it. M, S and L mute, solo and loop the selected track. Ctrl+S saves the song.</p>
+    
+            <h2>Questions</h2>
+            <dl>
+                <dt>Is it free?</dt>
+                <dd>Yes. There is nothing to pay for and no ads.</dd>
+                <dt>Do I need an account?</dt>
+                <dd>No. Your songs stay in your browser, and you can download them as files to keep or share.</dd>
+                <dt>Why is there no sound at first?</dt>
+                <dd>Browsers only allow sound after you click or tap. Press a piano key or PLAY and it starts.</dd>
+                <dt>Can I use a MIDI keyboard?</dt>
+                <dd>Yes, in browsers that support Web MIDI, such as Chrome and Edge. Pick your keyboard with the MIDI button at the top left.</dd>
+                <dt>Does it work on a phone or tablet?</dt>
+                <dd>Yes, with touch. A computer gives you the most room, and the page scales up to fill a big screen.</dd>
+            </dl>
+            <p class="about-foot">&copy; 2026 DominickDominick | Disclosure: Claude was and is used in the making of this site.</p>
+        
+            </div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
 
     <!-- the piano settings popup, for computers. It sits out here (not inside a box) so no box can cut it
          off, and leds.js puts it above or below the settings button with the arrow pointing at the button -->
@@ -447,5 +461,6 @@
     <script src="keys.js"></script>
     <script src="save.js"></script>
     <script src="presets.js"></script>
+    <script src="about.js"></script>
 </body>
 </html>
