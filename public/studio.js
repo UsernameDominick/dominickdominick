@@ -15,6 +15,9 @@ const song = Array.from({ length: TRACKS }, () => Array.from({ length: BARS }, (
 // block that starts at that bar covers. The bars a block covers hide their own blocks, they come back if it shrinks
 const clipLen = Array.from({ length: TRACKS }, () => new Array(BARS).fill(1));
 const muted = new Array(TRACKS).fill(false);
+// a track on loop repeats what's in it to fill the rest of the song: its blocks, up to the last one with notes in,
+// go round again and again until bar 8 (the repeats show as faded blocks)
+const looped = new Array(TRACKS).fill(false);
 const soloed = new Array(TRACKS).fill(false); // with any track on solo, only the soloed tracks are heard
 let selTrack = 0; // the selected block
 let selBar = 0;
@@ -94,6 +97,28 @@ function clipBars(t, b) {
     return Math.min(clipLen[t][b], BARS - b);
 }
 
+// how many bars a track's content takes up: up to the end of its last block that has notes in (0 if it has none)
+function loopLength(t) {
+    const starts = clipStarts(t);
+    for (let bar = BARS - 1; bar >= 0; bar--) {
+        if (song[t][starts[bar]].length > 0) return starts[bar] + clipBars(t, starts[bar]);
+    }
+    return 0;
+}
+
+// which bar a bar plays the music of. On a track that's looping, the bars after its content play the bars from
+// the start again (bar 6 of a 4 bar loop plays bar 2). Everything else just plays its own bar
+function loopSource(t, bar) {
+    if (!looped[t]) return bar;
+    const length = loopLength(t);
+    return length > 0 && bar >= length ? bar % length : bar;
+}
+
+// is this bar one of the repeats of a looping track (so it's drawn faded)?
+function isRepeat(t, bar) {
+    return looped[t] && bar >= loopLength(t) && loopLength(t) > 0;
+}
+
 // shows the blocks the way the lengths say: a long block stretches over its bars and the bars under it hide
 // which grid row a track is on (the drum rows, when they're open, push the other tracks down)
 function trackRow(t) {
@@ -161,9 +186,13 @@ function buildSong() {
         solo.setAttribute("aria-pressed", "false");
         solo.setAttribute("aria-label", "Solo track " + (t + 1));
         solo.addEventListener("click", () => toggleSolo(t));
-        head.append(name, mute, solo);
+        const loop = make("button", "loop", "L");
+        loop.setAttribute("aria-pressed", "false");
+        loop.setAttribute("aria-label", "Loop track " + (t + 1) + ": repeat its blocks to the end of the song");
+        loop.addEventListener("click", () => toggleLoop(t));
+        head.append(name, mute, solo, loop);
         songEl.appendChild(head);
-        trackHeads.push({ head, name, mute, solo });
+        trackHeads.push({ head, name, mute, solo, loop });
 
         if (t === DRUM_TRACK) {
             // the arrow that opens up the drums (a triangle drawn with borders, CSS turns it down when open)
@@ -222,7 +251,7 @@ function buildDrumRows() {
             drumSoloed[slot] = !drumSoloed[slot];
             showAudible();
         });
-        head.append(name, mute, solo);
+        head.append(name, mute, solo, make("span", "head-spacer")); // (the spacer keeps M and S lined up with the track's)
         songEl.appendChild(head);
 
         const lane = make("div", "lane folded");
@@ -285,6 +314,7 @@ function drawDrumCells(b) {
     const notes = song[DRUM_TRACK][b];
     const bars = clipBars(DRUM_TRACK, b);
     const dpr = window.devicePixelRatio || 1;
+    const ownBars = notes.length > 0; // (a bar with notes of its own isn't a repeat)
     drumRows.forEach(({ cells: row }, slot) => {
         const { el, canvas } = row[b];
         const w = canvas.clientWidth;
@@ -308,7 +338,14 @@ function drawDrumCells(b) {
             if (rep > 0) g.fillRect(Math.round(left), 0, 2, h);
             g.globalAlpha = 1;
             g.fillStyle = "#ff8c1a";
-            hits.forEach((n) => g.fillRect(left + (n.beat / BEATS) * barW, 3, Math.max(4, barW / 16 - 1), h - 6));
+            // on a looping drum track the bars after the content show the hits of the bar they repeat, faded
+            const repeat = !ownBars && isRepeat(DRUM_TRACK, b + rep);
+            const shown = repeat
+                ? song[DRUM_TRACK][clipAt(DRUM_TRACK, loopSource(DRUM_TRACK, b + rep))].filter((n) => drumSlot(n.note) === slot)
+                : hits;
+            g.globalAlpha = repeat ? 0.4 : 1;
+            shown.forEach((n) => g.fillRect(left + (n.beat / BEATS) * barW, 3, Math.max(4, barW / 16 - 1), h - 6));
+            g.globalAlpha = 1;
         }
     });
 }
@@ -325,17 +362,21 @@ function refreshDrumRows() {
 }
 
 // draws the notes of one block as little marks: left to right is time, bottom to top is pitch
-function drawBlock(t, b) {
+function drawBlock(t, b, fromLoop = false) {
     if (t === DRUM_TRACK) drawDrumCells(b);
+    // on a looping track the repeats show what's in the blocks before them, so when one changes they all draw again
+    if (!fromLoop && looped[t]) for (let other = 0; other < BARS; other++) if (other !== b) drawBlock(t, other, true);
     const { block, canvas } = cells[t][b];
     const notes = song[t][b];
     const bars = clipBars(t, b);
+    const repeat = isRepeat(t, b) && notes.length === 0; // a faded repeat of the bars before it
 
     block.classList.toggle("has-notes", notes.length > 0);
+    block.classList.toggle("repeat", repeat);
     block.setAttribute(
         "aria-label",
         "Track " + (t + 1) + ", bar " + (b + 1) + (bars > 1 ? ", " + bars + " bars" : "") + ", " +
-            (notes.length === 0 ? "empty" : notes.length + " notes")
+            (notes.length === 0 ? (repeat ? "looping bar " + (loopSource(t, b) + 1) : "empty") : notes.length + " notes")
     );
     block.setAttribute("aria-pressed", String(t === selTrack && b === selBar));
 
@@ -364,8 +405,10 @@ function drawBlock(t, b) {
         }
         g.globalAlpha = 1;
 
-        // one mark per note (the piano runs from MIDI note 48 to 84)
-        notes.forEach((n) => {
+        // one mark per note (the piano runs from MIDI note 48 to 84). On a looping track a bar after the
+        // content shows the notes of the bar it repeats
+        const shown = notes.length === 0 && isRepeat(t, b + rep) ? song[t][clipAt(t, loopSource(t, b + rep))] : notes;
+        shown.forEach((n) => {
             const x = left + (n.beat / BEATS) * barW;
             const pitch = Math.min(1, Math.max(0, (n.note - 48) / 36)); // a MIDI note outside the piano is drawn at the top or bottom edge
             const y = h - 6 - pitch * (h - 12);
@@ -585,6 +628,7 @@ function showAudible() {
     for (let t = 0; t < TRACKS; t++) {
         trackHeads[t].mute.setAttribute("aria-pressed", String(muted[t]));
         trackHeads[t].solo.setAttribute("aria-pressed", String(soloed[t]));
+        trackHeads[t].loop.setAttribute("aria-pressed", String(looped[t]));
         lanes[t].classList.toggle("muted", !audible(t));
         cells[t].forEach((cell) => cell.block.classList.toggle("muted", !audible(t)));
     }
@@ -608,6 +652,13 @@ function drumAudible(slot) {
 function toggleMute(t) {
     muted[t] = !muted[t];
     showAudible();
+}
+
+// turns a track's loop on or off, and draws its blocks again (the repeats appear or go)
+function toggleLoop(t) {
+    looped[t] = !looped[t];
+    showAudible();
+    for (let b = 0; b < BARS; b++) drawBlock(t, b, true);
 }
 
 function toggleSolo(t) {
@@ -651,8 +702,8 @@ function playClick(time, accent) {
 function playBeatOf(bar, beatInBar, time, skipTrack) {
     for (let t = 0; t < TRACKS; t++) {
         if (t === skipTrack || !audible(t)) continue;
-        // (a long block plays its one bar of notes over and over)
-        song[t][clipAt(t, bar)].forEach((n) => {
+        // (a long block plays its one bar of notes over and over, and a track on loop goes back to its start)
+        song[t][clipAt(t, loopSource(t, bar))].forEach((n) => {
             if (Math.floor(n.beat) !== beatInBar) return;
             if (t === DRUM_TRACK && !drumAudible(drumSlot(n.note))) return; // a drum that's muted (or not on solo)
             // (a note in the song only knows where it starts, so each one is held for a beat and then let go)

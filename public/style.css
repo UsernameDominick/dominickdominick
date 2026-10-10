@@ -982,10 +982,10 @@ output {
 .song {
     position: relative; /* the buttons by the selected block are placed against this */
     display: grid;
-    grid-template-columns: 176px repeat(8, minmax(88px, 1fr));
+    grid-template-columns: 216px repeat(8, minmax(88px, 1fr));
     grid-template-rows: 24px repeat(5, 38px); /* with the gaps, this just fits in the box */
     gap: var(--gap);
-    min-width: calc(176px + 8 * 88px + 8 * var(--gap));
+    min-width: calc(216px + 8 * 88px + 8 * var(--gap));
 }
 
 .bar-head {
@@ -1033,9 +1033,10 @@ output {
     color: #111;
 }
 
-/* mute and solo: grey buttons that light up when they're on (mute white, solo orange) */
+/* mute, solo and loop: grey buttons that light up when they're on (mute white, solo orange, loop pale orange) */
 .mute,
-.solo {
+.solo,
+.loop {
     width: 30px;
     border: none;
     border-radius: 4px;
@@ -1047,7 +1048,8 @@ output {
 }
 
 .mute:active,
-.solo:active {
+.solo:active,
+.loop:active {
     background: #7a7a7a;
 }
 
@@ -1059,6 +1061,17 @@ output {
 .solo[aria-pressed="true"] {
     background: #ff8c1a;
     color: #111;
+}
+
+.loop[aria-pressed="true"] {
+    background: #ffd2a1;
+    color: #111;
+}
+
+/* the empty space where a drum row has no loop button, so its M and S line up with the track's */
+.head-spacer {
+    flex: none;
+    width: 30px;
 }
 
 /* the arrow by DRUMS that opens up the drums: a triangle drawn with borders (so it's never an emoji), pointing
@@ -1151,6 +1164,12 @@ output {
 .block.has-notes {
     background: #ff8c1a;
     color: #111;
+}
+
+/* a repeat of a looping track: a solid, quieter version of an orange block */
+.block.repeat {
+    background: #5a4128;
+    color: #ff8c1a;
 }
 
 .block.selected {
