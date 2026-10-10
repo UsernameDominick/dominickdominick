@@ -2211,3 +2211,218 @@ body {
     flex: none;
     display: block;
 }
+
+/* the save and saved songs buttons (a column of two icons beside the scale and MIDI buttons) */
+.save-stack .icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    min-width: 0;
+    padding: 0;
+}
+
+.icon-button svg {
+    display: block;
+    flex: none;
+}
+
+/* after a save the floppy disk is a tick for a moment */
+.icon-button .saved-icon {
+    display: none;
+}
+
+.icon-button.saved .save-icon {
+    display: none;
+}
+
+.icon-button.saved .saved-icon {
+    display: block;
+}
+
+/* the save popup: the song's name, a big SAVE, what happened, and DOWNLOAD FILE */
+.popover.save {
+    width: 380px;
+}
+
+.field-label {
+    display: block;
+    margin: 0 0 var(--gap);
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+}
+
+.text-input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 44px;
+    padding: 0 var(--gap);
+    border: 2px solid var(--amber);
+    border-radius: var(--radius);
+    background: var(--empty);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.save-now {
+    width: 100%;
+    height: 56px;
+    margin-top: var(--gap);
+    font-size: 24px;
+}
+
+.save-file {
+    width: 100%;
+    margin-top: var(--gap);
+}
+
+.save-status {
+    min-height: 1.3em;
+    margin: var(--gap) 0 0;
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+/* the saved songs popup: a row for each song with its name, when it was saved and four buttons */
+.popover.songs {
+    width: 540px;
+}
+
+.song-list {
+    display: grid;
+    gap: var(--gap);
+}
+
+.song-row {
+    padding: var(--gap);
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    background: var(--empty);
+}
+
+.song-row.current {
+    border-color: var(--amber);
+}
+
+.song-title {
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 20px;
+    font-weight: bold;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.song-meta {
+    margin-top: 2px;
+    color: #d6c9ac;
+    font-size: 16px;
+}
+
+.song-empty {
+    margin: 0;
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+.song-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--gap);
+    margin-top: var(--gap);
+}
+
+.song-act {
+    min-width: 0;
+    height: 40px;
+    padding: 0 4px;
+}
+
+.song-act[data-armed],
+.save-file[data-armed] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+@media (max-width: 560px) {
+    .song-actions {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* the icon buttons in the toolbar (undo, redo, the presets star and, on touch screens, copy, paste and clear): square, with
+   a drawn icon */
+.toolbar .icon-button {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    min-width: 0;
+    padding: 0;
+}
+
+/* copy, paste and clear are keys on a computer (Ctrl+C, Ctrl+V and Delete), so the buttons are only for touch screens */
+@media (hover: hover) and (pointer: fine) and (min-width: 701px) {
+    .toolbar .icon-button.touch-only {
+        display: none;
+    }
+}
+
+/* the little arrow by REC: joined on to it, the same height */
+.rec-arrow {
+    flex: none;
+    min-width: 0;
+    width: 36px;
+    margin-left: calc(-1 * var(--gap) + 2px);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+#recButton {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+/* the recording options popup: two wide rows of five, then four pairs */
+.popover.rec-options {
+    width: 520px;
+}
+
+.popover .choices.rec5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+.popover .choices.rec2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.rec-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: calc(2 * var(--gap));
+}
+
+.rec-pair .choice,
+.rec-options .choices.rec5 .choice {
+    padding: 0 4px;
+}
+
+/* the presets popup: the same rows as the saved songs, with three buttons each */
+.popover.presets {
+    width: 480px;
+}
+
+.song-actions.preset-actions {
+    grid-template-columns: repeat(3, 1fr);
+}

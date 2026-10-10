@@ -20,6 +20,27 @@
     </svg>
     <div class="parent">
         <div class="div1">
+            <!-- two icon buttons, one on top of the other, beside the scale and MIDI buttons (save.js): the top one is a
+                 quick save, the one under it opens the saved songs (open, rename, download) -->
+            <div class="button-stack save-stack">
+                <button class="tool icon-button" id="saveButton" aria-expanded="false" aria-label="Save the song">
+                    <!-- a floppy disk, drawn. After a save it shows a tick for a moment -->
+                    <svg class="save-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                        <path d="M4 3 H17 L21 7 V21 H4 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                        <path d="M7 3 V8 H15 V3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                        <path d="M7 21 V14 H18 V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                    </svg>
+                    <svg class="saved-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                        <path d="M4 13 L10 19 L21 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+                    </svg>
+                </button>
+                <button class="tool icon-button" id="songsButton" aria-expanded="false" aria-label="Saved songs: open, rename or download">
+                    <!-- a folder, drawn -->
+                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                        <path d="M3 5 H9.5 L11.5 7.5 H21 V19 H3 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                    </svg>
+                </button>
+            </div>
             <!-- the two buttons are stacked, one on top of the other -->
             <div class="button-stack">
             <!-- the settings button. On a computer it shows the key and scale (short, like C MAJ) and opens a
@@ -71,8 +92,19 @@
                             <button class="arrow down" id="soundDown" aria-label="Next sound"></button>
                         </div>
                     </div>
+                    <!-- the presets: save the selected track's sound and dials under a name (presets.js). They're in the
+                         dropdown too, in a group called MY PRESETS -->
+                    <button class="tool icon-button" id="presetButton" aria-expanded="false" aria-label="Presets: save this sound or manage your presets" title="Presets">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M12 3 L14.8 9 L21 9.7 L16.4 14 L17.7 20.5 L12 17.3 L6.3 20.5 L7.6 14 L3 9.7 L9.2 9 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
                     <button class="tool" id="playButton">PLAY</button>
                     <button class="tool rec" id="recButton">REC</button>
+                    <!-- the little arrow by REC opens the recording options: quantize, swing, loop record, step record (studio.js, record.js) -->
+                    <button class="tool rec-arrow" id="recOptions" aria-expanded="false" aria-label="Recording options: quantize, swing, loop record and step record">
+                        <span class="menu-arrow" aria-hidden="true"></span>
+                    </button>
                     <!-- the tempo: the button says it, and opens a popup to type it, tap it or pick one (studio.js) -->
                     <button class="tool menu-button" id="bpmButton" aria-expanded="false" aria-label="Tempo">
                         <span id="bpmText">100 BPM</span>
@@ -90,9 +122,38 @@
                         <span class="menu-arrow" aria-hidden="true"></span>
                     </button>
                     <span class="toolbar-gap"></span>
-                    <button class="tool" id="copyButton">COPY</button>
-                    <button class="tool" id="pasteButton">PASTE</button>
-                    <button class="tool" id="clearButton">CLEAR</button>
+                    <!-- undo and redo (keys.js). The titles are the keys that do the same -->
+                    <button class="tool icon-button" id="undoButton" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M8 4 L3 9 L8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="M3 9 H15 A5 5 0 0 1 15 19 H8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+                    <button class="tool icon-button" id="redoButton" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled>
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M16 4 L21 9 L16 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="M21 9 H9 A5 5 0 0 0 9 19 H16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+                    <!-- copy, paste and clear a block. On a computer these are keys (Ctrl+C, Ctrl+V, Delete) and the buttons
+                         are hidden, they're for touch screens -->
+                    <button class="tool icon-button touch-only" id="copyButton" aria-label="Copy the block">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M9 9 H20 V21 H9 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>
+                            <path d="M5 15 V3 H16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+                    <button class="tool icon-button touch-only" id="pasteButton" aria-label="Paste into the block">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M5 5 H19 V21 H5 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>
+                            <path d="M9 3 H15 V7 H9 Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
+                    <button class="tool icon-button touch-only" id="clearButton" aria-label="Clear the block">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <path d="M4 7 H20 M9 7 V4 H15 V7 M6.5 7 L7.5 21 H16.5 L17.5 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
                 </div>
                 <!-- studio.js builds the grid of tracks and blocks in here -->
                 <div class="song" id="song"></div>
@@ -242,6 +303,79 @@
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>
 
+    <!-- the recording options popup, from the arrow by REC. studio.js keeps the settings, record.js fills in the choices -->
+    <div class="popover rec-options" id="recPopover" role="dialog" aria-label="Recording options" hidden>
+        <div class="popover-body">
+            <div class="popover-title">QUANTIZE (SNAPS WHAT YOU RECORD TO THE BEAT)</div>
+            <div class="choices rec5" id="recQuantize"></div>
+            <div class="popover-title">SWING (PUSHES EVERY OTHER NOTE LATE)</div>
+            <div class="choices rec5" id="recSwing"></div>
+            <div class="rec-pair">
+                <div>
+                    <div class="popover-title">SWING ON</div>
+                    <div class="choices rec2" id="recSwingGrid"></div>
+                </div>
+                <div>
+                    <div class="popover-title">WHEN RECORDING</div>
+                    <div class="choices rec2" id="recMode"></div>
+                </div>
+                <div>
+                    <div class="popover-title">LOOP RECORD</div>
+                    <div class="choices rec2" id="recLoop"></div>
+                </div>
+                <div>
+                    <div class="popover-title">STEP RECORD</div>
+                    <div class="choices rec2" id="recStep"></div>
+                </div>
+            </div>
+            <button class="tool save-file" id="quantizeBlock">QUANTIZE THE SELECTED BLOCK</button>
+            <p class="save-status" id="recStatus" role="status"></p>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the presets popup, from the star by the sound picker (presets.js) -->
+    <div class="popover presets" id="presetPopover" role="dialog" aria-label="Presets" hidden>
+        <div class="popover-body">
+            <div class="popover-title" id="presetTitle">SAVE THIS SOUND AS A PRESET</div>
+            <div id="presetForm">
+                <label class="field-label" for="presetName">NAME</label>
+                <input class="text-input" type="text" id="presetName" maxlength="30" autocomplete="off" spellcheck="false">
+                <button class="tool save-now" id="presetSave">SAVE PRESET</button>
+            </div>
+            <div class="popover-title">YOUR PRESETS</div>
+            <div class="song-list" id="presetList"></div>
+            <p class="save-status" id="presetStatus" role="status"></p>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the quick save popup: the song's name and a button to save it (save.js). It saves in this browser -->
+    <div class="popover save" id="savePopover" role="dialog" aria-label="Save the song" hidden>
+        <div class="popover-body">
+            <div class="popover-title">SAVE SONG</div>
+            <label class="field-label" for="saveName">NAME</label>
+            <input class="text-input" type="text" id="saveName" maxlength="30" autocomplete="off" spellcheck="false" aria-describedby="saveStatus">
+            <button class="tool save-now" id="saveNow">SAVE</button>
+            <p class="save-status" id="saveStatus" role="status"></p>
+            <button class="tool save-file" id="saveDownload" aria-label="Download this song as a file">DOWNLOAD FILE</button>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
+    <!-- the saved songs popup: load, rename, download or delete a song saved in this browser, or open a song file -->
+    <div class="popover songs" id="songsPopover" role="dialog" aria-label="Saved songs" hidden>
+        <div class="popover-body">
+            <div class="popover-title">SAVED SONGS</div>
+            <div class="song-list" id="songList"></div>
+            <div class="popover-title">FROM A FILE</div>
+            <button class="tool save-file" id="songOpenFile">OPEN FILE</button>
+            <input type="file" id="songFile" accept=".json,application/json" hidden>
+            <p class="save-status" id="songsStatus" role="status"></p>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
     <script src="fit.js"></script>
     <script src="synth.js"></script>
     <script src="drums.js"></script>
@@ -251,5 +385,9 @@
     <script src="leds.js"></script>
     <script src="midi.js"></script>
     <script src="studio.js"></script>
+    <script src="record.js"></script>
+    <script src="keys.js"></script>
+    <script src="save.js"></script>
+    <script src="presets.js"></script>
 </body>
 </html>

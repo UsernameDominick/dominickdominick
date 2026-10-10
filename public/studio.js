@@ -5,7 +5,6 @@
 // (TRACKS, how many tracks there are, and each track's settings (trackSettings) live in synth.js)
 const BARS = 8; // blocks per track
 const BEATS = 4; // beats in a bar
-const QUANTIZE = 0.25; // recorded notes snap to the nearest 16th note (a quarter of a beat), 0 turns it off
 const LOOKAHEAD = 0.12; // seconds ahead that the scheduler plans notes
 const TICK_MS = 25; // how often the scheduler wakes up (in milliseconds)
 
@@ -23,6 +22,42 @@ let selTrack = 0; // the selected block
 let selBar = 0;
 let clipboard = null; // a copied block ({ notes, len }), or null if nothing is copied
 
+// the recording options (the arrow by REC opens them, record.js has the popup). Each one is a place in its list below, and
+// they're remembered
+const QUANTIZE_STEPS = [0, 1, 0.5, 0.25, 0.125]; // recorded notes snap to the nearest one of these (in beats), 0 is off
+const QUANTIZE_NAMES = ["OFF", "1/4", "1/8", "1/16", "1/32"];
+const SWING_AMOUNTS = [0, 0.25, 0.5, 0.75, 1]; // how far the late notes are pushed: 1 is half a step later
+const SWING_NAMES = ["OFF", "25%", "50%", "75%", "100%"];
+const SWING_GRIDS = [0.5, 0.25]; // the notes it swings are the off-beats of this size of step, in beats
+const SWING_GRID_NAMES = ["8THS", "16THS"];
+const REC_MODES = ["REPLACE", "OVERDUB"]; // REPLACE clears the block when recording starts, OVERDUB keeps what's in it
+const OFF_ON = ["OFF", "ON"];
+const recordOptions = { quantize: 3, swing: 0, swingGrid: 1, mode: 0, loop: 0, step: 0 };
+const recordLists = { quantize: QUANTIZE_NAMES, swing: SWING_NAMES, swingGrid: SWING_GRID_NAMES, mode: REC_MODES, loop: OFF_ON, step: OFF_ON };
+try {
+    const saved = JSON.parse(localStorage.getItem("recordOptions"));
+    for (const key in recordOptions) {
+        if (saved && Number.isInteger(saved[key]) && saved[key] >= 0 && saved[key] < recordLists[key].length) recordOptions[key] = saved[key];
+    }
+} catch {}
+
+// the size of a quantize step in beats (a step recording with quantize off moves by a sixteenth)
+function quantizeStep() {
+    return QUANTIZE_STEPS[recordOptions.quantize];
+}
+
+// how much later (in beats) swing plays a note that starts this far into a bar. Only the notes on the off-beats of the grid
+// move (every other step), and the others stay where they are
+function swingDelay(beat) {
+    const amount = SWING_AMOUNTS[recordOptions.swing];
+    if (!amount) return 0;
+    const step = SWING_GRIDS[recordOptions.swingGrid];
+    const place = beat / step;
+    const nearest = Math.round(place);
+    if (Math.abs(place - nearest) > 0.05 || nearest % 2 === 0) return 0;
+    return amount * 0.5 * step;
+}
+
 // transport (play and record)
 let bpm = 100; // set by the BPM strip, used the next time you press play or rec
 let running = false;
@@ -34,6 +69,13 @@ let recTrack; // where this run is recording to
 let recBar;
 let countBeats = 0; // how many beats of count-in come before this recording starts (set when you press rec)
 let recBeats = BEATS; // how many beats long the recording is: the whole block, however many bars it is
+let recLoop = false; // this recording goes round and round the block until you stop it (set when you press rec)
+let recOverdub = false; // this recording adds to what's in the block (and plays it) instead of replacing it
+// step recording (no clock): the selected block gets a cursor, each note you play goes in at the cursor and the cursor moves
+// on a step. null when it's off, or else the cursor's place in beats from the start of the block
+let stepCursor = null;
+let stepTimer = null; // waiting a moment to move on, so the notes of a chord all go in the same place
+const STEP_CHORD_MS = 90;
 let tickTimer;
 let lastNowBar = -1; // which bar is lit up as playing right now (-1 is none)
 
@@ -651,6 +693,12 @@ function drawBlock(t, b, fromLoop = false) {
             g.fillRect(x, y - 2, Math.max(4, barW / 16), 4);
         });
     }
+
+    // step recording: a line where the next note will go
+    if (stepCursor !== null && t === selTrack && b === selBar) {
+        g.fillStyle = "#f2a900";
+        g.fillRect(Math.round((stepCursor / (bars * BEATS)) * w), 0, 3, h);
+    }
 }
 
 function drawAll() {
@@ -667,6 +715,7 @@ function selectBlock(t, b) {
     selTrack = t;
     selBar = b;
 
+    if (stepCursor !== null) stepCursor = 0; // (a step recording starts at the start of whichever block is selected)
     cells[oldTrack][oldBar].block.classList.remove("selected");
     cells[t][b].block.classList.add("selected");
     trackHeads.forEach((head, i) => head.name.classList.toggle("selected", i === t));
@@ -744,6 +793,7 @@ function fillSoundOptions(items) {
             soundSelect.appendChild(option);
         }
     });
+    if (typeof addPresetOptions === "function") addPresetOptions(); // the saved presets, at the end (presets.js)
 }
 
 let listShown = null; // what the dropdown's list is made of right now: "drums" or "synth"
@@ -765,6 +815,9 @@ function showSound() {
         soundSelect.setAttribute("aria-label", "Drum for the selected key");
     } else {
         soundSelect.value = String(trackSettings[selTrack].sound);
+        // (if the track is exactly a preset, the picker says so)
+        const preset = typeof matchingPreset === "function" ? matchingPreset(selTrack) : null;
+        if (preset !== null) soundSelect.value = "p:" + preset;
         soundSelect.setAttribute("aria-label", "Sound for track " + (selTrack + 1));
     }
     showTrackSettings();
@@ -795,7 +848,10 @@ function stepSound(delta) {
     else setSound(trackSettings[selTrack].sound + delta);
 }
 
-soundSelect.addEventListener("change", () => setSound(Number(soundSelect.value)));
+soundSelect.addEventListener("change", () => {
+    if (soundSelect.value.startsWith("p:")) applyPresetNamed(soundSelect.value.slice(2)); // a preset (presets.js)
+    else setSound(Number(soundSelect.value));
+});
 soundUp.addEventListener("click", () => stepSound(-1)); // up the list
 soundDown.addEventListener("click", () => stepSound(1)); // down the list
 document.addEventListener("drumselected", showSound); // playing a different drum key shows that key's drum
@@ -851,23 +907,27 @@ function toggleSolo(t) {
     showAudible();
 }
 
-// editing the selected block
-copyBtn.addEventListener("click", () => {
+// editing the selected block (the buttons are for touch screens, a computer uses Ctrl+C, Ctrl+V and Delete: keys.js)
+function copyBlock() {
     clipboard = { notes: song[selTrack][selBar].map((n) => ({ ...n })), len: clipBars(selTrack, selBar) };
     updateButtons();
-});
+}
 
-pasteBtn.addEventListener("click", () => {
+function pasteBlock() {
     if (!clipboard) return;
     song[selTrack][selBar] = clipboard.notes.map((n) => ({ ...n }));
     clipLen[selTrack][selBar] = Math.min(clipboard.len, BARS - selBar);
     layoutSong();
-});
+}
 
-clearBtn.addEventListener("click", () => {
+function clearBlock() {
     song[selTrack][selBar] = [];
     drawBlock(selTrack, selBar);
-});
+}
+
+copyBtn.addEventListener("click", copyBlock);
+pasteBtn.addEventListener("click", pasteBlock);
+clearBtn.addEventListener("click", clearBlock);
 
 // ---- the metronome ----
 // The METRO button opens its settings. CLICK is when it ticks: never, only in the count-in before a recording, or
@@ -921,7 +981,7 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
             // each note is played the way its own settings say: how hard, how early or late, or not at all
             const feel = humanize(n);
             if (!feel) return;
-            const when = Math.max(ctx.currentTime, time + (n.beat - beatInBar) * beatSec + feel.shift);
+            const when = Math.max(ctx.currentTime, time + (n.beat - beatInBar + swingDelay(n.beat)) * beatSec + feel.shift);
             // (a note in the song only knows where it starts, so each one is held for a beat and then let go)
             playNote(noteToFrequency(n.note), when, t, false, beatSec, feel.velocity, feel.release);
         });
@@ -938,14 +998,17 @@ function scheduleBeat(n, time) {
     } else if (n < countBeats) {
         if (metro.when >= 1) playClick(time, n % BEATS === 0); // the count-in
     } else {
-        if (n === countBeats) {
+        if (n === countBeats && !recOverdub) {
             song[recTrack][recBar] = []; // recording replaces what was in the block
             drawBlock(recTrack, recBar);
         }
-        if (metro.when === 2) playClick(time, (n - countBeats) % BEATS === 0);
-        // the other tracks play along, bar after bar as far as the block goes, but not the one being recorded
-        const into = n - countBeats;
-        playBeatOf(recBar + Math.floor(into / BEATS), into % BEATS, time, recTrack);
+        // (with loop record the beats keep counting, and this goes back to the start of the block each time round)
+        const into = (n - countBeats) % recBeats;
+        if (metro.when === 2) playClick(time, into % BEATS === 0);
+        // the other tracks play along, bar after bar as far as the block goes. The one being recorded is quiet the first time
+        // round (unless it's an overdub), then you hear what you've put in
+        const hearTrack = recOverdub || n - countBeats >= recBeats;
+        playBeatOf(recBar + Math.floor(into / BEATS), into % BEATS, time, hearTrack ? -1 : recTrack);
     }
 }
 
@@ -954,20 +1017,23 @@ function scheduleBeat(n, time) {
 function tick() {
     const horizon = ctx.currentTime + LOOKAHEAD;
     while (startTime + nextBeat * beatSec < horizon) {
-        if (recordArmed && nextBeat >= countBeats + recBeats) break; // a recording is the count-in and the block, nothing more to plan
+        if (recordArmed && !recLoop && nextBeat >= countBeats + recBeats) break; // a recording is the count-in and the block, nothing more to plan (unless it loops)
         scheduleBeat(nextBeat, startTime + nextBeat * beatSec);
         nextBeat++;
     }
-    if (recordArmed && ctx.currentTime >= startTime + (countBeats + recBeats) * beatSec) stopTransport();
+    if (recordArmed && !recLoop && ctx.currentTime >= startTime + (countBeats + recBeats) * beatSec) stopTransport();
 }
 
 async function startTransport(record) {
     getCtx();
     if (ctx.state === "suspended") await ctx.resume(); // browsers start audio suspended
     stopTransport();
+    stopStepRecording();
 
     beatSec = 60 / bpm;
     recordArmed = record;
+    recLoop = record && recordOptions.loop === 1;
+    recOverdub = record && recordOptions.mode === 1;
     recTrack = selTrack;
     recBar = selBar;
     countBeats = record ? metro.countIn * BEATS : 0; // the count-in setting from the metronome
@@ -987,21 +1053,97 @@ function stopTransport() {
     recordArmed = false;
     updateButtons();
     showNow(-1);
+    if (typeof checkpoint === "function") checkpoint(); // (a take is one step to undo. keys.js)
 }
 
 // notes you play on the piano while recording go into the recorded block
 document.addEventListener("noteplayed", (e) => {
+    if (stepCursor !== null) return stepRecordNote(e.detail);
     if (!running || !recordArmed) return;
-    const beat = (e.detail.time - startTime) / beatSec - countBeats; // 0 is the start of the recorded block
-    if (beat < 0 || beat >= recBeats) return; // during the count-in, or after the block
-    let snapped = QUANTIZE ? Math.round(beat / QUANTIZE) * QUANTIZE : beat;
-    if (snapped >= recBeats) snapped = recBeats - QUANTIZE; // keep it inside the block
-    const recorded = { beat: snapped, note: e.detail.note };
-    // a note played softly on a MIDI keyboard keeps how hard it was hit (velocity), a note from the screen is full
-    if (typeof e.detail.velocity === "number" && e.detail.velocity < 0.995) recorded.velocity = Math.round(e.detail.velocity * 100) / 100;
-    song[recTrack][recBar].push(recorded);
+    let beat = (e.detail.time - startTime) / beatSec - countBeats; // 0 is the start of the recorded block
+    if (beat < 0) return; // during the count-in
+    if (recLoop) beat %= recBeats; // (the block goes round and round)
+    else if (beat >= recBeats) return; // after the block
+    const step = quantizeStep();
+    let snapped = step ? Math.round(beat / step) * step : beat;
+    if (snapped >= recBeats) snapped = recLoop ? 0 : recBeats - (step || 0.25); // keep it inside the block (a loop wraps to the start)
+    // the same note in the same place isn't put in twice (going round again, or an overdub)
+    if (song[recTrack][recBar].some((n) => n.note === e.detail.note && Math.abs(n.beat - snapped) < 0.001)) return;
+    song[recTrack][recBar].push(newNote(snapped, e.detail));
     drawBlock(recTrack, recBar);
 });
+
+// a note that's been played: a note played softly on a MIDI keyboard keeps how hard it was hit (velocity), a note from the
+// screen is full
+function newNote(beat, played) {
+    const note = { beat, note: played.note };
+    if (typeof played.velocity === "number" && played.velocity < 0.995) note.velocity = Math.round(played.velocity * 100) / 100;
+    return note;
+}
+
+// ---- step recording ----
+// With STEP RECORD on (the recording options), REC doesn't start the clock. It puts a cursor at the start of the selected
+// block, each note you play goes in at the cursor, and the cursor moves on one step (the size of the quantize setting). The
+// notes of a chord go in the same place. Space moves on without a note, Backspace goes back a step and takes out what was there.
+// REC again, or the end of the block, stops it.
+function startStepRecording() {
+    if (running) stopTransport();
+    stepCursor = 0;
+    updateButtons();
+    drawBlock(selTrack, selBar);
+}
+
+function stopStepRecording() {
+    if (stepCursor === null) return;
+    clearTimeout(stepTimer);
+    stepTimer = null;
+    stepCursor = null;
+    updateButtons();
+    drawBlock(selTrack, selBar);
+}
+
+function stepSize() {
+    return quantizeStep() || 0.25;
+}
+
+function stepRecordNote(played) {
+    const list = song[selTrack][selBar];
+    const length = clipBars(selTrack, selBar) * BEATS;
+    if (stepCursor >= length) return;
+    const at = list.findIndex((n) => n.note === played.note && Math.abs(n.beat - stepCursor) < 0.001);
+    if (at >= 0) list.splice(at, 1);
+    list.push(newNote(stepCursor, played));
+    clearTimeout(stepTimer);
+    stepTimer = setTimeout(stepForward, STEP_CHORD_MS); // (a moment after the last note of a chord)
+    drawBlock(selTrack, selBar);
+}
+
+// the cursor moves on a step (and when it gets to the end of the block, step recording is over)
+function stepForward() {
+    clearTimeout(stepTimer);
+    stepTimer = null;
+    if (stepCursor === null) return;
+    stepCursor += stepSize();
+    if (stepCursor >= clipBars(selTrack, selBar) * BEATS - 0.001) stopStepRecording();
+    else drawBlock(selTrack, selBar);
+}
+
+// a rest: if a note is waiting to move the cursor on, that happens first, then one more step
+function stepRest() {
+    if (stepCursor === null) return;
+    if (stepTimer !== null) stepForward();
+    stepForward();
+}
+
+// back a step, taking out the notes that were there
+function stepBack() {
+    if (stepCursor === null) return;
+    if (stepTimer !== null) stepForward();
+    if (stepCursor === null) return; // (that was the end of the block)
+    stepCursor = Math.max(0, stepCursor - stepSize());
+    song[selTrack][selBar] = song[selTrack][selBar].filter((n) => Math.abs(n.beat - stepCursor) >= 0.001);
+    drawBlock(selTrack, selBar);
+}
 
 // lights up the bar that's playing: its number and its five blocks
 function showNow(bar) {
@@ -1025,9 +1167,9 @@ function updateButtons() {
 
     playBtn.textContent = running ? "STOP" : "PLAY";
     playBtn.classList.toggle("on", running && !recordArmed);
-    recBtn.classList.toggle("on", recording);
+    recBtn.classList.toggle("on", recording || stepCursor !== null);
     recBtn.classList.toggle("counting", counting);
-    recBtn.textContent = counting ? String(Math.floor((Math.max(0, beat)) % BEATS) + 1) : "REC";
+    recBtn.textContent = stepCursor !== null ? "STEP" : counting ? String(Math.floor((Math.max(0, beat)) % BEATS) + 1) : "REC";
     pasteBtn.disabled = !clipboard;
 }
 
@@ -1040,8 +1182,9 @@ function uiLoop() {
     const beat = (ctx.currentTime - startTime) / beatSec;
     let bar = -1;
     if (recordArmed) {
-        // (the bar of the block that's being recorded: a block that's several bars long lights them one after the other)
-        if (beat >= countBeats) bar = recBar + Math.min(recBeats / BEATS - 1, Math.floor((beat - countBeats) / BEATS));
+        // (the bar of the block that's being recorded: a block that's several bars long lights them one after the other,
+        // and a loop goes back to the first)
+        if (beat >= countBeats) bar = recBar + Math.min(recBeats / BEATS - 1, Math.floor(((beat - countBeats) % recBeats) / BEATS));
     } else if (beat >= 0) {
         bar = Math.floor(beat / BEATS) % BARS;
     }
@@ -1056,7 +1199,9 @@ playBtn.addEventListener("click", () => {
 });
 
 recBtn.addEventListener("click", () => {
-    if (running && recordArmed) stopTransport();
+    if (stepCursor !== null) stopStepRecording();
+    else if (running && recordArmed) stopTransport();
+    else if (recordOptions.step === 1) startStepRecording();
     else startTransport(true);
 });
 
