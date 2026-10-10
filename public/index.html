@@ -114,6 +114,27 @@
                     <input type="range" class="dial-input" id="resonanceSlider" aria-label="Filter resonance" min="0" max="1" step="0.01" value="0">
                     <output for="resonanceSlider" aria-hidden="true">0dB</output>
                 </div>
+                <!-- the fade of the selected track's notes: ATK (how long a note takes to rise), DEC (how long it
+                     takes to fall to SUS), SUS (how loud it stays while a key is held) and REL (how long it takes
+                     to fade out after you let go). The FADE graph draws them -->
+                <div class="dial" data-default="0.23">
+                    <label for="attackSlider">ATK</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="attackSlider" aria-label="Attack time" min="0" max="1" step="0.01" value="0.23">
+                    <output for="attackSlider" aria-hidden="true">20ms</output>
+                </div>
+                <div class="dial" data-default="0.57">
+                    <label for="decaySlider">DEC</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="decaySlider" aria-label="Decay time" min="0" max="1" step="0.01" value="0.57">
+                    <output for="decaySlider" aria-hidden="true">0.3s</output>
+                </div>
+                <div class="dial" data-default="0.5">
+                    <label for="sustainSlider">SUS</label>
+                    <div class="dial-face"></div>
+                    <input type="range" class="dial-input" id="sustainSlider" aria-label="Sustain level" min="0" max="1" step="0.01" value="0.5">
+                    <output for="sustainSlider" aria-hidden="true">50%</output>
+                </div>
                 <div class="dial" data-default="0.25">
                     <label for="releaseSlider">REL</label>
                     <div class="dial-face"></div>

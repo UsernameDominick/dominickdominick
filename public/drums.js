@@ -329,13 +329,33 @@ const VOICES = {
     },
 };
 
+// the drum track's ATK, DEC, SUS and REL dials shape every hit on top of the way the drum fades by itself: each hit
+// rises over ATK, falls over DEC to the SUS level, and is let go half way through the time the drum rings for, then
+// fades out over REL (so a short REL cuts the drum's tail short).
+// (They start at nothing: no fade in, full volume, and a long release, so a drum sounds as it is until you turn them)
+const DRUM_HELD = 0.5; // how much of the drum's ringing time the hit is held for before it's let go
+function drumShapeEnv() {
+    const env = envelopeOf(DRUM_TRACK);
+    if (trackSettings[DRUM_TRACK].attack === 0) env.attack = 0.0005; // all the way down is no fade in at all
+    return env;
+}
+
 // plays one drum from the list (when is the audio clock time to start it). Every hit goes through the
 // drum track's filter, so CUT and RES on the strips shape the drums too
 function playDrumSound(soundIndex, when = ctx.currentTime) {
     const sound = DRUM_SOUNDS[soundIndex];
+    const env = drumShapeEnv();
+    const held = Math.max(0.02, drumTiming(sound).decay * DRUM_HELD); // how long the hit is held for before it's let go
+
+    // the shape from the dials (a volume that all of the drum's parts go through)
+    const shape = ctx.createGain();
+    scheduleEnvelope(shape.gain, when, env, held, 1);
+    scheduleRelease(shape.gain, when, held, env, 1);
+    shape.connect(trackFilters[DRUM_TRACK]);
+
     const out = ctx.createGain();
     out.gain.value = 0.55 * sound.boost * (sound.p.level === undefined ? 1 : sound.p.level);
-    out.connect(trackFilters[DRUM_TRACK]);
+    out.connect(shape);
     VOICES[sound.type](sound.p, when, out);
 }
 
@@ -348,6 +368,11 @@ function playDrumNote(note, when = ctx.currentTime) {
 // it's gone (decay), and its name. These come from the numbers each drum is built from
 function drumEnvelope() {
     const sound = DRUM_SOUNDS[drumSoundAt(selectedDrumNote)];
+    return { ...drumTiming(sound), label: sound.label, name: sound.name };
+}
+
+// how long one drum takes to rise (attack) and how long it rings until it's gone (decay), from the numbers it's built from
+function drumTiming(sound) {
     const p = sound.p;
     let attack = 0.005;
     let decay = p.decay;
@@ -361,7 +386,7 @@ function drumEnvelope() {
         attack = p.attack;
     }
 
-    return { attack, decay, label: sound.label, name: sound.name };
+    return { attack, decay };
 }
 
 // ---- the keyboard in drum mode ----

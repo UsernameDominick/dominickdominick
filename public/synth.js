@@ -9,9 +9,17 @@ const TRACKS = 5; // how many tracks there are (studio.js uses this too, so synt
 const DRUM_TRACK = 0; // the first track is always the drum track (drums.js plays it, playNote hands its notes over)
 
 // each track has its own settings: which sound it plays (a place in the SOUNDS list below) and where
-// its CUT, RES and REL strips are (each 0 to 1). They start wide open, with no boost and a 0.8 second
-// release, so every track starts out sounding like the plain SAW did before.
-const trackSettings = Array.from({ length: TRACKS }, () => ({ sound: 0, cutoff: 1, resonance: 0, release: 0.25 }));
+// its CUT, RES, ATK, DEC, SUS and REL dials are (each 0 to 1). The filter starts wide open with no boost.
+// The fade starts as a quick 20 millisecond attack, a 0.35 second decay down to half volume, and a 0.8 second release.
+// The drum track starts with a fade that changes nothing (no fade in, full volume, a long release), because a drum
+// already has its own fade. On the drum track the dials shape each hit on top of that (see drums.js)
+const DIAL_DEFAULTS = {
+    synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
+    drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
+};
+const trackSettings = Array.from({ length: TRACKS }, (_, t) => ({
+    sound: 0, cutoff: 1, resonance: 0, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
+}));
 const trackFilters = []; // one lowpass filter for each track, made when the audio starts
 
 // what a track is called on the page
@@ -114,11 +122,58 @@ const SOUNDS = [
     },
 ];
 
+// how loud a note is at its peak (the top of its fade)
+const PEAK = 0.3;
+// how long (in seconds) a note that has no length of its own is held for before it's let go. The song's notes only
+// know where they start, so the song gives them a beat (see studio.js). Short plays, like trying a sound out, use this
+const DEFAULT_GATE = 0.3;
+
+// the fade a note follows: it rises over the ATTACK time, falls over the DECAY time to the SUSTAIN level, stays there
+// for as long as the note is held, then fades out over the RELEASE time when it's let go.
+// This works out how loud the note is (0 up to peak) a number of seconds after it started, if it's still being held
+function envelopeLevel(seconds, env, peak = PEAK) {
+    if (seconds <= env.attack) return (peak * seconds) / env.attack;
+    if (seconds <= env.attack + env.decay) return peak * env.sustain ** ((seconds - env.attack) / env.decay);
+    return peak * env.sustain;
+}
+
+// puts the rise and the fall to the sustain level on a volume (a gain's gain). held is how long the note is held for
+// (Infinity for a key that's held until you let go), peak is how loud the top is. If it's let go before they finish,
+// they stop where they've got to
+function scheduleEnvelope(param, now, env, held, peak) {
+    param.setValueAtTime(0, now);
+    const attackEnd = Math.min(held, env.attack);
+    param.linearRampToValueAtTime(envelopeLevel(attackEnd, env, peak), now + attackEnd);
+    if (held > env.attack) {
+        const decayEnd = Math.min(held, env.attack + env.decay);
+        param.exponentialRampToValueAtTime(envelopeLevel(decayEnd, env, peak), now + decayEnd);
+    }
+}
+
+// the release: it fades to silence from wherever the note was when it was let go (seconds after it started).
+// Gives back the time it's all quiet, so the sound can be stopped
+function scheduleRelease(param, now, seconds, env, peak) {
+    param.setValueAtTime(envelopeLevel(seconds, env, peak), now + seconds);
+    param.exponentialRampToValueAtTime(0.001, now + seconds + env.release);
+    return now + seconds + env.release + 0.05; // just after it's gone quiet
+}
+
+// the current settings of a track as seconds and a level, the way the fade needs them
+function envelopeOf(track) {
+    const settings = trackSettings[track];
+    return {
+        attack: attackFromSlider(settings.attack),
+        decay: decayFromSlider(settings.decay),
+        sustain: sustainFromSlider(settings.sustain),
+        release: releaseFromSlider(settings.release),
+    };
+}
+
 // plays one note (when is the audio clock time to start it, it defaults to right now,
-// and track is which track it's for: that track's sound, filter and release are used).
-// Usually a note fades out by itself. With hold set it keeps sounding until you let go: it gives back
-// { release(time) }, and calling that starts the fade out (the song doesn't hold, a recorded note is just where it starts)
-function playNote(frequency, when = ctx.currentTime, track = 0, hold = false) {
+// and track is which track it's for: that track's sound, filter and fade are used).
+// A note is held for gate seconds and then let go, and fades out. With hold set it's held until you let go instead:
+// it gives back { release(time) }, and calling that lets it go (a key held on the piano or a MIDI keyboard)
+function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE) {
     // the drum track doesn't use the synth: each piano key is a drum (drums.js), so hand the note over
     if (track === DRUM_TRACK) {
         const drumNote = Math.round(69 + 12 * Math.log2(frequency / 440)); // turn the frequency back into a key
@@ -129,18 +184,22 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false) {
 
     const settings = trackSettings[track];
     const layers = SOUNDS[settings.sound].layers;
-    const release = releaseFromSlider(settings.release); // seconds this note takes to fade out
+    const env = envelopeOf(track);
 
     // gain node (this shapes the volume of the whole note, all its layers together)
     const gain = ctx.createGain();
     gain.gain.value = 0;
     gain.connect(trackFilters[track]); // the track's filter, then master volume, then speakers
 
-    //shape volume with envelope
+    // shape the volume with the envelope: attack, then decay. And the release, once the note is let go
     const now = when;
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.3, now + 0.02);  // attack
-    if (!hold) gain.gain.exponentialRampToValueAtTime(0.001, now + release); // fade to silence (a held note stays up until you let go)
+    const param = gain.gain;
+    scheduleEnvelope(param, now, env, hold ? Infinity : gate, PEAK);
+
+    function fadeOut(seconds) {
+        const end = scheduleRelease(param, now, seconds, env, PEAK);
+        oscillators.forEach((osc) => osc.stop(end)); // stop just after it's gone quiet
+    }
 
     const oscillators = [];
     layers.forEach((layer) => {
@@ -160,9 +219,7 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false) {
         bendNode.connect(osc.detune);
         modDepth.connect(osc.detune);
 
-        // start and stop
         osc.start(now);
-        if (!hold) osc.stop(now + release + 0.05); // stop just after it's gone quiet
         oscillators.push(osc);
 
         // once it's done, unplug the wheels from it
@@ -179,17 +236,21 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false) {
         })
     );
 
-    if (!hold) return;
+    if (!hold) {
+        fadeOut(gate);
+        return;
+    }
     let released = false;
     return {
         // lets go of the note: it fades out over the track's release time, then stops
         release(time = ctx.currentTime) {
             if (released) return;
             released = true;
-            const t = Math.max(time, now + 0.02); // (not before the attack has finished)
-            gain.gain.setValueAtTime(0.3, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + release);
-            oscillators.forEach((osc) => osc.stop(t + release + 0.05));
+            const seconds = Math.max(0, time - now);
+            // stop the attack and decay where they've got to (cancelAndHoldAtTime keeps the value at that moment)
+            if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now + seconds);
+            else param.cancelScheduledValues(now + seconds);
+            fadeOut(seconds);
         },
     };
 }
@@ -214,6 +275,23 @@ function releaseFromSlider(v) {
     return 0.05 + v * 2.95; // 0.05 to 3 seconds
 }
 
+function attackFromSlider(v) {
+    return 0.005 * 400 ** v; // 5 milliseconds up to 2 seconds, in even steps (so the short ones are easy to set)
+}
+
+function decayFromSlider(v) {
+    return 0.02 * 150 ** v; // 20 milliseconds up to 3 seconds
+}
+
+function sustainFromSlider(v) {
+    return Math.max(0.01, v); // how loud it stays while held, compared to the peak (never fully silent, the fade curves need a number above 0)
+}
+
+// turns a time in seconds into the short text a dial shows ("20ms", "0.8s")
+function formatSeconds(seconds) {
+    return seconds < 1 ? Math.round(seconds * 1000) + "ms" : seconds.toFixed(1) + "s";
+}
+
 // the three functions below change the selected track (liveTrack), not every track.
 // changes where its filter cuts off (v is the strip position, 0 to 1)
 function setCutoff(v) {
@@ -233,6 +311,23 @@ function setResonance(v) {
 // it applies to the next note you play
 function setRelease(v) {
     trackSettings[liveTrack].release = v;
+    drawGraphs();
+}
+
+// the same for the attack (how long a note takes to rise), the decay (how long it takes to fall to the sustain
+// level) and the sustain (how loud it stays while it's held). They apply to the next note you play
+function setAttack(v) {
+    trackSettings[liveTrack].attack = v;
+    drawGraphs();
+}
+
+function setDecay(v) {
+    trackSettings[liveTrack].decay = v;
+    drawGraphs();
+}
+
+function setSustain(v) {
+    trackSettings[liveTrack].sustain = v;
     drawGraphs();
 }
 
@@ -378,6 +473,9 @@ const gainSlider = document.getElementById("gainSlider");
 const cutoffSlider = document.getElementById("cutoffSlider");
 const resonanceSlider = document.getElementById("resonanceSlider");
 const releaseSlider = document.getElementById("releaseSlider");
+const attackSlider = document.getElementById("attackSlider");
+const decaySlider = document.getElementById("decaySlider");
+const sustainSlider = document.getElementById("sustainSlider");
 const pitchWheel = document.getElementById("pitchWheel");
 const modWheel = document.getElementById("modWheel");
 
@@ -674,19 +772,34 @@ function setUpStrip(slider, format, apply) {
 gainSlider.value = volume; // start the slider at the starting volume
 setUpStrip(gainSlider, (v) => Math.round(v * 100) + "%", setVolume);
 
-// CUT, RES and REL belong to the selected track, so they change when you pick a different track
+// CUT, RES, ATK, DEC, SUS and REL belong to the selected track, so they change when you pick a different track
 const cutoffStrip = setUpStrip(cutoffSlider, (v) => formatCutoff(cutoffFromSlider(v)), setCutoff);
 const resonanceStrip = setUpStrip(resonanceSlider, (v) => Math.round(resonanceFromSlider(v)) + "dB", setResonance);
+const attackStrip = setUpStrip(attackSlider, (v) => formatSeconds(attackFromSlider(v)), setAttack);
+const decayStrip = setUpStrip(decaySlider, (v) => formatSeconds(decayFromSlider(v)), setDecay);
+const sustainStrip = setUpStrip(sustainSlider, (v) => Math.round(v * 100) + "%", setSustain);
 const releaseStrip = setUpStrip(releaseSlider, (v) => releaseFromSlider(v).toFixed(1) + "s", setRelease);
 
-// moves CUT, RES and REL to the selected track's settings (studio.js calls this when you pick a track)
+// moves the dials to the selected track's settings (studio.js calls this when you pick a track)
 function showTrackSettings() {
     const settings = trackSettings[liveTrack];
+    // double-clicking a dial puts it back to where this kind of track starts it
+    const defaults = liveTrack === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth;
+    attackSlider.closest(".dial").dataset.default = defaults.attack;
+    decaySlider.closest(".dial").dataset.default = defaults.decay;
+    sustainSlider.closest(".dial").dataset.default = defaults.sustain;
+    releaseSlider.closest(".dial").dataset.default = defaults.release;
     cutoffSlider.value = settings.cutoff;
     resonanceSlider.value = settings.resonance;
+    attackSlider.value = settings.attack;
+    decaySlider.value = settings.decay;
+    sustainSlider.value = settings.sustain;
     releaseSlider.value = settings.release;
     cutoffStrip.update();
     resonanceStrip.update();
+    attackStrip.update();
+    decayStrip.update();
+    sustainStrip.update();
     releaseStrip.update();
     drawGraphs();
 }
@@ -737,7 +850,7 @@ modWheel.addEventListener("input", () => {
 });
 
 // graphs (two little drawings next to the strips: what the filter is doing, and how a note fades out)
-// they redraw whenever CUT, RES or REL changes, and they don't move on their own
+// they redraw whenever CUT, RES, ATK, DEC, SUS or REL changes, and they don't move on their own
 const filterGraph = document.getElementById("filterGraph");
 const fadeGraph = document.getElementById("fadeGraph");
 
@@ -830,46 +943,77 @@ function drawFilterGraph() {
 }
 
 // fade graph: time goes left to right, loudness goes bottom to top.
-// On a synth track it's the shape playNote gives each note: a quick rise, then a fade to silence over the
-// release time. On the drum track it's the fade of the drum on the key you last played (drums.js works it out)
+// On a synth track it's the fade playNote gives a note that is held and then let go: it rises (ATK), falls to the
+// sustain level (DEC and SUS), stays there while it's held, then fades out (REL). The time scale stretches to fit all
+// of it, and the faint lines mark where each part ends (the last one is where the note is let go).
+// On the drum track it's the fade of the drum on the key you last played (drums.js works it out)
 function drawFadeGraph() {
     const { g, w, h } = prepGraph(fadeGraph);
 
     const drum = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope() : null;
-
-    // attack: how long the rise takes. end: when it has faded to silence. floor: how quiet it ends up compared to its peak
-    let attack, end, floor, name, words;
-    if (drum) {
-        attack = drum.attack;
-        end = Math.max(drum.decay, attack + 0.01);
-        floor = 0.001;
-        name = "FADE " + drum.label;
-        words = "a " + drum.name + " drum fades out over " + end.toFixed(2) + " seconds";
-    } else {
-        const release = releaseFromSlider(trackSettings[liveTrack].release); // the selected track's
-        attack = 0.02; // the same quick rise as in playNote
-        end = release;
-        floor = 0.001 / 0.3; // playNote ramps from 0.3 down to 0.001
-        name = "FADE " + trackName(liveTrack);
-        words = "a note on " + trackName(liveTrack) + " fades out over " + release.toFixed(1) + " seconds";
-    }
-
-    const xFor = (seconds) => (seconds / GRAPH_SECONDS) * w;
     const yFor = (loudness) => GRAPH_PAD + (1 - loudness) * (h - GRAPH_PAD * 2); // loudness is 0 to 1
 
-    const points = [
-        { x: xFor(0), y: yFor(0) },
-        { x: xFor(attack), y: yFor(1) },
-    ];
+    let points, name, words;
+    if (drum) {
+        // the drum's own fade (it rises over attack and has gone quiet at end) multiplied by the shape the dials give it
+        const env = drumShapeEnv();
+        const end = Math.max(drum.decay, drum.attack + 0.01);
+        const span = Math.min(GRAPH_SECONDS, Math.max(end * 1.25, env.attack * 1.3, 0.1)); // the time the graph covers, stretched to fit this drum
+        const xFor = (seconds) => (seconds / span) * w;
+        name = "FADE " + drum.label;
+        words =
+            "a " + drum.name + " drum rises over " + formatSeconds(env.attack) + " and falls over " + formatSeconds(env.decay) +
+            " to " + Math.round(env.sustain * 100) + " percent, and is let go half way through, then fades out over " + formatSeconds(env.release);
 
-    // the fade is an exponential curve, so it drops fast and then slowly
-    for (let i = 1; i <= 80; i++) {
-        const t = attack + (end - attack) * (i / 80);
-        const loudness = floor ** ((t - attack) / (end - attack));
-        points.push({ x: xFor(t), y: yFor(loudness) });
+        // the drum on its own: a quick rise, then an exponential fade (it drops fast and then slowly) to silence
+        const natural = (t) => (t < drum.attack ? t / drum.attack : t >= end ? 0 : 0.001 ** ((t - drum.attack) / (end - drum.attack)));
+        // the dials: the same fade a synth note gets, held for part of the time the drum rings, then released
+        const held = Math.max(0.02, drum.decay * DRUM_HELD);
+        const shape = (t) => {
+            if (t <= held) return envelopeLevel(t, env, 1);
+            const level = envelopeLevel(held, env, 1);
+            return level * (0.001 / level) ** Math.min(1, (t - held) / env.release);
+        };
+
+        points = [];
+        for (let i = 0; i <= 160; i++) {
+            const t = (i / 160) * span;
+            points.push({ x: xFor(t), y: yFor(natural(t) * shape(t)) });
+        }
+    } else {
+        const env = envelopeOf(liveTrack); // the selected track's
+        const holdTime = Math.max(0.15, 0.3 * (env.attack + env.decay + env.release)); // how long the note is held after the decay, just for the picture
+        const total = env.attack + env.decay + holdTime + env.release;
+        const xFor = (seconds) => (seconds / total) * w;
+        const letGoAt = env.attack + env.decay + holdTime;
+        const floor = 0.001 / PEAK; // the release ends at 0.001, as playNote does it
+        name = "FADE " + trackName(liveTrack);
+        words =
+            "a note on " + trackName(liveTrack) + " rises over " + formatSeconds(env.attack) + ", falls over " +
+            formatSeconds(env.decay) + " to " + Math.round(env.sustain * 100) + " percent, stays there while it is held, " +
+            "then fades out over " + formatSeconds(env.release) + " when it is let go";
+
+        // faint lines where each part ends
+        g.fillStyle = "rgba(255, 255, 255, 0.25)";
+        [env.attack, env.attack + env.decay, letGoAt].forEach((t) => g.fillRect(Math.round(xFor(t)), 0, 1, h));
+
+        points = [
+            { x: xFor(0), y: yFor(0) },
+            { x: xFor(env.attack), y: yFor(1) },
+        ];
+        for (let i = 1; i <= 40; i++) {
+            // falling to the sustain level (a curve, fast and then slow)
+            points.push({ x: xFor(env.attack + env.decay * (i / 40)), y: yFor(env.sustain ** (i / 40)) });
+        }
+        points.push({ x: xFor(letGoAt), y: yFor(env.sustain) });
+        for (let i = 1; i <= 60; i++) {
+            // fading out from the sustain level to silence
+            const level = env.sustain * (floor / env.sustain) ** (i / 60);
+            points.push({ x: xFor(letGoAt + env.release * (i / 60)), y: yFor(level) });
+        }
+        points.push({ x: w, y: yFor(0) });
     }
 
-    points.push({ x: xFor(end), y: yFor(0) }, { x: w, y: yFor(0) });
     drawLine(g, points, h);
     drawGraphLabel(g, name, h);
 

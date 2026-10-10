@@ -655,7 +655,8 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
         song[t][clipAt(t, bar)].forEach((n) => {
             if (Math.floor(n.beat) !== beatInBar) return;
             if (t === DRUM_TRACK && !drumAudible(drumSlot(n.note))) return; // a drum that's muted (or not on solo)
-            playNote(noteToFrequency(n.note), time + (n.beat - beatInBar) * beatSec, t);
+            // (a note in the song only knows where it starts, so each one is held for a beat and then let go)
+            playNote(noteToFrequency(n.note), time + (n.beat - beatInBar) * beatSec, t, false, beatSec);
         });
     }
 }
