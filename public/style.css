@@ -2426,3 +2426,64 @@ body {
 .song-actions.preset-actions {
     grid-template-columns: repeat(3, 1fr);
 }
+
+/* the words about the page, under the music maker: cream writing on the dark page, with the amber headings of the popups */
+.about {
+    box-sizing: border-box;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 16px 48px;
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 1.55;
+}
+
+.about h1 {
+    margin: 0 0 12px;
+    color: var(--amber);
+    font-size: 28px;
+    line-height: 1.2;
+}
+
+.about h2 {
+    margin: 28px 0 8px;
+    color: var(--amber);
+    font-size: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.about p {
+    margin: 0 0 12px;
+}
+
+.about ul {
+    margin: 0;
+    padding-left: 22px;
+}
+
+.about li {
+    margin-bottom: 8px;
+}
+
+.about dt {
+    font-weight: bold;
+}
+
+.about dd {
+    margin: 0 0 12px;
+}
+
+.about-foot {
+    margin-top: 28px;
+    color: #d6c9ac;
+    font-size: 16px;
+}
+
+/* what shows when JavaScript is off */
+.about-noscript {
+    margin: 0;
+    padding: 16px;
+    color: var(--ink);
+    font-size: 18px;
+}

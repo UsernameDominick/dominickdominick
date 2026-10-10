@@ -817,7 +817,7 @@ function showSound() {
         soundSelect.value = String(trackSettings[selTrack].sound);
         // (if the track is exactly a preset, the picker says so)
         const preset = typeof matchingPreset === "function" ? matchingPreset(selTrack) : null;
-        if (preset !== null) soundSelect.value = "p:" + preset;
+        if (preset !== null) soundSelect.value = preset;
         soundSelect.setAttribute("aria-label", "Sound for track " + (selTrack + 1));
     }
     showTrackSettings();
@@ -849,7 +849,7 @@ function stepSound(delta) {
 }
 
 soundSelect.addEventListener("change", () => {
-    if (soundSelect.value.startsWith("p:")) applyPresetNamed(soundSelect.value.slice(2)); // a preset (presets.js)
+    if (/^[pf]:/.test(soundSelect.value)) applyPresetValue(soundSelect.value); // a preset, built in (f:) or yours (p:) (presets.js)
     else setSound(Number(soundSelect.value));
 });
 soundUp.addEventListener("click", () => stepSound(-1)); // up the list
