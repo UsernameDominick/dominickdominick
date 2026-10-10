@@ -242,6 +242,14 @@
                         <div class="choices octaves" id="octaveChoices"></div>
                     </div>
                     <div class="settings-group">
+                        <div class="group-label">MOUSE X</div>
+                        <div class="choices xy" id="xChoices"></div>
+                    </div>
+                    <div class="settings-group">
+                        <div class="group-label">MOUSE Y</div>
+                        <div class="choices xy" id="yChoices"></div>
+                    </div>
+                    <div class="settings-group">
                         <div class="group-label">OUT</div>
                         <div class="choices devices" id="outputChoices"></div>
                     </div>
@@ -283,7 +291,7 @@
             <h2>What you can do</h2>
             <ul>
                 <li><strong>Record and loop.</strong> Up to ten tracks, one of them drums, and from four to thirty-two bars. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
-                <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, your computer keyboard, a MIDI keyboard if you have one, and a step sequencer for every block. Any synth track can play chords or an arpeggio.</li>
+                <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, your computer keyboard, a MIDI keyboard if you have one, and a step sequencer for every block. Any synth track can play chords or an arpeggio. Hold a note and move the mouse to bend it, sweep its filter and more (the MIDI button sets what the mouse does). With a Wooting analog keyboard (in Chrome or Edge) a light press plays a soft note, a hard press a loud one, and how far down you hold a key can move the note too.</li>
                 <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
                 <li><strong>Shape the sound.</strong> Eight oscillator sounds and more than twenty ready-made presets, then dials for the filter, envelope, echo, reverb, drive, vibrato and tremolo. Save your own presets.</li>
                 <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
@@ -337,6 +345,15 @@
             <div class="choices channels" id="popChannelChoices"></div>
             <div class="popover-title">OCTAVE</div>
             <div class="choices octaves" id="popOctaveChoices"></div>
+            <div class="popover-title">HOLD A NOTE AND MOVE THE MOUSE SIDEWAYS (X)</div>
+            <div class="choices xy" id="popXChoices"></div>
+            <div class="popover-title">AND UP AND DOWN (Y)</div>
+            <div class="choices xy" id="popYChoices"></div>
+            <div class="popover-title">KEY DEPTH, HOW FAR DOWN A KEY IS PRESSED (ANALOG KEYBOARD)</div>
+            <div class="choices xy" id="popZChoices"></div>
+            <div class="popover-title">ANALOG KEYBOARD (WOOTING)</div>
+            <button class="tool save-file" id="analogConnect">CONNECT AN ANALOG KEYBOARD</button>
+            <p class="save-status" id="analogStatus" role="status"></p>
             <div class="popover-title">OUTPUT (SENDS WHAT PLAYS)</div>
             <div class="choices devices" id="popOutputChoices"></div>
         </div>
@@ -496,6 +513,7 @@
     <script src="record.js"></script>
     <script src="keys.js"></script>
     <script src="keyboard.js"></script>
+    <script src="analog.js"></script>
     <script src="save.js"></script>
     <script src="export.js"></script>
     <script src="presets.js"></script>

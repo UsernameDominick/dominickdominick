@@ -466,6 +466,7 @@ const dialEntries = []; // { spec, box, input, strip } for every dial
 let dialTab = "sound";
 let selectDialTab; // shows a tab (buildDialPanel sets it)
 let dialTabButtons = []; // the buttons of the tabs
+let dialEditing; // the words at the top right that say which sound the dials are for
 try {
     const savedTab = localStorage.getItem("dialTab");
     if (DIAL_TABS.some((tab) => tab.id === savedTab)) dialTab = savedTab;
@@ -483,6 +484,8 @@ function buildDialPanel() {
         return button;
     }));
     dialPanel.appendChild(tabs);
+    dialEditing = mk("div", "dial-editing");
+    dialPanel.appendChild(dialEditing);
 
     const groups = {};
     DIAL_TABS.forEach((tab) => {
@@ -526,6 +529,10 @@ function buildDialPanel() {
             groups[tab.id].hidden = tab.id !== id;
             tabButtons[i].setAttribute("aria-pressed", String(tab.id === id));
         });
+        // (the tabs scroll if there are too many to fit, so the one that's picked is brought into view)
+        const picked = tabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)];
+        if (picked.offsetTop < tabs.scrollTop) tabs.scrollTop = picked.offsetTop;
+        else if (picked.offsetTop + picked.offsetHeight > tabs.scrollTop + tabs.clientHeight) tabs.scrollTop = picked.offsetTop + picked.offsetHeight - tabs.clientHeight;
     }
     selectDialTab = showDialTab;
     showDialTab(dialTab);
@@ -539,6 +546,8 @@ function showTrackSettings() {
     // (the drums have no PLAY tab: no chords or arpeggios, a drum is a drum)
     const playTab = DIAL_TABS.findIndex((tab) => tab.id === "play");
     dialTabButtons[playTab].disabled = drums;
+    // (and says what the dials are for: the selected drum, or the selected track)
+    dialEditing.textContent = "EDITING " + (drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : trackName(liveTrack));
     if (drums && dialTab === "play") selectDialTab("sound");
     dialEntries.forEach(({ spec, box, input, strip }) => {
         const shown = spec.scope === "both" || (spec.scope === "drums") === drums;

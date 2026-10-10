@@ -210,7 +210,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         const drumNote = Math.round(69 + 12 * Math.log2(frequency / 440)); // turn the frequency back into a key
         playDrumNote(drumNote, when, velocity, releaseScale);
         if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: drumNote, time: when, track } }));
-        return hold ? { release() {} } : undefined; // a drum hit is over by itself, there's nothing to hold
+        return hold ? { release() {}, expression() {} } : undefined; // a drum hit is over by itself, there's nothing to hold
     }
 
     const settings = trackSettings[track];
@@ -250,8 +250,22 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         filterRes.connect(filter.Q);
     }
     activeFilters[track].add(filter);
-    gain.connect(filter);
-    filter.connect(trackBus[track]);
+    // a note that's held (a key) also goes through a volume and a pan of its own, which the mouse can move (see setExpression)
+    let level = null;
+    let notePan = null;
+    if (hold) {
+        level = ctx.createGain();
+        notePan = ctx.createStereoPanner();
+        gain.connect(level);
+        level.connect(filter);
+        filter.connect(notePan);
+        notePan.connect(trackBus[track]);
+    } else {
+        gain.connect(filter);
+        filter.connect(trackBus[track]);
+    }
+    const extras = []; // the signals made later by setExpression (they stop when the note does)
+    let faded = false;
 
     // shape the volume with the envelope: attack, then decay. And the release, once the note is let go
     const now = when;
@@ -268,6 +282,8 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
             filter.frequency.exponentialRampToValueAtTime(FILTER_BASE, now + seconds + env.release);
         }
         oscillators.forEach((osc) => osc.stop(end)); // stop just after it's gone quiet
+        extras.forEach((source) => source.stop(end));
+        faded = true;
     }
 
     // the voices: one for each layer of the sound, or three of each, spread apart, if DETUNE is up
@@ -322,8 +338,56 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         fadeOut(gate);
         return;
     }
+    // moves a held note while you hold it (see the mouse section below): pitch is in cents, bright is the filter moved in cents
+    // (1200 is an octave), vib is how much vibrato (0 to 1), pan is -1 to 1 and vol is how many times louder. The signals are
+    // only made the first time they're needed
+    let xyPitch = null;
+    let xyBright = null;
+    let xyVibrato = null;
+    let xyVibratoDepth = null;
+    function setExpression(v) {
+        if (faded) return;
+        const t = ctx.currentTime;
+        if (v.pitch !== 0 && !xyPitch) {
+            xyPitch = ctx.createConstantSource();
+            oscillators.forEach((osc) => xyPitch.connect(osc.detune));
+            xyPitch.start();
+            extras.push(xyPitch);
+        }
+        if (xyPitch) xyPitch.offset.setTargetAtTime(v.pitch, t, 0.02);
+        if (v.bright !== 0 && !xyBright) {
+            xyBright = ctx.createConstantSource();
+            xyBright.connect(filter.detune);
+            xyBright.start();
+            extras.push(xyBright);
+        }
+        if (xyBright) xyBright.offset.setTargetAtTime(v.bright, t, 0.02);
+        if (v.vib > 0 && !xyVibrato) {
+            xyVibrato = ctx.createOscillator();
+            xyVibrato.frequency.value = LFO_RATE;
+            xyVibratoDepth = ctx.createGain();
+            xyVibratoDepth.gain.value = 0;
+            xyVibrato.connect(xyVibratoDepth);
+            oscillators.forEach((osc) => xyVibratoDepth.connect(osc.detune));
+            xyVibrato.start();
+            extras.push(xyVibrato);
+        }
+        if (xyVibratoDepth) xyVibratoDepth.gain.setTargetAtTime(v.vib * XY_VIBRATO_CENTS, t, 0.05);
+        notePan.pan.setTargetAtTime(v.pan, t, 0.02);
+        level.gain.setTargetAtTime(v.vol, t, 0.02);
+    }
+
     let released = false;
     return {
+        expression: setExpression,
+        // what the mouse has done to the note right now (for checking)
+        xy: () => ({
+            pitch: xyPitch ? xyPitch.offset.value : 0,
+            bright: xyBright ? xyBright.offset.value : 0,
+            vib: xyVibratoDepth ? xyVibratoDepth.gain.value : 0,
+            pan: notePan.pan.value,
+            vol: level.gain.value,
+        }),
         // lets go of the note: it fades out over the track's release time, then stops
         release(time = ctx.currentTime) {
             if (released) return;
@@ -394,7 +458,9 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     if (mode === 0) {
         // a chord: all its notes at once, and let go of together
         const voices = chord.map((semitones) => playVoice(pitch(semitones), when, track, hold, gate, velocity, releaseScale));
-        return hold ? { release: (time) => voices.forEach((voice) => voice.release(time)) } : undefined;
+        return hold
+            ? { release: (time) => voices.forEach((voice) => voice.release(time)), expression: (v) => voices.forEach((voice) => voice.expression(v)) }
+            : undefined;
     }
 
     const step = (ARP_RATES[placeOf(settings.arate, ARP_RATES.length)].beats * 60) / bpm; // seconds between notes
@@ -410,7 +476,7 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     let i = 0;
     stepNote(i++, when);
     const timer = setInterval(() => stepNote(i++, ctx.currentTime), step * 1000);
-    return { release: () => clearInterval(timer) };
+    return { release: () => clearInterval(timer), expression() {} }; // (an arpeggio can't be moved with the mouse)
 }
 
 // changes the volume of the selected sound: the selected track's, or on the drum track the drum you last played.
@@ -519,10 +585,40 @@ function sizeScope() {
     canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-// the faint line down the middle (where the line sits when there's no sound) and the name
+// ---- colours for the scope and the two graphs ----
+// a colour as a string with a see-through amount (the colours are the #rrggbb ones of the tracks)
+function withAlpha(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    return "rgba(" + (n >> 16) + ", " + ((n >> 8) & 255) + ", " + (n & 255) + ", " + alpha + ")";
+}
+
+// a colour mixed with white: amount 0 is the colour, 1 is white
+function tint(hex, amount) {
+    const n = parseInt(hex.slice(1), 16);
+    const mix = (c) => Math.round(c + (255 - c) * amount);
+    return "rgb(" + mix(n >> 16) + ", " + mix((n >> 8) & 255) + ", " + mix(n & 255) + ")";
+}
+
+// the colour of the graphs: the colour of the selected track (the blocks and the track's name are the same colour)
+function graphAccent() {
+    return typeof trackColors !== "undefined" ? trackColors[liveTrack] : "#f2a900";
+}
+
+const SCOPE_COLORS = ["#ffd45a", "#ff8c1a", "#ff5a6e"]; // the scope's line goes from yellow through orange to a warm red
+const GRAPH_TEXT = "#fff3dc"; // the names on the panels (cream, not white, like the rest of the page)
+
+// a faint grid behind a drawing (every so far across, and every so far down), in the colour of the drawing
+function drawGrid(g, w, h, across, down, color) {
+    g.fillStyle = withAlpha(color, 0.1);
+    for (let i = 1; i < across; i++) g.fillRect(Math.round((i / across) * w), 0, 1, h);
+    for (let i = 1; i < down; i++) g.fillRect(0, Math.round((i / down) * h), w, 1);
+}
+
+// the grid and the line down the middle (where the line sits when there's no sound)
 function drawScopeFrame() {
     canvasCtx.clearRect(0, 0, scopeW, scopeH);
-    canvasCtx.fillStyle = "rgba(255, 255, 255, 0.25)";
+    drawGrid(canvasCtx, scopeW, scopeH, 12, 4, SCOPE_COLORS[1]);
+    canvasCtx.fillStyle = withAlpha(SCOPE_COLORS[1], 0.4);
     canvasCtx.fillRect(0, Math.round(scopeH / 2), scopeW, 1);
 }
 
@@ -558,21 +654,32 @@ function drawScope() {
         points = [{ x: 0, y: h / 2 }, { x: w, y: h / 2 }];
     }
 
-    // the faded fill between the wave and the middle, then the line on top
+    // the fill between the wave and the middle (strong at the top and the bottom, fading to the middle), then the line on top,
+    // which glows and goes from yellow through orange to red from left to right
+    const dpr = (window.devicePixelRatio || 1) * uiScale;
+    const fill = canvasCtx.createLinearGradient(0, 0, 0, h);
+    fill.addColorStop(0, withAlpha(SCOPE_COLORS[1], 0.55));
+    fill.addColorStop(0.5, withAlpha(SCOPE_COLORS[1], 0.05));
+    fill.addColorStop(1, withAlpha(SCOPE_COLORS[1], 0.55));
     canvasCtx.beginPath();
     canvasCtx.moveTo(points[0].x, h / 2);
     points.forEach((p) => canvasCtx.lineTo(p.x, p.y));
     canvasCtx.lineTo(points[points.length - 1].x, h / 2);
     canvasCtx.closePath();
-    canvasCtx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    canvasCtx.fillStyle = fill;
     canvasCtx.fill();
 
+    const stroke = canvasCtx.createLinearGradient(0, 0, w, 0);
+    SCOPE_COLORS.forEach((color, i) => stroke.addColorStop(i / (SCOPE_COLORS.length - 1), color));
     canvasCtx.beginPath();
     points.forEach((p, i) => (i === 0 ? canvasCtx.moveTo(p.x, p.y) : canvasCtx.lineTo(p.x, p.y)));
-    canvasCtx.strokeStyle = "white";
-    canvasCtx.lineWidth = 2;
+    canvasCtx.strokeStyle = stroke;
+    canvasCtx.lineWidth = 2.5;
     canvasCtx.lineJoin = "round";
+    canvasCtx.shadowColor = SCOPE_COLORS[1];
+    canvasCtx.shadowBlur = 10 * dpr;
     canvasCtx.stroke();
+    canvasCtx.shadowBlur = 0;
 
     // the scope always shows everything that's coming out (every track together), whichever track you're editing
     drawGraphLabel(canvasCtx, SCOPE_NAME, h);
@@ -589,7 +696,7 @@ function drawPaused() {
     drawScopeFrame();
     drawGraphLabel(canvasCtx, SCOPE_NAME, scopeH);
     canvasCtx.font = "bold 16px Karla, sans-serif";
-    canvasCtx.fillStyle = "white";
+    canvasCtx.fillStyle = GRAPH_TEXT;
     canvasCtx.fillText("Paused: reduced motion is on", 8, 24);
 }
 
@@ -673,24 +780,121 @@ pianoScroll.scrollLeft = middleC.offsetLeft - pianoScroll.clientWidth / 2 + midd
 // Every finger (or mouse button, or keyboard key) is tracked on its own, so you can hold a chord.
 const heldKeys = new Map(); // what's being held right now: an id for the finger or key -> its { release }, or null while it's starting
 
-async function pressKey(id, note) {
+async function pressKey(id, note, velocity = 1) {
     heldKeys.set(id, null);
     getCtx();
     if (ctx.state === "suspended") await ctx.resume(); // browsers start audio suspended
     const now = ctx.currentTime;
     const stillDown = heldKeys.has(id); // (it could have been let go while the audio was waking up, then it's just a tap)
-    const handle = playNote(noteToFrequency(note), now, liveTrack, true);
-    if (stillDown) heldKeys.set(id, handle);
-    else handle.release(now);
+    const handle = playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, velocity);
+    if (stillDown) {
+        heldKeys.set(id, handle);
+        startExpression(id, handle);
+    } else {
+        handle.release(now);
+    }
     // tell the rest of the page a note was played (studio.js listens, so it can record it)
-    document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now } }));
+    document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now, velocity } }));
 }
 
 function releaseKey(id) {
     const handle = heldKeys.get(id);
     heldKeys.delete(id);
+    endExpression(id);
     if (handle) handle.release(ctx.currentTime);
 }
+
+// ---- moving the mouse while holding a note ----
+// While a note is held (a piano key held with the mouse, a key of the computer keyboard, or a key of a MIDI keyboard), moving the
+// mouse moves it: sideways (X) and up and down (Y) each do one of these, chosen in the MIDI popup:
+//   PITCH       bends the note up and down (2 semitones each way)
+//   VIBRATO     adds a wobble (moving right, or up)
+//   PAN         moves it left and right in the speakers
+//   BRIGHT      opens and closes the filter (2 octaves each way), for that note only
+//   VOLUME      makes it louder (up to twice) and quieter (down to half)
+// It's measured from where the mouse was when the note started, and 240 pixels is all the way. A third thing can do the same:
+// how far down a key is pressed (KEY DEPTH, from an analog keyboard: analog.js), from nothing at the top to all the way at the
+// bottom. It only moves the note you're holding (it isn't recorded). A held note on the drum track or an arpeggio isn't moved.
+const XY_TARGETS = ["OFF", "PITCH", "VIBRATO", "PAN", "BRIGHT", "VOLUME"];
+const XY_RANGE_PX = 240; // how far the mouse goes for all the way
+const XY_PITCH_CENTS = 200;
+const XY_BRIGHT_CENTS = 2400;
+const XY_VIBRATO_CENTS = 60;
+const xyMod = { x: 1, y: 4, z: 0 }; // what X, Y and the key depth do: places in XY_TARGETS (pitch and brightness to start with, and the depth nothing). They're remembered
+try {
+    const savedXy = JSON.parse(localStorage.getItem("xyMod"));
+    for (const axis of ["x", "y", "z"]) if (savedXy && Number.isInteger(savedXy[axis]) && savedXy[axis] >= 0 && savedXy[axis] < XY_TARGETS.length) xyMod[axis] = savedXy[axis];
+} catch {}
+
+function saveXyMod() {
+    try {
+        localStorage.setItem("xyMod", JSON.stringify(xyMod));
+    } catch {}
+}
+
+const pointerAt = new Map(); // where each pointer last was (by its pointerId): { x, y }
+let mouseAt = { x: 0, y: 0 }; // and the mouse (a note from the computer keyboard or MIDI follows the mouse)
+const expressive = new Map(); // the notes held right now that can be moved: id -> { handle, origin, dx, dy, depth }
+
+function notePointer(e) {
+    pointerAt.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.pointerType === "mouse") mouseAt = { x: e.clientX, y: e.clientY };
+}
+document.addEventListener("pointerdown", notePointer, true);
+
+// what the mouse being this far (dx and dy in px, from where the note started) and the key being pressed this far down (depth,
+// 0 to 1) do to the note: the values setExpression takes
+function expressionValues(dx, dy, depth = 0) {
+    const range = XY_RANGE_PX * uiScale; // (the page may be scaled up to fill a big screen)
+    const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range)), depth]; // (up is more)
+    const v = { pitch: 0, bright: 0, vib: 0, pan: 0, vol: 1 };
+    [xyMod.x, xyMod.y, xyMod.z].forEach((target, i) => {
+        const a = axes[i];
+        const name = XY_TARGETS[target];
+        if (name === "PITCH") v.pitch += a * XY_PITCH_CENTS;
+        else if (name === "VIBRATO") v.vib = Math.max(v.vib, Math.max(0, a));
+        else if (name === "PAN") v.pan = Math.max(-1, Math.min(1, v.pan + a));
+        else if (name === "BRIGHT") v.bright += a * XY_BRIGHT_CENTS;
+        else if (name === "VOLUME") v.vol *= 2 ** a;
+    });
+    return v;
+}
+
+function moveHeldNote(held) {
+    held.handle.expression(expressionValues(held.dx, held.dy, held.depth));
+}
+
+// a note has started and is being held: from now the mouse moves it. (id is the pointer's number for a key held with a pointer,
+// or a name for a key of the computer keyboard or a MIDI keyboard)
+function startExpression(id, handle) {
+    if (!handle || !handle.expression) return;
+    const origin = typeof id === "number" ? pointerAt.get(id) || mouseAt : mouseAt;
+    expressive.set(id, { handle, origin: { ...origin }, dx: 0, dy: 0, depth: 0 });
+}
+
+function endExpression(id) {
+    expressive.delete(id);
+}
+
+// how far down a held note's key is (0 to 1), from an analog keyboard
+function setKeyDepth(id, depth) {
+    const held = expressive.get(id);
+    if (!held) return;
+    held.depth = depth;
+    moveHeldNote(held);
+}
+
+document.addEventListener("pointermove", (e) => {
+    notePointer(e);
+    if (!expressive.size) return;
+    expressive.forEach((held, id) => {
+        const follows = id === e.pointerId || (typeof id === "string" && e.pointerType === "mouse");
+        if (!follows) return;
+        held.dx = e.clientX - held.origin.x;
+        held.dy = e.clientY - held.origin.y;
+        moveHeldNote(held);
+    });
+});
 
 function releaseAllKeys() {
     [...heldKeys.keys()].forEach(releaseKey);
@@ -1058,28 +1262,39 @@ function prepGraph(canvas) {
     return { g, w, h };
 }
 
-// draws a line with a faded fill under it, the same look as the faded preview on the strips
-function drawLine(g, points, h) {
+// draws a line in a colour, with a fill under it that fades down from the line, and a glow. The line goes from the colour
+// to a lighter one from left to right
+function drawLine(g, points, h, color, w) {
+    const dpr = (window.devicePixelRatio || 1) * uiScale;
+    const fill = g.createLinearGradient(0, 0, 0, h);
+    fill.addColorStop(0, withAlpha(color, 0.6));
+    fill.addColorStop(1, withAlpha(color, 0.06));
     g.beginPath();
     g.moveTo(points[0].x, h);
     points.forEach((p) => g.lineTo(p.x, p.y));
     g.lineTo(points[points.length - 1].x, h);
     g.closePath();
-    g.fillStyle = "rgba(255, 255, 255, 0.3)";
+    g.fillStyle = fill;
     g.fill();
 
+    const stroke = g.createLinearGradient(0, 0, w, 0);
+    stroke.addColorStop(0, color);
+    stroke.addColorStop(1, tint(color, 0.45));
     g.beginPath();
     points.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)));
-    g.strokeStyle = "white";
-    g.lineWidth = 2;
+    g.strokeStyle = stroke;
+    g.lineWidth = 2.5;
     g.lineJoin = "round";
+    g.shadowColor = color;
+    g.shadowBlur = 8 * dpr;
     g.stroke();
+    g.shadowBlur = 0;
 }
 
 // the name of the graph, bottom left
 function drawGraphLabel(g, text, h) {
     g.font = "bold 16px Karla, sans-serif";
-    g.fillStyle = "white";
+    g.fillStyle = GRAPH_TEXT;
     g.fillText(text, 8, h - 8);
 }
 
@@ -1104,15 +1319,33 @@ function drawFilterGraph() {
         return GRAPH_PAD + ((GRAPH_DB_TOP - clamped) / (GRAPH_DB_TOP - GRAPH_DB_BOTTOM)) * (h - GRAPH_PAD * 2);
     };
 
-    // a faint line at 0dB, where the sound is neither boosted nor cut
-    g.fillStyle = "rgba(255, 255, 255, 0.25)";
+    // the colour of the graph is the selected track's, and the top edge of the panel is too
+    const accent = graphAccent();
+    filterGraph.parentElement.style.setProperty("--accent", accent);
+
+    // the grid: a line at 100Hz, 1kHz and 10kHz (the x is the pitch, in even musical steps), and a stronger line at 0dB, where the
+    // sound is neither boosted nor cut
+    g.fillStyle = withAlpha(accent, 0.14);
+    [100, 1000, 10000].forEach((hz) => g.fillRect(Math.round((Math.log(hz / 20) / Math.log(1000)) * w), 0, 1, h));
+    g.fillStyle = withAlpha(accent, 0.4);
     g.fillRect(0, Math.round(yFor(0)), w, 1);
 
     const points = Array.from(GRAPH_FREQS, (_, i) => ({
         x: (i / (GRAPH_FREQS.length - 1)) * w,
         y: yFor(20 * Math.log10(graphMags[i])),
     }));
-    drawLine(g, points, h);
+    drawLine(g, points, h, accent, w);
+
+    // a dot on the line where the filter cuts off
+    const cutX = (Math.log(cutoffHz / 20) / Math.log(1000)) * w;
+    const nearest = points.reduce((best, p) => (Math.abs(p.x - cutX) < Math.abs(best.x - cutX) ? p : best), points[0]);
+    g.beginPath();
+    g.arc(nearest.x, nearest.y, 4.5, 0, Math.PI * 2);
+    g.fillStyle = tint(accent, 0.7);
+    g.shadowColor = accent;
+    g.shadowBlur = 10 * ((window.devicePixelRatio || 1) * uiScale);
+    g.fill();
+    g.shadowBlur = 0;
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
     drawGraphLabel(g, "FILTER " + whose, h); // the label says whose filter this is
 
@@ -1131,8 +1364,12 @@ function drawFilterGraph() {
 function drawFadeGraph() {
     const { g, w, h } = prepGraph(fadeGraph);
 
-    const drum = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope() : null;
+    // (the graphs can be drawn before the later scripts have loaded, when the fonts arrive, so it checks they're there)
+    const drum = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" && typeof drumFxAt === "function" ? drumEnvelope() : null;
     const yFor = (loudness) => GRAPH_PAD + (1 - loudness) * (h - GRAPH_PAD * 2); // loudness is 0 to 1
+    const accent = graphAccent();
+    fadeGraph.parentElement.style.setProperty("--accent", accent);
+    drawGrid(g, w, h, 6, 4, accent);
 
     let points, name, words;
     if (drum) {
@@ -1175,7 +1412,7 @@ function drawFadeGraph() {
             "then fades out over " + formatSeconds(env.release) + " when it is let go";
 
         // faint lines where each part ends
-        g.fillStyle = "rgba(255, 255, 255, 0.25)";
+        g.fillStyle = withAlpha(accent, 0.35);
         [env.attack, env.attack + env.decay, letGoAt].forEach((t) => g.fillRect(Math.round(xFor(t)), 0, 1, h));
 
         points = [
@@ -1195,7 +1432,7 @@ function drawFadeGraph() {
         points.push({ x: w, y: yFor(0) });
     }
 
-    drawLine(g, points, h);
+    drawLine(g, points, h, accent, w);
     drawGraphLabel(g, name, h);
 
     fadeGraph.setAttribute("aria-label", "Fade graph: " + words);

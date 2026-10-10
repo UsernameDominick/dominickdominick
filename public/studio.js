@@ -164,6 +164,7 @@ function setTrackColor(t, color) {
     trackHeads[t].head.style.setProperty("--track-color", color);
     cells[t].forEach(({ block }) => block.style.setProperty("--track-color", color));
     cells[t].forEach((_, b) => drawBlock(t, b));
+    drawGraphs(); // (the graphs are the colour of the selected track)
     closeTrackMenu();
 }
 
@@ -526,23 +527,29 @@ function buildDrumRows() {
         name.addEventListener("click", () => pickDrum(note));
         const mute = make("button", "mute", "M");
         mute.addEventListener("click", () => {
+            focusDrum(slot);
             drumMuted[slot] = !drumMuted[slot];
             showAudible();
         });
         const solo = make("button", "solo", "S");
         solo.addEventListener("click", () => {
+            focusDrum(slot);
             drumSoloed[slot] = !drumSoloed[slot];
             showAudible();
         });
         const loop = make("button", "loop", "L");
         loop.addEventListener("click", () => {
+            focusDrum(slot);
             drumLooped[slot] = !drumLooped[slot];
             showAudible();
             for (let b = 0; b < BARS; b++) drawDrumCells(b);
         });
         const settings = make("button", "params-arrow");
         settings.setAttribute("aria-expanded", "false");
-        settings.addEventListener("click", () => toggleParamLane(DRUM_TRACK, slot, settings));
+        settings.addEventListener("click", () => {
+            focusDrum(slot);
+            toggleParamLane(DRUM_TRACK, slot, settings);
+        });
         head.append(name, mute, solo, loop, settings);
         songEl.appendChild(head);
 
@@ -574,16 +581,23 @@ function toggleDrums() {
 }
 
 // clicking a drum's name picks that drum: the drum track is selected, the sound picker shows it and you hear it
-function pickDrum(note) {
+function pickDrum(note, preview = true) {
     if (selTrack !== DRUM_TRACK) selectBlock(DRUM_TRACK, selBar);
     selectedDrumNote = note;
     refreshDrumKeys();
     showSound();
-    previewNote(note, DRUM_TRACK);
+    if (preview) previewNote(note, DRUM_TRACK);
+}
+
+// anything you do on a drum's row (a hit, a button, its lane) makes that the selected drum, so the dials are for it. (No sound
+// is played, you're doing something else)
+function focusDrum(slot) {
+    if (selTrack !== DRUM_TRACK || selectedDrumNote !== DRUM_NOTES[slot]) pickDrum(DRUM_NOTES[slot], false);
 }
 
 // clicking a drum's box adds a hit of that drum where you clicked (the nearest sixteenth), or takes away the hit that's there
 function toggleDrumHit(slot, b, e) {
+    focusDrum(slot);
     const note = DRUM_NOTES[slot];
     const notes = song[DRUM_TRACK][b];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1543,6 +1557,7 @@ function buildParamLane(t, slot) {
         el.appendChild(canvas);
         el.addEventListener("pointerdown", (e) => {
             e.preventDefault(); // (so dragging doesn't select things or scroll)
+            if (slot !== null) focusDrum(slot); // (a drum's lane: that drum is the selected one)
             paramDrag = { lane, x: e.clientX, y: e.clientY, edited: null };
             paintParam(lane, e.clientX, e.clientY, e.clientX, e.clientY, true);
         });

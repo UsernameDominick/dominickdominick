@@ -1829,9 +1829,17 @@ body {
     background-size: 300% 100%;
 }
 
+/* the scope and the two graphs: a deep warm panel with a glow at the top, and an edge in the colour of what's drawn (the scope's is
+   amber, the graphs' is the selected track's colour: synth.js sets --accent) */
 .scope-panel,
 .graph {
-    background: #1b1917;
+    --accent: #f2a900;
+    background:
+        radial-gradient(130% 80% at 50% 0%, color-mix(in srgb, var(--accent) 22%, #1c1713) 0%, #17130f 60%, #100d0a 100%);
+    box-shadow:
+        inset 0 3px 0 var(--accent),
+        inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+        inset 0 0 28px rgba(0, 0, 0, 0.55);
 }
 
 .bar-head,
@@ -2570,4 +2578,65 @@ body {
 
 .popover.size {
     width: 500px;
+}
+
+/* the tabs down the left of the dials box sit close together like a stack, and if there are too many for the height of the box
+   they scroll */
+.dial-tabs {
+    gap: 1px;
+    align-self: center;
+    max-height: 100%;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+.dial-tab {
+    height: 22px;
+}
+
+.dial-tab:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+@media (pointer: coarse) {
+    .dial-tab {
+        height: 28px; /* (a bigger target for a finger. The stack scrolls) */
+    }
+}
+
+/* which sound the dials are for, at the top right of the dials box */
+#dialPanel {
+    position: relative;
+}
+
+.dial-editing {
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+    .dial-editing {
+        display: none;
+    }
+}
+
+.dial-tabs {
+    position: relative; /* (so the tabs' places are measured from the top of the stack, to scroll the picked one into view) */
+}
+
+/* what the mouse does while a note is held (X and Y): six choices, in rows of three */
+.popover .choices.xy {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.settings-controls .choices.xy {
+    grid-template-columns: repeat(3, auto);
 }
