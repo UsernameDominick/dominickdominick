@@ -185,7 +185,7 @@ function buildSong() {
             const block = make("button", "block");
             const canvas = document.createElement("canvas");
             block.appendChild(canvas);
-            block.addEventListener("click", () => selectBlock(t, b));
+            block.addEventListener("click", () => selectBlock(t, b, true)); // (clicking a block brings up its buttons)
             block.addEventListener("dblclick", openEditor); // (the first click of the double click selected it)
             songEl.appendChild(block);
             cells[t].push({ block, canvas });
@@ -378,7 +378,8 @@ function drawAll() {
 
 // selects a block (the white one), and the track it's in (the orange name). Pick a bar that a long block
 // covers and you get the whole block
-function selectBlock(t, b) {
+function selectBlock(t, b, withTools = false) {
+    toolsShown = withTools;
     b = clipAt(t, b);
     closeEditor(); // the editor was for the old block
     const oldTrack = selTrack;
@@ -414,9 +415,26 @@ toolsEl.append(shorterBtn, longerBtn, editBtn, deleteBtn);
 
 // puts the buttons on the selected block's top border, lined up with its right end (but not off either end
 // of the song, and not over the track names)
+// the buttons only show after you click a block. They go away when you click anywhere else (or press Escape),
+// the block stays selected, you just click it again to bring them back
+let toolsShown = false;
+
+function hideTools() {
+    toolsShown = false;
+    placeTools();
+}
+
+document.addEventListener("pointerdown", (e) => {
+    if (toolsShown && !e.target.closest?.(".block, .block-tools")) hideTools();
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && toolsShown && !editing) hideTools();
+});
+
 function placeTools() {
+    toolsEl.classList.toggle("away", !toolsShown);
     const block = cells[selTrack][selBar].block;
-    if (block.offsetWidth === 0) return;
+    if (!toolsShown || block.offsetWidth === 0) return;
     const width = toolsEl.offsetWidth;
     const firstBlock = cells[0][0].block.offsetLeft;
     const right = block.offsetLeft + block.offsetWidth;
@@ -786,6 +804,7 @@ function openEditor() {
 function closeEditor() {
     if (!editing) return;
     editing = false;
+    toolsShown = false; // (back from the editor, the buttons are put away)
     studioEl.classList.remove("editing");
     noteEditor.hidden = true;
     layoutSong(); // the song was out of sight, so work out its size and draw it again

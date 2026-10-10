@@ -1181,6 +1181,10 @@ output {
     background: #111;
 }
 
+.block-tools.away {
+    display: none;
+}
+
 .tool-mini {
     height: 28px;
     min-width: 28px;
