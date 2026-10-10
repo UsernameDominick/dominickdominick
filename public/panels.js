@@ -131,8 +131,14 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-// a popup that's open when the window is resized would be in the wrong place, so close it
-window.addEventListener("resize", closePopovers);
+// a popup that's open when the window gets wider or narrower would be in the wrong place, so close it. (Only the width
+// counts: on a phone the height changes whenever the address bar slides away, and that shouldn't close a popup)
+let windowWidth = window.innerWidth;
+window.addEventListener("resize", () => {
+    if (window.innerWidth === windowWidth) return;
+    windowWidth = window.innerWidth;
+    closePopovers();
+});
 
 // when the window changes between phone size and computer size, put everything back to normal.
 // (This only runs when it crosses the line, not on every resize: a phone resizes a little whenever

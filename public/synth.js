@@ -15,12 +15,25 @@ const DRUM_TRACK = 0; // the first track is always the drum track (drums.js play
 // The fade starts as a quick 20 millisecond attack, a 0.35 second decay down to half volume, and a 0.8 second release.
 // The drum track starts with a fade that changes nothing (no fade in, full volume, a long release), because a drum
 // already has its own fade. On the drum track the dials shape each hit on top of that (see drums.js)
+// The other settings every track has (they're explained, with their dials, in fx.js): where it's panned, how much drive,
+// detune, tuning, glide, the filter type and how far the fade opens the filter, the echo (how much, how long, how many
+// repeats), the room, and the vibrato and the tremolo. All 0 to 1, and they start with no change to the sound.
+// (the filter type is a dial that clicks between three: low pass, high pass and band pass)
+const FILTER_TYPES = ["lowpass", "highpass", "bandpass"];
+function filterTypeFrom(v) {
+    return FILTER_TYPES[Math.min(2, Math.round(v * 2))];
+}
+
+const FX_DEFAULTS = {
+    pan: 0.5, drive: 0, detune: 0, oct: 0.5, semi: 0.5, glide: 0, ftype: 0, fenv: 0,
+    dly: 0, dtime: 0.25, dfb: 0.35, rev: 0, vrate: 0.4, vdep: 0, trate: 0.4, tdep: 0,
+};
 const DIAL_DEFAULTS = {
     synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
     drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
 };
 const trackSettings = Array.from({ length: TRACKS }, (_, t) => ({
-    sound: 0, volume: 0.5, cutoff: 1, resonance: 0, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
+    sound: 0, volume: 0.5, cutoff: 1, resonance: 0, ...FX_DEFAULTS, ...(t === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth),
 }));
 const trackFilters = []; // one lowpass filter for each track, made when the audio starts
 const trackGains = []; // and one volume for each track, after its filter (the drum track's stays at full, each drum has its own volume)
@@ -70,19 +83,8 @@ function getCtx() {
         master.gain.value = songVolume * 2;
         master.connect(ctx.destination); // speakers
 
-        // filter nodes, one for each track (a track's notes go through its filter, then the master volume)
-        for (let t = 0; t < TRACKS; t++) {
-            const filter = ctx.createBiquadFilter();
-            filter.type = "lowpass"; // lets low frequencies through and cuts the highs above the cutoff
-            filter.frequency.value = cutoffFromSlider(trackSettings[t].cutoff);
-            filter.Q.value = resonanceFromSlider(trackSettings[t].resonance);
-            const trackGain = ctx.createGain();
-            trackGain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
-            filter.connect(trackGain);
-            trackGain.connect(master);
-            trackFilters.push(filter);
-            trackGains.push(trackGain);
-        }
+        // what every track's sound goes through (fx.js builds it: the filters, drive, tremolo, pan, volume, echo and room)
+        buildTrackChains();
 
         // analyser node (a side branch the scope reads from, it doesn't change the sound)
         analyser = ctx.createAnalyser();
@@ -197,11 +199,13 @@ function envelopeOf(track) {
 // and track is which track it's for: that track's sound, filter and fade are used).
 // A note is held for gate seconds and then let go, and fades out. With hold set it's held until you let go instead:
 // it gives back { release(time) }, and calling that lets it go (a key held on the piano or a MIDI keyboard)
-function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE) {
+// velocity (0 to 1) is how hard it's hit, and releaseScale is how many times longer than usual it takes to fade out
+// (the settings in params.js)
+function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE, velocity = 1, releaseScale = 1) {
     // the drum track doesn't use the synth: each piano key is a drum (drums.js), so hand the note over
     if (track === DRUM_TRACK) {
         const drumNote = Math.round(69 + 12 * Math.log2(frequency / 440)); // turn the frequency back into a key
-        playDrumNote(drumNote, when);
+        playDrumNote(drumNote, when, velocity, releaseScale);
         document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: drumNote, time: when, track } }));
         return hold ? { release() {} } : undefined; // a drum hit is over by itself, there's nothing to hold
     }
@@ -209,56 +213,100 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
     const settings = trackSettings[track];
     const layers = SOUNDS[settings.sound].layers;
     const env = envelopeOf(track);
+    env.release *= releaseScale;
+    const peak = PEAK * velocity; // how loud the top of the fade is
+    const noteNumber = Math.round(69 + 12 * Math.log2(frequency / 440)); // the key it is, before the track tunes it
+
+    // OCT and SEMI tune the whole track, and GLIDE slides to the note from the one the track played before it
+    const tuned = frequency * 2 ** ((octFrom(settings.oct) * 12 + semiFrom(settings.semi)) / 12);
+    const glideTime = glideSeconds(settings.glide);
+    const slidingFrom = glideTime > 0 && lastFrequency[track] > 0 ? lastFrequency[track] : tuned;
+    lastFrequency[track] = tuned;
 
     // gain node (this shapes the volume of the whole note, all its layers together)
     const gain = ctx.createGain();
     gain.gain.value = 0;
-    gain.connect(trackFilters[track]); // the track's filter, then master volume, then speakers
+
+    // the note's own filter: its type is the FILTER TYPE, its cutoff and resonance follow the CUT and RES dials (through
+    // the control signals the track has), and FENV opens it with the fade. Then the track's bus, and the rest of the chain
+    const filter = ctx.createBiquadFilter();
+    filter.type = filterTypeFrom(settings.ftype);
+    filter.frequency.value = FILTER_BASE;
+    cutCtl[track].connect(filter.detune);
+    if (filter.type === "bandpass") {
+        filter.Q.value = 0.7 + resonanceFromSlider(settings.resonance);
+    } else {
+        filter.Q.value = 0;
+        resCtl[track].connect(filter.Q);
+    }
+    activeFilters[track].add(filter);
+    gain.connect(filter);
+    filter.connect(trackBus[track]);
 
     // shape the volume with the envelope: attack, then decay. And the release, once the note is let go
     const now = when;
     const param = gain.gain;
-    scheduleEnvelope(param, now, env, hold ? Infinity : gate, PEAK);
+    const held = hold ? Infinity : gate;
+    scheduleEnvelope(param, now, env, held, peak);
+    const octs = fenvOctaves(settings.fenv);
+    if (octs > 0) scheduleFilterEnvelope(filter.frequency, now, env, held, octs);
 
     function fadeOut(seconds) {
-        const end = scheduleRelease(param, now, seconds, env, PEAK);
+        const end = scheduleRelease(param, now, seconds, env, peak);
+        if (octs > 0) {
+            filter.frequency.setValueAtTime(FILTER_BASE * 2 ** (octs * envelopeLevel(seconds, env, 1)), now + seconds);
+            filter.frequency.exponentialRampToValueAtTime(FILTER_BASE, now + seconds + env.release);
+        }
         oscillators.forEach((osc) => osc.stop(end)); // stop just after it's gone quiet
     }
 
+    // the voices: one for each layer of the sound, or three of each, spread apart, if DETUNE is up
+    const spread = detuneCents(settings.detune);
+    const offsets = spread > 0.5 ? [-spread, 0, spread] : [0];
     const oscillators = [];
+    let alive = 0;
     layers.forEach((layer) => {
-        // oscillator
-        const osc = ctx.createOscillator();
-        osc.type = layer.type;
-        osc.frequency.value = frequency * 2 ** (layer.semitones / 12);
-        osc.detune.value = layer.cents;
+        offsets.forEach((offset) => {
+            const osc = ctx.createOscillator();
+            osc.type = layer.type;
+            const layerPitch = 2 ** (layer.semitones / 12);
+            osc.frequency.setValueAtTime(slidingFrom * layerPitch, now);
+            if (slidingFrom !== tuned) osc.frequency.exponentialRampToValueAtTime(tuned * layerPitch, now + glideTime);
+            osc.detune.value = layer.cents + offset;
 
-        // each layer gets an equal share of the volume
-        const share = ctx.createGain();
-        share.gain.value = 1 / layers.length;
-        osc.connect(share);
-        share.connect(gain);
+            // each voice gets an equal share of the volume
+            const share = ctx.createGain();
+            share.gain.value = 1 / (layers.length * offsets.length);
+            osc.connect(share);
+            share.connect(gain);
 
-        // pitch wheel and vibrato both feed this oscillator's detune (they add together with its own tuning)
-        bendNode.connect(osc.detune);
-        modDepth.connect(osc.detune);
+            // pitch wheel, mod wheel vibrato and the track's vibrato all feed this oscillator's detune (they add together
+            // with its own tuning)
+            bendNode.connect(osc.detune);
+            modDepth.connect(osc.detune);
+            vibGain[track].connect(osc.detune);
 
-        osc.start(now);
-        oscillators.push(osc);
+            osc.start(now);
+            oscillators.push(osc);
+            alive++;
 
-        // once it's done, unplug the wheels from it
-        osc.addEventListener("ended", () => {
-            bendNode.disconnect(osc.detune);
-            modDepth.disconnect(osc.detune);
+            // once it's done, unplug the wheels from it, and when the last one is done, the filter's controls
+            osc.addEventListener("ended", () => {
+                bendNode.disconnect(osc.detune);
+                modDepth.disconnect(osc.detune);
+                vibGain[track].disconnect(osc.detune);
+                alive--;
+                if (alive === 0) {
+                    cutCtl[track].disconnect(filter.detune);
+                    if (filter.type !== "bandpass") resCtl[track].disconnect(filter.Q);
+                    activeFilters[track].delete(filter);
+                }
+            });
         });
     });
 
     // tell the rest of the page a note is going to start, and when (leds.js flashes the LED over its key at that moment)
-    document.dispatchEvent(
-        new CustomEvent("notescheduled", {
-            detail: { note: Math.round(69 + 12 * Math.log2(frequency / 440)), time: now, track },
-        })
-    );
+    document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: now, track } }));
 
     if (!hold) {
         fadeOut(gate);
@@ -272,8 +320,13 @@ function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, ga
             released = true;
             const seconds = Math.max(0, time - now);
             // stop the attack and decay where they've got to (cancelAndHoldAtTime keeps the value at that moment)
-            if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(now + seconds);
-            else param.cancelScheduledValues(now + seconds);
+            if (param.cancelAndHoldAtTime) {
+                param.cancelAndHoldAtTime(now + seconds);
+                if (octs > 0) filter.frequency.cancelAndHoldAtTime(now + seconds);
+            } else {
+                param.cancelScheduledValues(now + seconds);
+                if (octs > 0) filter.frequency.cancelScheduledValues(now + seconds);
+            }
             fadeOut(seconds);
         },
     };
@@ -337,14 +390,14 @@ function formatSeconds(seconds) {
 // changes where its filter cuts off (v is the strip position, 0 to 1)
 function setCutoff(v) {
     trackSettings[liveTrack].cutoff = v;
-    trackFilters[liveTrack].frequency.setTargetAtTime(cutoffFromSlider(v), ctx.currentTime, 0.015);
+    applyFilter(liveTrack);
     drawGraphs();
 }
 
 // changes how much the filter boosts around the cutoff (v is the strip position, 0 to 1)
 function setResonance(v) {
     trackSettings[liveTrack].resonance = v;
-    trackFilters[liveTrack].Q.setTargetAtTime(resonanceFromSlider(v), ctx.currentTime, 0.015);
+    applyFilter(liveTrack);
     drawGraphs();
 }
 
@@ -510,13 +563,6 @@ window.addEventListener("resize", () => {
 });
 
 // sliders
-const gainSlider = document.getElementById("gainSlider");
-const cutoffSlider = document.getElementById("cutoffSlider");
-const resonanceSlider = document.getElementById("resonanceSlider");
-const releaseSlider = document.getElementById("releaseSlider");
-const attackSlider = document.getElementById("attackSlider");
-const decaySlider = document.getElementById("decaySlider");
-const sustainSlider = document.getElementById("sustainSlider");
 const pitchWheel = document.getElementById("pitchWheel");
 const modWheel = document.getElementById("modWheel");
 
@@ -668,7 +714,8 @@ document.querySelectorAll(".key").forEach((key) => {
 // the (hidden) range input in each dial, so the keyboard and screen readers work. The dial drawing and
 // the dragging are on top of it.
 
-const DIAL_TICKS = 11; // tick marks round a dial: one at every tenth
+const DIAL_TICKS = 15; // dots round a dial
+const DIAL_TRAIL = 8; // dots in the streak behind the dot while you turn a dial
 const DIAL_SWEEP = 270; // how far round a dial turns, in degrees (from 7:30 round to 4:30)
 const DIAL_DRAG = 160; // how many pixels you drag to turn a dial all the way
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -680,29 +727,35 @@ function svgElement(name, attributes) {
     return element;
 }
 
-// draws the ticks and the knob in a dial's face (the drawing is 96 by 96 and gets scaled to fit)
+// draws the ring of dots and the knob in a dial's face (the drawing is 96 by 96 and gets scaled to fit): a soft round knob,
+// with a dot on it that shows where it's pointing
 function buildDial(box) {
     const svg = svgElement("svg", { viewBox: "0 0 96 96", class: "dial-svg", "aria-hidden": "true" });
 
     box.dialTicks = [];
     for (let i = 0; i < DIAL_TICKS; i++) {
-        const angle = ((-DIAL_SWEEP / 2 + (i / (DIAL_TICKS - 1)) * DIAL_SWEEP) * Math.PI) / 180;
-        const major = i % 5 === 0; // the first, the middle and the last are longer
-        const from = major ? 34 : 38; // how far from the middle each tick starts and ends
-        const to = 46;
-        const tick = svgElement("line", {
-            x1: 48 + Math.sin(angle) * from,
-            y1: 48 - Math.cos(angle) * from,
-            x2: 48 + Math.sin(angle) * to,
-            y2: 48 - Math.cos(angle) * to,
-            class: "tick",
-        });
-        svg.appendChild(tick);
-        box.dialTicks.push(tick);
+        const fraction = i / (DIAL_TICKS - 1);
+        const angle = ((-DIAL_SWEEP / 2 + fraction * DIAL_SWEEP) * Math.PI) / 180;
+        const dot = svgElement("circle", { cx: 48 + Math.sin(angle) * 43, cy: 48 - Math.cos(angle) * 43, r: 2.6, class: "tick" });
+        dot.style.setProperty("--t", (fraction * 100).toFixed(1) + "%"); // how far round the ring it is (the lit dots go from pale to deep)
+        svg.appendChild(dot);
+        box.dialTicks.push(dot);
     }
 
-    svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 27, class: "knob" }));
-    box.dialPointer = svgElement("line", { x1: 48, y1: 36, x2: 48, y2: 24, class: "pointer" }); // pointing up
+    svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 31, class: "knob" }));
+
+    // the trail: dots that follow the dot round the knob a little behind it, each one smaller and fainter, so a moving dot
+    // leaves a streak (see stepTrail)
+    box.dialTrail = [];
+    box.trailAngles = [];
+    for (let i = 0; i < DIAL_TRAIL; i++) {
+        const trail = svgElement("circle", { cx: 48, cy: 25, r: 3.6 - i * 0.4, class: "pointer-trail", "fill-opacity": 0 });
+        svg.appendChild(trail);
+        box.dialTrail.push(trail);
+        box.trailAngles.push(0);
+    }
+
+    box.dialPointer = svgElement("circle", { cx: 48, cy: 25, r: 4, class: "pointer" }); // the dot, pointing up
     svg.appendChild(box.dialPointer);
 
     box.querySelector(".dial-face").appendChild(svg);
@@ -713,6 +766,42 @@ function updateDial(box, value) {
     const angle = -DIAL_SWEEP / 2 + value * DIAL_SWEEP;
     box.dialPointer.setAttribute("transform", "rotate(" + angle + " 48 48)");
     box.dialTicks.forEach((tick, i) => tick.classList.toggle("lit", i / (DIAL_TICKS - 1) <= value + 0.0001));
+    box.targetAngle = angle;
+    // while you're turning it (and motion is allowed) the streak follows the dot. Otherwise it jumps along with it, unseen
+    if (box.turning && canAnimate.matches) {
+        if (!box.trailRunning) {
+            box.trailRunning = true;
+            requestAnimationFrame(() => stepTrail(box));
+        }
+    } else {
+        box.trailAngles.fill(angle);
+        showTrail(box);
+    }
+}
+
+// puts the dots of the streak where they are: each one is turned to its own angle, and it's only seen as far as it's
+// away from the dot (so when they're all home there's no streak)
+function showTrail(box) {
+    box.dialTrail.forEach((dot, i) => {
+        const away = Math.min(1, Math.abs(box.trailAngles[i] - box.targetAngle) / 14);
+        dot.setAttribute("transform", "rotate(" + box.trailAngles[i] + " 48 48)");
+        dot.setAttribute("fill-opacity", (away * 0.7 * (1 - i / (DIAL_TRAIL + 1))).toFixed(2));
+    });
+}
+
+// one frame of the streak: the first dot chases the dot, and each of the others chases the one in front of it, so they
+// string out along the knob when it's turned quickly and gather back up when it stops
+function stepTrail(box) {
+    let moving = false;
+    for (let i = 0; i < DIAL_TRAIL; i++) {
+        const goal = i === 0 ? box.targetAngle : box.trailAngles[i - 1];
+        const next = box.trailAngles[i] + (goal - box.trailAngles[i]) * 0.3;
+        box.trailAngles[i] = Math.abs(goal - next) < 0.05 ? goal : next;
+        if (Math.abs(box.targetAngle - box.trailAngles[i]) > 0.05) moving = true;
+    }
+    showTrail(box);
+    if (moving || box.turning) requestAnimationFrame(() => stepTrail(box));
+    else box.trailRunning = false;
 }
 
 // dragging a dial up turns it up, dragging down turns it down. Double-clicking puts it back where it started
@@ -721,6 +810,7 @@ function setUpDialDrag(box, slider) {
     let dragging = false;
     let startY = 0;
     let startValue = 0;
+    let lastDown = { time: 0, x: 0, y: 0 }; // the last press, to spot a double tap (a phone doesn't send a dblclick)
 
     // moves the (hidden) range input and tells the page it changed, like a click on a normal slider would
     function setValue(value) {
@@ -728,10 +818,22 @@ function setUpDialDrag(box, slider) {
         slider.dispatchEvent(new Event("input"));
     }
 
+    // puts the dial back to where it started (data-default)
+    function reset() {
+        box.turning = true; // (so the dot is seen sweeping back)
+        setValue(Number(box.dataset.default));
+        box.turning = dragging;
+    }
+
     face.addEventListener("pointerdown", (e) => {
+        const now = performance.now();
+        const again = now - lastDown.time < 350 && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) < 12;
+        lastDown = again ? { time: 0, x: 0, y: 0 } : { time: now, x: e.clientX, y: e.clientY };
         dragging = true;
+        box.turning = true;
+        if (again) reset();
         startY = e.clientY;
-        startValue = Number(slider.value);
+        startValue = Number(slider.value); // (from the reset, if it was a double press, so the drag carries on from there)
         face.setPointerCapture(e.pointerId); // keep getting the pointer even when it leaves the dial
         slider.focus({ preventScroll: true }); // so the arrow keys work on this dial afterwards
         e.preventDefault();
@@ -741,11 +843,21 @@ function setUpDialDrag(box, slider) {
         if (dragging) setValue(startValue + (startY - e.clientY) / DIAL_DRAG);
     });
 
-    const stop = () => (dragging = false);
+    const stop = () => {
+        dragging = false;
+        box.turning = false;
+    };
     face.addEventListener("pointerup", stop);
     face.addEventListener("pointercancel", stop);
 
-    face.addEventListener("dblclick", () => setValue(Number(box.dataset.default)));
+    // double-clicking the knob or its name puts it back too
+    face.addEventListener("dblclick", reset);
+    const name = box.querySelector("label");
+    if (name) name.addEventListener("dblclick", reset);
+
+    // the arrow keys turn it, with the streak
+    slider.addEventListener("keydown", () => (box.turning = true));
+    slider.addEventListener("keyup", () => (box.turning = false));
 }
 
 document.querySelectorAll(".dial").forEach((box) => {
@@ -810,45 +922,10 @@ function setUpStrip(slider, format, apply) {
     return { update }; // so the strip can be redrawn after its slider is moved by code
 }
 
-// the strip by the MIDI button is the volume of the whole song
-setUpStrip(document.getElementById("songVolume"), (v) => String(Math.round(v * 100)), setSongVolume);
+// the small dial by the MIDI button is the volume of the whole song
+setUpStrip(document.getElementById("songVolume"), (v) => Math.round(v * 100) + "%", setSongVolume);
 
-// VOL is the volume of the selected sound, so it moves when you pick a different track or drum
-const gainStrip = setUpStrip(gainSlider, (v) => Math.round(v * 100) + "%", setVolume);
-
-// CUT, RES, ATK, DEC, SUS and REL belong to the selected track, so they change when you pick a different track
-const cutoffStrip = setUpStrip(cutoffSlider, (v) => formatCutoff(cutoffFromSlider(v)), setCutoff);
-const resonanceStrip = setUpStrip(resonanceSlider, (v) => Math.round(resonanceFromSlider(v)) + "dB", setResonance);
-const attackStrip = setUpStrip(attackSlider, (v) => formatSeconds(attackFromSlider(v)), setAttack);
-const decayStrip = setUpStrip(decaySlider, (v) => formatSeconds(decayFromSlider(v)), setDecay);
-const sustainStrip = setUpStrip(sustainSlider, (v) => Math.round(v * 100) + "%", setSustain);
-const releaseStrip = setUpStrip(releaseSlider, (v) => releaseFromSlider(v).toFixed(1) + "s", setRelease);
-
-// moves the dials to the selected track's settings (studio.js calls this when you pick a track)
-function showTrackSettings() {
-    const settings = trackSettings[liveTrack];
-    gainSlider.value = selectedVolume();
-    gainStrip.update();
-    // double-clicking a dial puts it back to where this kind of track starts it
-    const defaults = liveTrack === DRUM_TRACK ? DIAL_DEFAULTS.drums : DIAL_DEFAULTS.synth;
-    attackSlider.closest(".dial").dataset.default = defaults.attack;
-    decaySlider.closest(".dial").dataset.default = defaults.decay;
-    sustainSlider.closest(".dial").dataset.default = defaults.sustain;
-    releaseSlider.closest(".dial").dataset.default = defaults.release;
-    cutoffSlider.value = settings.cutoff;
-    resonanceSlider.value = settings.resonance;
-    attackSlider.value = settings.attack;
-    decaySlider.value = settings.decay;
-    sustainSlider.value = settings.sustain;
-    releaseSlider.value = settings.release;
-    cutoffStrip.update();
-    resonanceStrip.update();
-    attackStrip.update();
-    decayStrip.update();
-    sustainStrip.update();
-    releaseStrip.update();
-    drawGraphs();
-}
+// (the dials for the selected sound, and showTrackSettings that moves them when you pick a track or a drum, are in fx.js)
 
 // colours the strip between two points (from and to are percents of the strip height, 0 is the bottom)
 // they're set on the strip's box, so the strip and its label both use them
@@ -960,8 +1037,10 @@ function drawFilterGraph() {
     const cutoffHz = cutoffFromSlider(trackSettings[liveTrack].cutoff);
     const resonance = resonanceFromSlider(trackSettings[liveTrack].resonance);
 
+    const filterType = filterTypeFrom(trackSettings[liveTrack].ftype);
+    graphFilter.type = filterType;
     graphFilter.frequency.value = cutoffHz;
-    graphFilter.Q.value = resonance;
+    graphFilter.Q.value = filterType === "bandpass" ? 0.7 + resonance : resonance;
     graphFilter.getFrequencyResponse(GRAPH_FREQS, graphMags, graphPhases);
 
     // turns a loudness in dB into a height on the graph

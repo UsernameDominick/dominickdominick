@@ -8,8 +8,20 @@
 <title>Home - DominickDominick</title>
 </head>
 <body>
+    <!-- a gradient the knobs are filled with (the dials are drawn by synth.js, CSS fills them with it) -->
+    <svg class="svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+            <radialGradient id="knobCream" cx="38%" cy="32%" r="80%">
+                <stop offset="0" stop-color="#fff7e4"></stop>
+                <stop offset="0.6" stop-color="#e7d4a8"></stop>
+                <stop offset="1" stop-color="#b9a173"></stop>
+            </radialGradient>
+        </defs>
+    </svg>
     <div class="parent">
         <div class="div1">
+            <!-- the two buttons are stacked, one on top of the other -->
+            <div class="button-stack">
             <!-- the settings button. On a computer it shows the key and scale (short, like C MAJ) and opens a
                  popup. On a phone it just says SETTINGS and flips the dials box over to the settings on its
                  back. leds.js decides which, and CSS shows the matching text -->
@@ -24,11 +36,13 @@
                 <span class="settings-arrow" aria-hidden="true"></span>
                 <span class="settings-label">MIDI</span>
             </button>
-            <!-- the volume of the whole song: a small strip like BPM (the VOL dial is for the selected sound) -->
-            <div class="wheel mini">
-                <input type="range" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
-                <label for="songVolume">ALL</label>
-                <output for="songVolume" aria-hidden="true">50</output>
+            </div>
+            <!-- the volume of the whole song: a small dial (the VOL dial in the dials box is for the selected sound) -->
+            <div class="dial small" data-default="0.5">
+                <label for="songVolume">SONG</label>
+                <div class="dial-face"></div>
+                <input type="range" class="dial-input" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
+                <output for="songVolume" aria-hidden="true">50%</output>
             </div>
         </div>
         <div class="div2">
@@ -59,15 +73,20 @@
                     </div>
                     <button class="tool" id="playButton">PLAY</button>
                     <button class="tool rec" id="recButton">REC</button>
-                    <!-- tempo, a small strip like VOL (it shows the BPM while you use it) -->
-                    <div class="wheel mini">
-                        <input type="range" id="bpmSlider" aria-label="Tempo in beats per minute" min="0" max="1" step="0.01" value="0.33">
-                        <label for="bpmSlider">BPM</label>
-                        <output for="bpmSlider" aria-hidden="true">100</output>
-                    </div>
+                    <!-- the tempo: the button says it, and opens a popup to type it, tap it or pick one (studio.js) -->
+                    <button class="tool menu-button" id="bpmButton" aria-expanded="false" aria-label="Tempo">
+                        <span id="bpmText">100 BPM</span>
+                        <span class="menu-arrow" aria-hidden="true"></span>
+                    </button>
                     <!-- the metronome: opens a popup with its settings (studio.js) -->
-                    <button class="tool menu-button" id="metroButton" aria-expanded="false">
-                        <span>METRO</span>
+                    <button class="tool menu-button" id="metroButton" aria-expanded="false" aria-label="Metronome settings">
+                        <!-- a metronome, drawn: the case, the arm swinging and its weight -->
+                        <svg class="metro-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false">
+                            <path d="M8 21 L10.2 3 H13.8 L16 21 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
+                            <path d="M12 17 L16.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                            <circle cx="15" cy="10" r="2" fill="currentColor"></circle>
+                            <path d="M6 21 H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                        </svg>
                         <span class="menu-arrow" aria-hidden="true"></span>
                     </button>
                     <span class="toolbar-gap"></span>
@@ -83,58 +102,8 @@
           <!-- this box can flip over: the front has the strips and graphs, the back has the piano settings -->
           <div class="flipper">
             <div class="face front">
-            <div class="mini-controls">
-                <!-- four dials. Each is a knob with tick marks round it (synth.js draws the knob in the
-                     dial-face), with its name and value beside it. You turn a dial by dragging it up or down,
-                     or with the arrow keys (the range input is the real control underneath, you just can't
-                     see it), and double-clicking it puts it back to where it started (data-default).
-                     The aria-labels are so screen readers say the full name and not "VOL" or "CUT" -->
-                <div class="dial" data-default="0.5">
-                    <label for="gainSlider">VOL</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="gainSlider" aria-label="Volume of the selected sound" min="0" max="1" step="0.01" value="0.5">
-                    <output for="gainSlider" aria-hidden="true">50%</output>
-                </div>
-                <div class="dial" data-default="1">
-                    <label for="cutoffSlider">CUT</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="cutoffSlider" aria-label="Filter cutoff" min="0" max="1" step="0.01" value="1">
-                    <output for="cutoffSlider" aria-hidden="true">16k</output>
-                </div>
-                <div class="dial" data-default="0">
-                    <label for="resonanceSlider">RES</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="resonanceSlider" aria-label="Filter resonance" min="0" max="1" step="0.01" value="0">
-                    <output for="resonanceSlider" aria-hidden="true">0dB</output>
-                </div>
-                <!-- the fade of the selected track's notes: ATK (how long a note takes to rise), DEC (how long it
-                     takes to fall to SUS), SUS (how loud it stays while a key is held) and REL (how long it takes
-                     to fade out after you let go). The FADE graph draws them -->
-                <div class="dial" data-default="0.23">
-                    <label for="attackSlider">ATK</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="attackSlider" aria-label="Attack time" min="0" max="1" step="0.01" value="0.23">
-                    <output for="attackSlider" aria-hidden="true">20ms</output>
-                </div>
-                <div class="dial" data-default="0.57">
-                    <label for="decaySlider">DEC</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="decaySlider" aria-label="Decay time" min="0" max="1" step="0.01" value="0.57">
-                    <output for="decaySlider" aria-hidden="true">0.3s</output>
-                </div>
-                <div class="dial" data-default="0.5">
-                    <label for="sustainSlider">SUS</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="sustainSlider" aria-label="Sustain level" min="0" max="1" step="0.01" value="0.5">
-                    <output for="sustainSlider" aria-hidden="true">50%</output>
-                </div>
-                <div class="dial" data-default="0.25">
-                    <label for="releaseSlider">REL</label>
-                    <div class="dial-face"></div>
-                    <input type="range" class="dial-input" id="releaseSlider" aria-label="Release time" min="0" max="1" step="0.01" value="0.25">
-                    <output for="releaseSlider" aria-hidden="true">0.8s</output>
-                </div>
-            </div>
+            <!-- the dials for the selected sound, in five tabs (fx.js builds them) -->
+            <div class="mini-controls" id="dialPanel"></div>
             </div>
             <!-- the back: the piano settings for the LEDs above the keys. The x on the far left flips back.
                  leds.js fills in the buttons for each group -->
@@ -230,6 +199,22 @@
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>
 
+    <!-- the tempo popup, the same kind of popup: type the BPM, tap it, or pick one. studio.js sets it up -->
+    <div class="popover bpm" id="bpmPopover" role="dialog" aria-label="Tempo" hidden>
+        <div class="popover-body">
+            <div class="popover-title">TEMPO</div>
+            <div class="bpm-row">
+                <button class="tool" id="bpmDown" aria-label="One beat per minute slower">&minus;</button>
+                <input class="bpm-input" type="number" id="bpmInput" min="40" max="240" step="1" value="100" aria-label="Beats per minute">
+                <button class="tool" id="bpmUp" aria-label="One beat per minute faster">+</button>
+            </div>
+            <button class="tool bpm-tap" id="bpmTap" aria-label="Tap the beat to set the tempo">TAP</button>
+            <div class="popover-title">PICK ONE</div>
+            <div class="choices bpm-presets" id="bpmPresets"></div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
     <!-- the metronome popup, the same kind of popup. studio.js fills in the choices -->
     <div class="popover" id="metroPopover" role="dialog" aria-label="Metronome" hidden>
         <div class="popover-body">
@@ -249,13 +234,18 @@
     <div class="popover steps" id="stepPopover" role="dialog" aria-label="Step sequencer for the block" hidden>
         <div class="popover-body">
             <div class="popover-title" id="stepTitle">STEP SEQ</div>
-            <div class="editor-grid steps" id="stepGrid"></div>
+            <div class="step-bars" id="stepBars" hidden></div>
+            <div class="step-scroll">
+                <div class="editor-grid steps" id="stepGrid"></div>
+            </div>
         </div>
         <span class="popover-arrow" aria-hidden="true"></span>
     </div>
 
     <script src="synth.js"></script>
     <script src="drums.js"></script>
+    <script src="params.js"></script>
+    <script src="fx.js"></script>
     <script src="panels.js"></script>
     <script src="leds.js"></script>
     <script src="midi.js"></script>

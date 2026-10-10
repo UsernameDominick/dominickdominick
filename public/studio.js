@@ -33,6 +33,7 @@ let nextBeat; // the next beat the scheduler hasn't planned yet
 let recTrack; // where this run is recording to
 let recBar;
 let countBeats = 0; // how many beats of count-in come before this recording starts (set when you press rec)
+let recBeats = BEATS; // how many beats long the recording is: the whole block, however many bars it is
 let tickTimer;
 let lastNowBar = -1; // which bar is lit up as playing right now (-1 is none)
 
@@ -43,22 +44,22 @@ const recBtn = document.getElementById("recButton");
 const copyBtn = document.getElementById("copyButton");
 const pasteBtn = document.getElementById("pasteButton");
 const clearBtn = document.getElementById("clearButton");
-const bpmSlider = document.getElementById("bpmSlider");
 const soundSelect = document.getElementById("soundSelect");
 const soundUp = document.getElementById("soundUp");
 const soundDown = document.getElementById("soundDown");
 
+// the colours a track can have (the first five are the ones the five tracks start with)
 const TRACK_PALETTE = [
+    { name: "Amber", color: "#f2a900" },
+    { name: "Red", color: "#d63a1d" },
+    { name: "Sage", color: "#7fb069" },
+    { name: "Blue", color: "#4f9dbf" },
+    { name: "Rose", color: "#e59ac0" },
     { name: "Orange", color: "#ff8c1a" },
-    { name: "Red", color: "#ec5c4b" },
-    { name: "Pink", color: "#df6192" },
-    { name: "Violet", color: "#9475d8" },
-    { name: "Blue", color: "#5685dd" },
-    { name: "Teal", color: "#24a69a" },
-    { name: "Green", color: "#74a83b" },
-    { name: "Gold", color: "#d6ac35" },
+    { name: "Violet", color: "#9b7fd1" },
+    { name: "Cream", color: "#e6d5ab" },
 ];
-const trackColors = new Array(TRACKS).fill(TRACK_PALETTE[0].color);
+const trackColors = Array.from({ length: TRACKS }, (_, t) => TRACK_PALETTE[t].color);
 try {
     const savedColors = JSON.parse(localStorage.getItem("trackColors"));
     if (Array.isArray(savedColors)) {
@@ -159,6 +160,23 @@ let drumsOpen = false;
 const drumRows = []; // drumRows[slot] is { head, name, mute, solo, lane, cells: [{ el, canvas }] }
 let foldBtn; // the arrow by DRUMS
 
+// the lane under a track (or under a drum row) where each note's velocity, randomness and so on are edited, opened by the
+// arrow at the end of its header. Each lane shows one setting at a time (the tabs on its header choose which)
+const PARAM_ROW = 64; // how tall a lane is
+const paramOpen = new Array(TRACKS).fill(false);
+const drumParamOpen = new Array(DRUM_COUNT).fill(false);
+const paramLanes = []; // paramLanes[track] is a lane
+const drumParamLanes = []; // drumParamLanes[slot] is a lane
+// which grid row each thing is on, worked out by layoutSong (the lanes that are open push the rows below them down)
+const rowOfTrack = [];
+const rowOfParam = [];
+const rowOfDrum = [];
+const rowOfDrumParam = [];
+
+// how strong the lines behind the notes are (0 to 1): the ones at each beat, and the ones between bars
+const LINE_BEAT = 0.1;
+const LINE_BAR = 0.22;
+
 // makes an element with a class and some text
 function make(tag, className, text) {
     const el = document.createElement(tag);
@@ -193,11 +211,27 @@ function clipBars(t, b) {
     return Math.min(clipLen[t][b], BARS - b);
 }
 
+// A block's notes count their beats from the start of the block, so a block that's 4 bars long can hold 16 beats of music
+// (a note past the end of its block is kept, but silent, until the block is made longer again)
+
+// the notes of a block that fall inside its length
+function clipNotes(t, b) {
+    const end = clipBars(t, b) * BEATS;
+    return song[t][b].filter((n) => n.beat < end);
+}
+
+// the notes that play in one bar of the song, with their beats counted from the start of that bar
+function barNotes(t, bar) {
+    const start = clipAt(t, bar);
+    const from = (bar - start) * BEATS;
+    return song[t][start].filter((n) => n.beat >= from && n.beat < from + BEATS).map((n) => (from === 0 ? n : { ...n, beat: n.beat - from }));
+}
+
 // how many bars a track's content takes up: up to the end of its last block that has notes in (0 if it has none)
 function loopLength(t) {
     const starts = clipStarts(t);
     for (let bar = BARS - 1; bar >= 0; bar--) {
-        if (song[t][starts[bar]].length > 0) return starts[bar] + clipBars(t, starts[bar]);
+        if (clipNotes(t, starts[bar]).length > 0) return starts[bar] + clipBars(t, starts[bar]);
     }
     return 0;
 }
@@ -214,7 +248,7 @@ function loopSource(t, bar) {
 function drumLoopLength(slot) {
     const starts = clipStarts(DRUM_TRACK);
     for (let bar = BARS - 1; bar >= 0; bar--) {
-        if (song[DRUM_TRACK][starts[bar]].some((n) => drumSlot(n.note) === slot)) return starts[bar] + clipBars(DRUM_TRACK, starts[bar]);
+        if (clipNotes(DRUM_TRACK, starts[bar]).some((n) => drumSlot(n.note) === slot)) return starts[bar] + clipBars(DRUM_TRACK, starts[bar]);
     }
     return 0;
 }
@@ -234,11 +268,11 @@ function drumIsRepeat(slot, bar, ownBars) {
 
 // the notes that play in a bar of a track. The drum track also plays each looping drum from its own loop
 function notesForBar(t, bar) {
-    const notes = song[t][clipAt(t, loopSource(t, bar))];
+    const notes = barNotes(t, loopSource(t, bar));
     if (t !== DRUM_TRACK || !drumLooped.includes(true)) return notes;
     const mixed = notes.filter((n) => !drumLooped[drumSlot(n.note)]);
     drumLooped.forEach((on, slot) => {
-        if (on) mixed.push(...song[t][clipAt(t, drumSourceBar(slot, bar))].filter((n) => drumSlot(n.note) === slot));
+        if (on) mixed.push(...barNotes(t, drumSourceBar(slot, bar)).filter((n) => drumSlot(n.note) === slot));
     });
     return mixed;
 }
@@ -248,40 +282,60 @@ function isRepeat(t, bar) {
     return looped[t] && bar >= loopLength(t) && loopLength(t) > 0;
 }
 
-// shows the blocks the way the lengths say: a long block stretches over its bars and the bars under it hide
-// which grid row a track is on (the drum rows, when they're open, push the other tracks down)
-function trackRow(t) {
-    return t === DRUM_TRACK ? 2 : 2 + t + (drumsOpen ? DRUM_COUNT : 0);
-}
-
+// shows the blocks the way the lengths say: a long block stretches over its bars and the bars under it hide.
+// It works out the rows too: the numbers, then each track. Under a track comes its lane if that's open, and under DRUMS
+// (if the drums are opened up) a short row for each drum, each with its own lane if that's open
 function layoutSong() {
-    // the rows: the numbers, then each track (the drums, when they're open, have a short row for each drum under DRUMS)
-    songEl.style.gridTemplateRows = drumsOpen
-        ? "24px 38px repeat(" + DRUM_COUNT + ", 30px) repeat(" + (TRACKS - 1) + ", 38px)"
-        : "";
+    const heights = ["24px"];
+    let row = 2;
     for (let t = 0; t < TRACKS; t++) {
-        trackHeads[t].head.style.gridArea = trackRow(t) + " / 1";
-        lanes[t].style.gridArea = trackRow(t) + " / 2 / auto / -1";
+        rowOfTrack[t] = row++;
+        heights.push("38px");
+        if (paramOpen[t]) {
+            rowOfParam[t] = row++;
+            heights.push(PARAM_ROW + "px");
+        }
+        if (t === DRUM_TRACK && drumsOpen) {
+            for (let slot = 0; slot < DRUM_COUNT; slot++) {
+                rowOfDrum[slot] = row++;
+                heights.push("30px");
+                if (drumParamOpen[slot]) {
+                    rowOfDrumParam[slot] = row++;
+                    heights.push(PARAM_ROW + "px");
+                }
+            }
+        }
+    }
+    songEl.style.gridTemplateRows = heights.join(" ");
+
+    for (let t = 0; t < TRACKS; t++) {
+        trackHeads[t].head.style.gridArea = rowOfTrack[t] + " / 1";
+        lanes[t].style.gridArea = rowOfTrack[t] + " / 2 / auto / -1";
         const starts = clipStarts(t);
         for (let b = 0; b < BARS; b++) {
             const { block } = cells[t][b];
             const covered = starts[b] !== b;
             block.classList.toggle("covered", covered);
-            block.style.gridArea = trackRow(t) + " / " + (b + 2) + " / auto / span " + clipBars(t, b);
+            block.style.gridArea = rowOfTrack[t] + " / " + (b + 2) + " / auto / span " + clipBars(t, b);
         }
+        if (paramLanes[t]) showLane(paramLanes[t], paramOpen[t], rowOfParam[t], t);
     }
     // the drum rows follow the drum track's blocks (a long block is one long box in every row)
     const drumStarts = clipStarts(DRUM_TRACK);
     drumRows.forEach((r, slot) => {
         r.head.classList.toggle("folded", !drumsOpen);
         r.lane.classList.toggle("folded", !drumsOpen);
-        r.head.style.gridArea = 3 + slot + " / 1";
-        r.lane.style.gridArea = 3 + slot + " / 2 / auto / -1";
+        if (drumsOpen) {
+            r.head.style.gridArea = rowOfDrum[slot] + " / 1";
+            r.lane.style.gridArea = rowOfDrum[slot] + " / 2 / auto / -1";
+        }
         r.cells.forEach(({ el }, b) => {
             el.classList.toggle("folded", !drumsOpen);
             el.classList.toggle("covered", drumStarts[b] !== b);
-            el.style.gridArea = 3 + slot + " / " + (b + 2) + " / auto / span " + clipBars(DRUM_TRACK, b);
+            if (drumsOpen) el.style.gridArea = rowOfDrum[slot] + " / " + (b + 2) + " / auto / span " + clipBars(DRUM_TRACK, b);
         });
+        r.settings.setAttribute("aria-expanded", String(drumParamOpen[slot]));
+        showLane(drumParamLanes[slot], drumsOpen && drumParamOpen[slot], rowOfDrumParam[slot], DRUM_TRACK);
     });
     // the lit up bar is worked out again from the new lengths
     barHeads.forEach((head) => head.classList.remove("now"));
@@ -291,7 +345,25 @@ function layoutSong() {
     placeHandle();
 }
 
+// shows or hides a lane, and puts it on its row (its boxes follow the blocks of the track, like the drum rows do)
+function showLane(lane, shown, row, t) {
+    lane.head.classList.toggle("folded", !shown);
+    lane.laneEl.classList.toggle("folded", !shown);
+    const starts = clipStarts(t);
+    lane.cells.forEach(({ el }, b) => {
+        el.classList.toggle("folded", !shown);
+        el.classList.toggle("covered", starts[b] !== b);
+        if (shown) el.style.gridArea = row + " / " + (b + 2) + " / auto / span " + clipBars(t, b);
+    });
+    if (shown) {
+        lane.head.style.gridArea = row + " / 1";
+        lane.laneEl.style.gridArea = row + " / 2 / auto / -1";
+    }
+}
+
 // builds the grid: the numbers along the top, then a row for each track
+let lastBlockClick = { t: -1, b: -1, time: 0 }; // the last block that was clicked, and when (to spot a double click or tap)
+
 function buildSong() {
     songEl.appendChild(make("div", "corner"));
 
@@ -321,9 +393,15 @@ function buildSong() {
         loop.setAttribute("aria-pressed", "false");
         loop.setAttribute("aria-label", "Loop track " + (t + 1) + ": repeat its blocks to the end of the song");
         loop.addEventListener("click", () => toggleLoop(t));
-        head.append(name, mute, solo, loop);
+        const settings = make("button", "params-arrow");
+        settings.setAttribute("aria-expanded", "false");
+        settings.setAttribute("aria-label", "Show the lane under track " + (t + 1) + " for each note's velocity, randomness and release");
+        settings.addEventListener("click", () => toggleParamLane(t, null, settings));
+        // (the drum track has no lane of its own: each drum has one, on its own row, so every drum is edited on its own.
+        // An empty space is left where the arrow would be, so its M, S and L line up with the other tracks')
+        head.append(name, mute, solo, loop, t === DRUM_TRACK ? make("span", "head-spacer") : settings);
         songEl.appendChild(head);
-        trackHeads.push({ head, name, mute, solo, loop });
+        trackHeads.push({ head, name, mute, solo, loop, settings });
 
         if (t === DRUM_TRACK) {
             // the arrow that opens up the drums (a triangle drawn with borders, CSS turns it down when open)
@@ -347,14 +425,27 @@ function buildSong() {
             const canvas = document.createElement("canvas");
             block.appendChild(canvas);
             block.style.setProperty("--track-color", trackColors[t]);
-            block.addEventListener("click", () => selectBlock(t, b));
-            block.addEventListener("dblclick", openStepPopup); // (the first click of the double click selected it)
+            block.addEventListener("click", (e) => {
+                const wasSelected = t === selTrack && b === selBar;
+                selectBlock(t, b);
+                // a second click on the same block soon after the first opens the step sequencer. (This is worked out
+                // here and not with the dblclick event, because a phone doesn't send one for a double tap.) Enter on a
+                // block that's already selected does it too, for the keyboard
+                const now = performance.now();
+                const again = lastBlockClick.t === t && lastBlockClick.b === b && now - lastBlockClick.time < 400;
+                lastBlockClick = { t, b, time: now };
+                if (again || (e.detail === 0 && wasSelected)) {
+                    lastBlockClick = { t: -1, b: -1, time: 0 };
+                    openStepPopup();
+                }
+            });
             songEl.appendChild(block);
             cells[t].push({ block, canvas });
         }
     }
 
     buildDrumRows();
+    buildParamLanes();
     songEl.appendChild(handleEl);
 }
 
@@ -388,7 +479,10 @@ function buildDrumRows() {
             showAudible();
             for (let b = 0; b < BARS; b++) drawDrumCells(b);
         });
-        head.append(name, mute, solo, loop);
+        const settings = make("button", "params-arrow");
+        settings.setAttribute("aria-expanded", "false");
+        settings.addEventListener("click", () => toggleParamLane(DRUM_TRACK, slot, settings));
+        head.append(name, mute, solo, loop, settings);
         songEl.appendChild(head);
 
         const lane = make("div", "lane folded");
@@ -405,7 +499,7 @@ function buildDrumRows() {
             songEl.appendChild(el);
             row.push({ el, canvas });
         }
-        drumRows.push({ head, name, mute, solo, loop, lane, cells: row });
+        drumRows.push({ head, name, mute, solo, loop, settings, lane, cells: row });
     });
 }
 
@@ -432,9 +526,8 @@ function toggleDrumHit(slot, b, e) {
     const note = DRUM_NOTES[slot];
     const notes = song[DRUM_TRACK][b];
     const rect = e.currentTarget.getBoundingClientRect();
-    const barW = rect.width / clipBars(DRUM_TRACK, b); // a long block shows its bar again and again, a click in any of them is the same place
-    const steps = Math.round(BEATS / EDIT_STEP);
-    const step = Math.min(steps - 1, Math.floor((((e.clientX - rect.left) % barW) / barW) * steps));
+    const steps = clipBars(DRUM_TRACK, b) * Math.round(BEATS / EDIT_STEP); // the squares along the whole block
+    const step = Math.min(steps - 1, Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * steps)));
     const found = notes.findIndex((n) => drumSlot(n.note) === slot && Math.round(n.beat / EDIT_STEP) === step);
     if (found >= 0) {
         notes.splice(found, 1);
@@ -445,19 +538,19 @@ function toggleDrumHit(slot, b, e) {
     drawBlock(DRUM_TRACK, b); // (this draws the drum boxes of that bar too)
 }
 
-// draws the hits of every drum in one bar's boxes
+// draws the hits of every drum in one block's boxes
 function drawDrumCells(b) {
     if (!drumsOpen) return;
-    const notes = song[DRUM_TRACK][b];
     const bars = clipBars(DRUM_TRACK, b);
     const dpr = window.devicePixelRatio || 1;
-    const ownBars = notes.length > 0; // (a bar with notes of its own isn't a repeat)
+    const own = clipNotes(DRUM_TRACK, b);
+    const ownBars = own.length > 0; // (a block with notes of its own isn't a repeat)
     drumRows.forEach(({ cells: row }, slot) => {
         const { el, canvas } = row[b];
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
         if (!w || !h) return;
-        const hits = notes.filter((n) => drumSlot(n.note) === slot);
+        const hits = own.filter((n) => drumSlot(n.note) === slot);
         el.setAttribute(
             "aria-label",
             drumLabel(slot) + ", bar " + (b + 1) + ", " + (hits.length === 0 ? "no hits" : hits.length + " hits") + ". Click to add or take away a hit"
@@ -470,16 +563,18 @@ function drawDrumCells(b) {
         for (let rep = 0; rep < bars; rep++) {
             const left = rep * barW;
             g.fillStyle = "white";
-            g.globalAlpha = 0.2;
+            g.globalAlpha = LINE_BEAT;
             for (let beat = 1; beat < BEATS; beat++) g.fillRect(Math.round(left + (beat / BEATS) * barW), 0, 1, h);
+            g.globalAlpha = LINE_BAR;
             if (rep > 0) g.fillRect(Math.round(left), 0, 2, h);
             g.globalAlpha = 1;
-            g.fillStyle = "#ff8c1a";
-            // on a looping drum (or a looping drum track) the bars after the content show the hits they repeat, faded
+            g.fillStyle = "#f2a900";
+            // on a looping drum (or a looping drum track) the bars after the content show the hits they repeat, faded.
+            // Otherwise it's this bar's part of the block
             const repeat = drumIsRepeat(slot, b + rep, ownBars);
             const shown = repeat
-                ? song[DRUM_TRACK][clipAt(DRUM_TRACK, drumSourceBar(slot, b + rep))].filter((n) => drumSlot(n.note) === slot)
-                : hits;
+                ? barNotes(DRUM_TRACK, drumSourceBar(slot, b + rep)).filter((n) => drumSlot(n.note) === slot)
+                : hits.filter((n) => n.beat >= rep * BEATS && n.beat < (rep + 1) * BEATS).map((n) => ({ ...n, beat: n.beat - rep * BEATS }));
             g.globalAlpha = repeat ? 0.4 : 1;
             shown.forEach((n) => g.fillRect(left + (n.beat / BEATS) * barW, 3, Math.max(4, barW / 16 - 1), h - 6));
             g.globalAlpha = 1;
@@ -501,10 +596,11 @@ function refreshDrumRows() {
 // draws the notes of one block as little marks: left to right is time, bottom to top is pitch
 function drawBlock(t, b, fromLoop = false) {
     if (t === DRUM_TRACK) drawDrumCells(b);
+    drawParamCells(t, b);
     // on a looping track the repeats show what's in the blocks before them, so when one changes they all draw again
     if (!fromLoop && looped[t]) for (let other = 0; other < BARS; other++) if (other !== b) drawBlock(t, other, true);
     const { block, canvas } = cells[t][b];
-    const notes = song[t][b];
+    const notes = clipNotes(t, b); // (what's in the block, a block that's several bars long has all its bars' notes)
     const bars = clipBars(t, b);
     const repeat = isRepeat(t, b) && notes.length === 0; // a faded repeat of the bars before it
 
@@ -528,23 +624,26 @@ function drawBlock(t, b, fromLoop = false) {
 
     g.fillStyle = getComputedStyle(block).color; // white, or dark when the block is selected
 
-    // a long block shows its bar again for each bar it covers (the pattern loops)
+    // a long block shows each of its bars, one after the other
     const barW = w / bars;
     for (let rep = 0; rep < bars; rep++) {
         const left = rep * barW;
 
         // faint lines at beats 2, 3 and 4, so you can see where in the bar a note is (and a stronger one between bars)
-        g.globalAlpha = 0.25;
+        g.globalAlpha = LINE_BEAT;
         for (let beat = 1; beat < BEATS; beat++) g.fillRect(Math.round(left + (beat / BEATS) * barW), 0, 1, h);
         if (rep > 0) {
-            g.globalAlpha = 0.6;
+            g.globalAlpha = LINE_BAR;
             g.fillRect(Math.round(left), 0, 2, h);
         }
         g.globalAlpha = 1;
 
         // one mark per note (the piano runs from MIDI note 48 to 84). On a looping track a bar after the
-        // content shows the notes of the bar it repeats
-        const shown = notes.length === 0 && isRepeat(t, b + rep) ? song[t][clipAt(t, loopSource(t, b + rep))] : notes;
+        // content shows the notes of the bar it repeats. Otherwise it's this bar's part of the block
+        const shown =
+            notes.length === 0 && isRepeat(t, b + rep)
+                ? barNotes(t, loopSource(t, b + rep))
+                : notes.filter((n) => n.beat >= rep * BEATS && n.beat < (rep + 1) * BEATS).map((n) => ({ ...n, beat: n.beat - rep * BEATS }));
         shown.forEach((n) => {
             const x = left + (n.beat / BEATS) * barW;
             const pitch = Math.min(1, Math.max(0, (n.note - 48) / 36)); // a MIDI note outside the piano is drawn at the top or bottom edge
@@ -722,6 +821,7 @@ function showAudible() {
         r.solo.setAttribute("aria-pressed", String(drumSoloed[slot]));
         r.loop.setAttribute("aria-pressed", String(drumLooped[slot]));
         r.loop.setAttribute("aria-label", "Loop " + DRUM_SOUNDS[drumKit[slot]].name + ": repeat its hits to the end of the song");
+        r.settings.setAttribute("aria-label", "Show the lane under " + DRUM_SOUNDS[drumKit[slot]].name + " for each note's velocity, randomness and release");
         r.mute.setAttribute("aria-label", "Mute " + DRUM_SOUNDS[drumKit[slot]].name);
         r.solo.setAttribute("aria-label", "Solo " + DRUM_SOUNDS[drumKit[slot]].name);
         r.lane.classList.toggle("muted", !heard);
@@ -818,14 +918,19 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
         notesForBar(t, bar).forEach((n) => {
             if (Math.floor(n.beat) !== beatInBar) return;
             if (t === DRUM_TRACK && !drumAudible(drumSlot(n.note))) return; // a drum that's muted (or not on solo)
+            // each note is played the way its own settings say: how hard, how early or late, or not at all
+            const feel = humanize(n);
+            if (!feel) return;
+            const when = Math.max(ctx.currentTime, time + (n.beat - beatInBar) * beatSec + feel.shift);
             // (a note in the song only knows where it starts, so each one is held for a beat and then let go)
-            playNote(noteToFrequency(n.note), time + (n.beat - beatInBar) * beatSec, t, false, beatSec);
+            playNote(noteToFrequency(n.note), when, t, false, beatSec, feel.velocity, feel.release);
         });
     }
 }
 
 // plans one beat. Beats are counted from 0 when you press play or rec.
-// Play: the 8 bars go round and round. Rec: 4 beats of count-in, then the recorded bar (beats 4 to 7)
+// Play: the 8 bars go round and round. Rec: the count-in, then the selected block from its start to its end (a block
+// that's 4 bars long is recorded straight through all 4 bars)
 function scheduleBeat(n, time) {
     if (!recordArmed) {
         playBeatOf(Math.floor(n / BEATS) % BARS, n % BEATS, time, -1);
@@ -838,8 +943,9 @@ function scheduleBeat(n, time) {
             drawBlock(recTrack, recBar);
         }
         if (metro.when === 2) playClick(time, (n - countBeats) % BEATS === 0);
-        // the other tracks play along, but not the one being recorded
-        playBeatOf(recBar, n - countBeats, time, recTrack);
+        // the other tracks play along, bar after bar as far as the block goes, but not the one being recorded
+        const into = n - countBeats;
+        playBeatOf(recBar + Math.floor(into / BEATS), into % BEATS, time, recTrack);
     }
 }
 
@@ -848,11 +954,11 @@ function scheduleBeat(n, time) {
 function tick() {
     const horizon = ctx.currentTime + LOOKAHEAD;
     while (startTime + nextBeat * beatSec < horizon) {
-        if (recordArmed && nextBeat >= countBeats + BEATS) break; // a recording is the count-in and one bar, nothing more to plan
+        if (recordArmed && nextBeat >= countBeats + recBeats) break; // a recording is the count-in and the block, nothing more to plan
         scheduleBeat(nextBeat, startTime + nextBeat * beatSec);
         nextBeat++;
     }
-    if (recordArmed && ctx.currentTime >= startTime + (countBeats + BEATS) * beatSec) stopTransport();
+    if (recordArmed && ctx.currentTime >= startTime + (countBeats + recBeats) * beatSec) stopTransport();
 }
 
 async function startTransport(record) {
@@ -865,6 +971,7 @@ async function startTransport(record) {
     recTrack = selTrack;
     recBar = selBar;
     countBeats = record ? metro.countIn * BEATS : 0; // the count-in setting from the metronome
+    recBeats = clipBars(recTrack, recBar) * BEATS; // a block that's 4 bars long records 4 bars
     startTime = ctx.currentTime + 0.1; // a moment from now, so the first beat isn't late
     nextBeat = 0;
     running = true;
@@ -885,11 +992,14 @@ function stopTransport() {
 // notes you play on the piano while recording go into the recorded block
 document.addEventListener("noteplayed", (e) => {
     if (!running || !recordArmed) return;
-    const beat = (e.detail.time - startTime) / beatSec - countBeats; // 0 is the start of the recorded bar
-    if (beat < 0 || beat >= BEATS) return; // during the count-in, or after the bar
+    const beat = (e.detail.time - startTime) / beatSec - countBeats; // 0 is the start of the recorded block
+    if (beat < 0 || beat >= recBeats) return; // during the count-in, or after the block
     let snapped = QUANTIZE ? Math.round(beat / QUANTIZE) * QUANTIZE : beat;
-    if (snapped >= BEATS) snapped = BEATS - QUANTIZE; // keep it inside the bar
-    song[recTrack][recBar].push({ beat: snapped, note: e.detail.note });
+    if (snapped >= recBeats) snapped = recBeats - QUANTIZE; // keep it inside the block
+    const recorded = { beat: snapped, note: e.detail.note };
+    // a note played softly on a MIDI keyboard keeps how hard it was hit (velocity), a note from the screen is full
+    if (typeof e.detail.velocity === "number" && e.detail.velocity < 0.995) recorded.velocity = Math.round(e.detail.velocity * 100) / 100;
+    song[recTrack][recBar].push(recorded);
     drawBlock(recTrack, recBar);
 });
 
@@ -930,7 +1040,8 @@ function uiLoop() {
     const beat = (ctx.currentTime - startTime) / beatSec;
     let bar = -1;
     if (recordArmed) {
-        if (beat >= countBeats) bar = recBar;
+        // (the bar of the block that's being recorded: a block that's several bars long lights them one after the other)
+        if (beat >= countBeats) bar = recBar + Math.min(recBeats / BEATS - 1, Math.floor((beat - countBeats) / BEATS));
     } else if (beat >= 0) {
         bar = Math.floor(beat / BEATS) % BARS;
     }
@@ -949,10 +1060,82 @@ recBtn.addEventListener("click", () => {
     else startTransport(true);
 });
 
-// tempo: 60 to 180 beats per minute (it changes the next time you press play or rec)
-setUpStrip(bpmSlider, (v) => Math.round(60 + v * 120), (v) => {
-    bpm = Math.round(60 + v * 120);
+// ---- the tempo (the BPM button) ----
+// The button says the tempo and opens a popup to change it: type it, nudge it, tap it on the beat, or pick a common one.
+// It's remembered, and it changes the next time you press play or rec.
+const bpmButton = document.getElementById("bpmButton");
+const bpmText = document.getElementById("bpmText");
+const bpmPopover = document.getElementById("bpmPopover");
+const bpmInput = document.getElementById("bpmInput");
+const BPM_MIN = 40;
+const BPM_MAX = 240;
+const BPM_PRESETS = [70, 80, 90, 100, 110, 120, 128, 140];
+
+function setBpm(v, save = true) {
+    bpm = Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round(v)));
+    bpmText.textContent = bpm + " BPM";
+    if (document.activeElement !== bpmInput) bpmInput.value = String(bpm); // (not while you're typing in it)
+    showBpmPresets();
+    updateDelayTimes(); // (the echo is in time with the song)
+    if (save) {
+        try {
+            localStorage.setItem("bpm", String(bpm));
+        } catch {}
+    }
+}
+
+// marks the preset that matches the tempo
+function showBpmPresets() {
+    fillChoices([document.getElementById("bpmPresets")], BPM_PRESETS.map(String), BPM_PRESETS.indexOf(bpm), (i) => setBpm(BPM_PRESETS[i]));
+}
+
+registerPanel("bpm", bpmButton, bpmPopover, null, () => {
+    bpmInput.value = String(bpm);
+    showBpmPresets();
+}, { popupOnly: true }); // a popup on a phone too
+
+document.getElementById("bpmDown").addEventListener("click", () => setBpm(bpm - 1));
+document.getElementById("bpmUp").addEventListener("click", () => setBpm(bpm + 1));
+
+// typing: it follows what you type as long as it's a tempo that makes sense, and tidies up when you're done
+bpmInput.addEventListener("input", () => {
+    const typed = Number(bpmInput.value);
+    if (bpmInput.value !== "" && typed >= BPM_MIN && typed <= BPM_MAX) setBpm(typed);
 });
+bpmInput.addEventListener("change", () => {
+    setBpm(Number(bpmInput.value) || bpm);
+    bpmInput.value = String(bpm);
+});
+bpmInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") bpmInput.blur();
+});
+
+// tapping: the tempo is worked out from how far apart your taps are (the last few, and it starts again if you stop for 2 seconds)
+const taps = [];
+function tapTempo() {
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > 2000) taps.length = 0;
+    taps.push(now);
+    if (taps.length > 8) taps.shift();
+    if (taps.length >= 2) setBpm((60000 * (taps.length - 1)) / (taps[taps.length - 1] - taps[0]));
+}
+const bpmTap = document.getElementById("bpmTap");
+bpmTap.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    tapTempo(); // (as soon as it's pressed, not when it's let go, so the beat isn't late)
+});
+bpmTap.addEventListener("click", (e) => {
+    if (e.detail === 0) tapTempo(); // (a key press on the button)
+});
+
+// the tempo it was left at
+try {
+    const savedBpm = Number(localStorage.getItem("bpm"));
+    if (savedBpm >= BPM_MIN && savedBpm <= BPM_MAX) setBpm(savedBpm, false);
+    else setBpm(bpm, false);
+} catch {
+    setBpm(bpm, false);
+}
 
 // ---- the step sequencer ----
 // Double-clicking a block opens a popup with a step sequencer for it, pointing at the block: a square for each
@@ -984,11 +1167,13 @@ function sequencerNotes() {
     return notes;
 }
 
+let stepBar = 0; // which bar of the block the squares are for (a block that's several bars long has a tab for each)
+
 // is there a note in this square? (on the drum track a note from a black key counts for the white key below it)
 function noteAt(step, note) {
     return song[selTrack][selBar].findIndex(
         (n) =>
-            Math.round(n.beat / EDIT_STEP) === step &&
+            Math.round(n.beat / EDIT_STEP) === stepBar * EDIT_STEPS + step &&
             (selTrack === DRUM_TRACK ? drumSlot(n.note) === drumSlot(note) : n.note === note)
     );
 }
@@ -1005,7 +1190,7 @@ function setSquare(cell, on) {
     const note = Number(cell.dataset.note);
     const found = noteAt(step, note);
     if (on && found < 0) {
-        song[selTrack][selBar].push({ beat: step * EDIT_STEP, note });
+        song[selTrack][selBar].push({ beat: (stepBar * EDIT_STEPS + step) * EDIT_STEP, note });
         previewNote(note);
     } else if (!on && found >= 0) {
         song[selTrack][selBar].splice(found, 1);
@@ -1094,6 +1279,7 @@ function scrollToNotes(grid, box) {
 const stepPopover = document.getElementById("stepPopover");
 const stepTitle = document.getElementById("stepTitle");
 const stepGrid = document.getElementById("stepGrid");
+const stepBars = document.getElementById("stepBars");
 const stepsTrigger = document.createElement("button"); // (the popup system wants a button, this one is never shown)
 registerPanel("steps", stepsTrigger, stepPopover, null, buildStepPopup, {
     popupOnly: true, // it's a popup on a phone too
@@ -1103,11 +1289,30 @@ setUpGrid(stepGrid);
 
 // fills the popup for the selected block (runs each time it opens)
 function buildStepPopup() {
+    stepBar = 0;
+    showStepPopup();
+}
+
+// (and again when you pick another bar of a long block)
+function showStepPopup() {
     const bars = clipBars(selTrack, selBar);
     stepTitle.textContent =
         "STEP SEQ: " + trackName(selTrack) + ", " + (bars > 1 ? "BARS " + (selBar + 1) + " TO " + (selBar + bars) : "BAR " + (selBar + 1));
+    // a block that's several bars long has a tab for each bar, the squares are for the bar that's picked
+    stepBars.innerHTML = "";
+    stepBars.hidden = bars < 2;
+    for (let i = 0; i < bars; i++) {
+        const tab = make("button", "step-bar-tab", String(selBar + i + 1));
+        tab.setAttribute("aria-pressed", String(i === stepBar));
+        tab.setAttribute("aria-label", "Bar " + (selBar + i + 1));
+        tab.addEventListener("click", () => {
+            stepBar = i;
+            showStepPopup();
+        });
+        stepBars.appendChild(tab);
+    }
     fillGrid(stepGrid);
-    // (it isn't showing yet, so wait until it is to scroll to the notes)
+    // (it may not be showing yet, so wait until it is to scroll to the notes)
     requestAnimationFrame(() => scrollToNotes(stepGrid, stepGrid.parentElement));
 }
 
@@ -1123,6 +1328,203 @@ document.addEventListener(
     },
     true
 );
+
+// ---- the lanes for each note's velocity, randomness and so on ----
+// The arrow at the end of a track's header (or a drum row's) opens a lane under it with a bar for every note. The bar's
+// height is the note's setting, and you change it by dragging: press on a bar and drag up or down, or drag along the lane
+// to draw the settings of a lot of notes at once. The tabs on the lane's header pick which setting you're looking at.
+
+const PARAM_KEYS = [
+    { key: "velocity", tab: "VEL", label: "VELOCITY", format: (v) => Math.round(v * 100) + "%" },
+    { key: "random", tab: "RND", label: "RANDOM VELOCITY", format: (v) => Math.round(v * 100) + "%" },
+    { key: "timing", tab: "TIM", label: "RANDOM TIMING", format: (v) => (v === 0 ? "0ms" : "\u00b1" + Math.round(v * TIMING_RANDOM_SECONDS * 1000) + "ms") },
+    { key: "chance", tab: "CHN", label: "CHANCE", format: (v) => Math.round(v * 100) + "%" },
+    { key: "release", tab: "REL", label: "RELEASE", format: (v) => "x" + releaseScale(v).toFixed(2) },
+];
+
+// makes a lane for a track (slot is null) or for one drum of the drum track
+function buildParamLane(t, slot) {
+    const head = make("div", "track-head sub param-head folded");
+    head.style.setProperty("--track-color", trackColors[t]);
+    const tabs = make("div", "param-tabs");
+    tabs.setAttribute("role", "group");
+    tabs.setAttribute("aria-label", "Which setting to show");
+    const readout = make("div", "param-readout", PARAM_KEYS[0].label);
+    const lane = { t, slot, key: "velocity", head, readout, tabEls: [], cells: [], laneEl: make("div", "lane folded") };
+
+    PARAM_KEYS.forEach((setting) => {
+        const tab = make("button", "param-tab", setting.tab);
+        tab.title = setting.label;
+        tab.setAttribute("aria-label", setting.label);
+        tab.setAttribute("aria-pressed", String(setting.key === lane.key));
+        tab.addEventListener("click", () => {
+            lane.key = setting.key;
+            lane.tabEls.forEach((el, i) => el.setAttribute("aria-pressed", String(PARAM_KEYS[i].key === lane.key)));
+            readout.textContent = setting.label;
+            for (let b = 0; b < BARS; b++) drawParamCell(lane, b);
+        });
+        lane.tabEls.push(tab);
+        tabs.appendChild(tab);
+    });
+    head.append(tabs, readout);
+    songEl.appendChild(head);
+    songEl.appendChild(lane.laneEl);
+
+    for (let b = 0; b < BARS; b++) {
+        const el = make("div", "param-cell folded");
+        el.setAttribute("role", "img");
+        el.setAttribute("aria-label", "Bar " + (b + 1) + ": the bars are the notes, drag them up or down to change the setting");
+        const canvas = document.createElement("canvas");
+        el.appendChild(canvas);
+        el.addEventListener("pointerdown", (e) => {
+            e.preventDefault(); // (so dragging doesn't select things or scroll)
+            paramDrag = { lane, x: e.clientX, y: e.clientY, edited: null };
+            paintParam(lane, e.clientX, e.clientY, e.clientX, e.clientY, true);
+        });
+        songEl.appendChild(el);
+        lane.cells.push({ el, canvas });
+    }
+    return lane;
+}
+
+function buildParamLanes() {
+    for (let t = 0; t < TRACKS; t++) paramLanes.push(t === DRUM_TRACK ? null : buildParamLane(t, null)); // (the drums have a lane for each drum)
+    DRUM_NOTES.forEach((_, slot) => drumParamLanes.push(buildParamLane(DRUM_TRACK, slot)));
+}
+
+// opens or closes the lane under a track (slot is null) or a drum row
+function toggleParamLane(t, slot, arrow) {
+    if (slot === null) paramOpen[t] = !paramOpen[t];
+    else drumParamOpen[slot] = !drumParamOpen[slot];
+    arrow.setAttribute("aria-expanded", String(slot === null ? paramOpen[t] : drumParamOpen[slot]));
+    layoutSong();
+}
+
+// the notes a lane shows for a block: all of the track's, or just the drum's
+function laneNotes(lane, b) {
+    const notes = clipNotes(lane.t, b);
+    return lane.slot === null ? notes : notes.filter((n) => drumSlot(n.note) === lane.slot);
+}
+
+// draws one box of a lane: a bar for each note, as tall as its setting
+function drawParamCell(lane, b) {
+    const { el, canvas } = lane.cells[b];
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (!w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const g = canvas.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bars = clipBars(lane.t, b);
+    const barW = w / bars;
+
+    // faint lines at the beats, and a stronger one between bars
+    g.fillStyle = "white";
+    for (let rep = 0; rep < bars; rep++) {
+        g.globalAlpha = LINE_BEAT;
+        for (let beat = 1; beat < BEATS; beat++) g.fillRect(Math.round(rep * barW + (beat / BEATS) * barW), 0, 1, h);
+        g.globalAlpha = LINE_BAR;
+        if (rep > 0) g.fillRect(Math.round(rep * barW), 0, 2, h);
+    }
+
+    const notes = laneNotes(lane, b);
+    g.globalAlpha = 1;
+    notes.forEach((n) => {
+        const value = noteParam(n, lane.key);
+        const x = (n.beat / (bars * BEATS)) * w;
+        const height = Math.max(3, value * (h - 8));
+        g.fillStyle = "#f2a900";
+        g.fillRect(x, h - 4 - height, 6, height);
+        g.fillStyle = "white"; // a cap on top of the bar, so its height is easy to see
+        g.fillRect(x, h - 4 - height, 6, 2);
+    });
+    el.setAttribute(
+        "aria-label",
+        "Bar " + (b + 1) + ": " + notes.length + " notes. Drag the bars up or down to change their " + PARAM_KEYS.find((s) => s.key === lane.key).label.toLowerCase()
+    );
+}
+
+// draws the lanes' boxes for one block (when its notes change)
+function drawParamCells(t, b) {
+    if (paramLanes[t] && paramOpen[t]) drawParamCell(paramLanes[t], b);
+    if (t === DRUM_TRACK && drumsOpen) {
+        drumParamLanes.forEach((lane, slot) => {
+            if (drumParamOpen[slot]) drawParamCell(lane, b);
+        });
+    }
+}
+
+// dragging in a lane. paramDrag is set while the mouse (or a finger) is down: the lane, where it was last, and the
+// last note that was changed
+let paramDrag = null;
+
+// sets the setting of the notes the pointer passes over, in a lane, going from where it was (x0, y0) to where it is
+// (x1, y1). The height of the pointer in the lane is the value. When it's first pressed (down) it's the one note
+// nearest to it that's changed, and from then on it's every note it moves over
+function paintParam(lane, x0, y0, x1, y1, down) {
+    const lo = Math.min(x0, x1) - 5;
+    const hi = Math.max(x0, x1) + 5;
+    const candidates = [];
+    lane.cells.forEach(({ el }, b) => {
+        if (el.offsetWidth === 0) return; // (a box that's hidden under a longer block, or the lane is closed)
+        const rect = el.getBoundingClientRect();
+        const bars = clipBars(lane.t, b);
+        laneNotes(lane, b).forEach((n) => {
+            const x = rect.left + (n.beat / (bars * BEATS)) * rect.width + 3; // the middle of its bar
+            candidates.push({ n, b, x, rect });
+        });
+    });
+
+    let chosen;
+    if (down) {
+        // the nearest one (within a finger's width), and if several are on top of each other the one whose bar is nearest the pointer's height
+        let best = null;
+        candidates.forEach((c) => {
+            const value = Math.min(1, Math.max(0, 1 - (y1 - c.rect.top - 4) / (c.rect.height - 8)));
+            const score = Math.abs(c.x - x1) * 100 + Math.abs(noteParam(c.n, lane.key) - value);
+            if (Math.abs(c.x - x1) <= 18 && (!best || score < best.score)) best = { c, score };
+        });
+        chosen = best ? [best.c] : [];
+    } else {
+        chosen = candidates.filter((c) => c.x >= lo && c.x <= hi);
+    }
+
+    const touched = new Set();
+    chosen.forEach((c) => {
+        // where the pointer was in height when it was at this note (between the last place and this one)
+        const along = x1 === x0 ? 1 : Math.min(1, Math.max(0, (c.x - x0) / (x1 - x0)));
+        const y = y0 + (y1 - y0) * along;
+        const value = Math.min(1, Math.max(0, 1 - (y - c.rect.top - 4) / (c.rect.height - 8)));
+        c.n[lane.key] = Math.round(value * 100) / 100;
+        paramDrag.edited = c.n;
+        touched.add(c.b);
+        const setting = PARAM_KEYS.find((s) => s.key === lane.key);
+        lane.readout.textContent = setting.label + " " + setting.format(c.n[lane.key]);
+    });
+    touched.forEach((b) => drawParamCell(lane, b));
+}
+
+document.addEventListener("pointermove", (e) => {
+    if (!paramDrag) return;
+    paintParam(paramDrag.lane, paramDrag.x, paramDrag.y, e.clientX, e.clientY, false);
+    paramDrag.x = e.clientX;
+    paramDrag.y = e.clientY;
+});
+
+// letting go plays the last note you changed, so you can hear it with its new setting
+async function endParamDrag() {
+    const drag = paramDrag;
+    paramDrag = null;
+    if (!drag || !drag.edited) return;
+    const n = drag.edited;
+    getCtx();
+    if (ctx.state === "suspended") await ctx.resume();
+    playNote(noteToFrequency(n.note), ctx.currentTime, drag.lane.t, false, DEFAULT_GATE, noteParam(n, "velocity"), releaseScale(noteParam(n, "release")));
+}
+document.addEventListener("pointerup", endParamDrag);
+document.addEventListener("pointercancel", endParamDrag);
 
 // ---- the metronome's settings (the METRO button by BPM) ----
 const metroButton = document.getElementById("metroButton");

@@ -176,8 +176,9 @@ function onMidiMessage(e) {
         const note = inputNote(data1);
         const now = ctx.currentTime;
         if (heldMidi.has(data1)) heldMidi.get(data1).release(now); // the same key again, let go of the old one
-        heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true));
-        document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now } }));
+        // (the force you hit the key with, data2, is the note's velocity, and it's recorded with the note)
+        heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, data2 / 127));
+        document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now, velocity: data2 / 127 } }));
     } else if (type === 0x80 || type === 0x90) {
         // a note off (or a note on with no force, which also means off): let go of that key's note
         if (heldMidi.has(data1)) heldMidi.get(data1).release(ctx.currentTime);

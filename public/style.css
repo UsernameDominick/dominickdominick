@@ -51,7 +51,9 @@ output {
     margin-inline: auto;
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(11, 1fr); /* one more row than before: the dials box is two rows tall now */
+    /* the top row is a fixed height, taller than the others, so the song volume dial fits in it with its name above it
+       (the other ten rows are the same as before) */
+    grid-template-rows: 108px repeat(10, 1fr);
     gap: 7px;
 }
 
@@ -167,6 +169,36 @@ output {
     letter-spacing: 0.1em;
     line-height: 1.2;
     color: #111;
+}
+
+/* the scale and MIDI buttons in the top box, one on top of the other (a little shorter, so both fit in the box) */
+.button-stack {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--gap);
+}
+
+.button-stack {
+    align-items: stretch; /* both buttons are as wide as the wider one, and line up */
+}
+
+.button-stack .tool {
+    align-self: stretch;
+    height: 38px;
+}
+
+/* a smaller dial, for the volume of the whole song in the top box: laid out like the others, the name above it and the value
+   written on the knob */
+.dial.small,
+.dial.small .dial-face,
+.dial.small .dial-input {
+    width: 64px;
+}
+
+.dial.small .dial-face,
+.dial.small .dial-input {
+    height: 64px;
 }
 
 .dial-face {
@@ -770,19 +802,45 @@ output {
 
 /* the step sequencer popup: wide enough for the 16 squares, and the squares scroll inside it */
 .popover.steps {
-    width: 560px;
+    width: 604px;
 }
 
+/* the title and the bar tabs stay put, only the squares scroll */
 .popover.steps .popover-body {
-    max-height: min(50vh, 420px);
+    max-height: none;
+    overflow: visible;
+}
+
+.step-scroll {
+    max-height: min(50vh, 380px);
     overflow: auto;
     scrollbar-width: thin;
     scrollbar-color: #3a3a3a transparent;
 }
 
+/* the squares are never narrower than 28px, so a finger can hit one. On a screen that's too narrow the popup scrolls sideways */
 .popover .editor-grid {
-    min-width: 480px;
+    grid-template-columns: 56px repeat(16, minmax(28px, 1fr));
+    min-width: 536px;
     padding: 0;
+}
+
+.popover .editor-grid.drums {
+    grid-template-columns: 104px repeat(16, minmax(28px, 1fr));
+    min-width: 584px;
+}
+
+/* when the popup is scrolled sideways on a narrow screen, the note names stay at the left so you can still tell which row is which */
+.popover .step-label {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: #1c1c1c;
+}
+
+.popover .step-corner {
+    left: 0;
+    z-index: 2;
 }
 
 .popover .choices.metro3 {
@@ -1018,10 +1076,10 @@ output {
 .song {
     position: relative; /* the buttons by the selected block are placed against this */
     display: grid;
-    grid-template-columns: 216px repeat(8, minmax(88px, 1fr));
+    grid-template-columns: 248px repeat(8, minmax(88px, 1fr));
     grid-template-rows: 24px repeat(5, 38px); /* with the gaps, this just fits in the box */
     gap: var(--gap);
-    min-width: calc(216px + 8 * 88px + 8 * var(--gap));
+    min-width: calc(248px + 8 * 88px + 8 * var(--gap));
 }
 
 .bar-head {
@@ -1184,6 +1242,139 @@ output {
 /* the drum rows, shorter than a track and a step in from the left. A row that's folded away is gone */
 .folded {
     display: none;
+}
+
+/* the little arrow at the end of a track's or a drum's header, it opens the settings of its notes (drawn with borders, so
+   it's never an emoji) */
+.params-arrow {
+    position: relative;
+    flex: none;
+    width: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: #6a6a6a;
+    cursor: pointer;
+}
+
+.params-arrow::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid white;
+}
+
+/* the empty space where the drum track has no lane arrow, so its M, S and L line up with the other tracks' */
+.head-spacer {
+    flex: none;
+    width: 24px;
+}
+
+.params-arrow:active {
+    background: #7a7a7a;
+}
+
+/* open, the arrow points up */
+.params-arrow[aria-expanded="true"]::before {
+    transform: translate(-50%, -50%) rotate(180deg);
+}
+
+/* a lane under a track or a drum row, where each note's velocity and so on is changed: the header has a tab for each
+   setting and says which one it's showing, and each box shows a bar for every note in its part of the track */
+.track-head.param-head {
+    flex-direction: column;
+    gap: var(--gap-tight);
+}
+
+.param-tabs {
+    display: flex;
+    gap: var(--gap-tight);
+}
+
+.param-tab {
+    flex: none;
+    width: 38px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: #6a6a6a;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.param-tab[aria-pressed="true"] {
+    background: white;
+    color: #111;
+}
+
+.param-readout {
+    padding: 0 var(--gap-tight);
+    overflow: hidden;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    line-height: 22px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.param-cell {
+    position: relative;
+    margin: 3px 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #2e2e2e;
+    cursor: ns-resize;
+    touch-action: none; /* dragging on a phone changes the bars, it doesn't scroll the song */
+}
+
+.param-cell canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.param-cell.covered {
+    display: none;
+}
+
+/* the tabs for the bars of a long block, at the top of the step sequencer popup */
+.step-bars {
+    display: flex;
+    gap: var(--gap-tight);
+    margin: 0 0 var(--gap);
+}
+
+.step-bars[hidden] {
+    display: none;
+}
+
+.step-bar-tab {
+    min-width: 40px;
+    height: 32px;
+    padding: 0 var(--gap);
+    border: none;
+    border-radius: 4px;
+    background: #262626;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.step-bar-tab[aria-pressed="true"] {
+    background: white;
+    color: #111;
 }
 
 .track-head.sub {
@@ -1595,3 +1786,427 @@ output {
     }
 }
         
+
+/* ================ the look: vintage analog ================
+   Cream hardware (the buttons, knobs and keys) on warm grey panels, with amber lights and a little red. It's all down
+   here at the end, on top of the rest, so a different look is a different set of these. */
+
+.svg-defs {
+    position: absolute;
+}
+
+:root {
+    --panel-a: #4b4742;
+    --panel-b: #5b564f;
+    --panel-c: #46423d;
+    --panel-d: #3a3733;
+    --ink: #fff3dc; /* text on the panels */
+    --hardware: #efe0bf; /* buttons */
+    --hardware-dim: #cdb78c; /* the small buttons (M, S, L...) */
+    --hardware-ink: #2b2620; /* text on the hardware */
+    --amber: #f2a900;
+    --red: #d63a1d;
+    --sage: #a9d3ae;
+    --well: #2d2a27; /* the track headers */
+    --lane: #23211f;
+    --empty: #1e1c1a;
+}
+
+body {
+    background: #151412;
+}
+
+/* the panels are a gradient between a few close warm greys, and it drifts slowly sideways (the drift is the animation further up,
+   which only runs if the user hasn't asked for less motion) */
+.div1,
+.div2,
+.div4,
+.div5,
+.div6,
+.face {
+    background: linear-gradient(110deg, var(--panel-a) 0%, var(--panel-b) 25%, var(--panel-c) 50%, var(--panel-d) 75%, var(--panel-a) 100%);
+    background-size: 300% 100%;
+}
+
+.scope-panel,
+.graph {
+    background: #1b1917;
+}
+
+.bar-head,
+.dial,
+.dial label,
+.dial output {
+    color: var(--ink);
+}
+
+.bar-head.now {
+    color: var(--amber);
+}
+
+/* buttons: cream, with a little edge at the bottom like a hardware key */
+.tool,
+.picker select,
+.choice,
+.arrow,
+.menu-button {
+    background: var(--hardware);
+    color: var(--hardware-ink);
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18), 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.tool:active,
+.arrow:active {
+    background: var(--hardware-dim);
+}
+
+.tool.on,
+.rec.counting,
+.choice[aria-pressed="true"] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.arrow.up::before {
+    border-bottom-color: var(--hardware-ink);
+}
+
+.arrow.down::before {
+    border-top-color: var(--hardware-ink);
+}
+
+.menu-arrow,
+.settings-arrow {
+    border-top-color: var(--hardware-ink);
+}
+
+/* the track headers are dark with cream writing, and the small buttons on them are a darker cream */
+.track-head {
+    background: var(--well);
+}
+
+.track-name {
+    background: transparent;
+    color: var(--ink);
+    box-shadow: none;
+}
+
+.track-name.selected {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.fold::before {
+    border-left-color: var(--ink);
+}
+
+.mute,
+.solo,
+.loop,
+.params-arrow,
+.param-tab {
+    background: var(--hardware-dim);
+    color: var(--hardware-ink);
+}
+
+.params-arrow::before {
+    border-top-color: var(--hardware-ink);
+}
+
+.mute[aria-pressed="true"],
+.param-tab[aria-pressed="true"] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.solo[aria-pressed="true"] {
+    background: var(--amber);
+    color: #1b1612;
+}
+
+.loop[aria-pressed="true"] {
+    background: var(--sage);
+    color: #1b1612;
+}
+
+.lane {
+    background: var(--lane);
+}
+
+.block {
+    background: color-mix(in srgb, var(--track-color) 18%, var(--empty));
+}
+
+.block.has-notes {
+    background: var(--track-color);
+    color: var(--hardware-ink);
+}
+
+.block.selected {
+    background: var(--ink);
+    color: #111;
+    box-shadow: 0 0 0 3px var(--red);
+}
+
+.block.repeat {
+    background: #3a3530;
+    color: var(--amber);
+}
+
+.drum-cell,
+.param-cell {
+    background: var(--empty);
+}
+
+/* the knobs: a soft cream knob with a shadow, a ring of dots round it that light up from pale to deep amber as you turn it up,
+   an orange dot on the knob that shows where it's pointing, and the value in the middle of it */
+:root {
+    --dot-off: #67615a;
+    --dot-from: #ffe08a;
+    --dot-to: #e8730c;
+    --pointer-dot: #e8730c;
+}
+
+.tick {
+    fill: var(--dot-off);
+    stroke: none;
+}
+
+.tick.lit {
+    fill: color-mix(in srgb, var(--dot-to) var(--t), var(--dot-from));
+    stroke: none;
+}
+
+.knob {
+    fill: url(#knobCream);
+    stroke: none;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+}
+
+.pointer {
+    fill: var(--pointer-dot);
+    stroke: none;
+}
+
+/* the streak behind the dot while you turn the knob */
+.pointer-trail {
+    fill: var(--pointer-dot);
+    stroke: none;
+}
+
+/* the value is written on the knob (the label is above it) */
+.dial output {
+    position: absolute;
+    top: 67px;
+    left: 0;
+    width: 100%;
+    transform: translateY(-50%);
+    color: #2b2620;
+    letter-spacing: 0;
+    line-height: 1;
+    text-align: center;
+    pointer-events: none;
+}
+
+.dial[hidden],
+.dial-group[hidden] {
+    display: none;
+}
+
+/* (the little song volume dial is half the height, so its value sits higher: the name, a gap, then the middle of the knob) */
+.dial.small output {
+    top: 55px;
+}
+
+/* the tabs down the left of the dials box, and a group of dials for each */
+.dial-tabs {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dial-tab {
+    width: 84px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: var(--hardware-dim);
+    color: var(--hardware-ink);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dial-tab[aria-pressed="true"] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.dial-group {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: calc(2 * var(--gap));
+}
+
+/* the piano: ivory keys, dark keys (they still reach the top and the bottom of the box) */
+.white {
+    background: linear-gradient(180deg, #fffaf0 0%, #f1e6cc 100%);
+    color: #2b2620;
+    border-color: #8b7355;
+}
+
+.white:active {
+    background: #d9cdb0;
+}
+
+.black {
+    background: linear-gradient(180deg, #34302c 0%, #1a1816 100%);
+    border-color: #0d0c0b;
+}
+
+.black:active {
+    background: #4a443d;
+}
+
+.key.drum-selected {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.led {
+    background: var(--well);
+}
+
+.led.on {
+    background: #ff6a3d;
+}
+
+/* the strips (pitch, mod and BPM): an amber fill on a dark strip */
+.wheel input {
+    background: linear-gradient(to top, var(--empty) var(--from), var(--amber) var(--from), var(--amber) var(--to), var(--empty) var(--to));
+}
+
+.wheel input::-webkit-slider-thumb {
+    border-color: var(--empty);
+    background: var(--ink);
+}
+
+.wheel input::-moz-range-thumb {
+    border-color: var(--empty);
+    background: var(--ink);
+}
+
+.wheel label,
+.mini output {
+    background: linear-gradient(to bottom, var(--ink) var(--from), #1b1612 var(--from), #1b1612 var(--to), var(--ink) var(--to));
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.mini input {
+    background: linear-gradient(to top, rgba(242, 169, 0, 0.45) var(--to), transparent var(--to)), var(--hardware);
+}
+
+.mini.active input {
+    background: linear-gradient(to top, var(--empty) var(--from), var(--amber) var(--from), var(--amber) var(--to), var(--empty) var(--to));
+}
+
+/* at rest a strip is a cream button, so its name is dark */
+.mini label {
+    background: #2b2620;
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* the popups */
+.popover {
+    background: #2d2a27;
+    border-color: var(--amber);
+}
+
+.popover-title {
+    color: var(--amber);
+}
+
+.popover-arrow {
+    background: #2d2a27;
+}
+
+.popover.above .popover-arrow {
+    border-right-color: var(--amber);
+    border-bottom-color: var(--amber);
+}
+
+.popover.below .popover-arrow {
+    border-left-color: var(--amber);
+    border-top-color: var(--amber);
+}
+
+.editor-grid.steps .step.on {
+    background: var(--amber);
+}
+
+.step-bar-tab {
+    background: var(--hardware);
+    color: var(--hardware-ink);
+}
+
+.step-bar-tab[aria-pressed="true"] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+
+/* the tempo popup: a number to type with a button each side to nudge it, a big TAP button, and some common tempos */
+.popover.bpm {
+    width: 360px;
+}
+
+.bpm-row {
+    display: flex;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+}
+
+.bpm-row .tool {
+    min-width: 56px;
+    padding: 0;
+    font-size: 24px;
+}
+
+.bpm-input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    padding: 0 var(--gap);
+    border: 2px solid var(--amber);
+    border-radius: var(--radius);
+    background: var(--empty);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.bpm-tap {
+    width: 100%;
+    height: 64px;
+    margin-bottom: var(--gap);
+    font-size: 24px;
+}
+
+.popover .choices.bpm-presets {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/* the metronome icon on its button */
+.metro-icon {
+    flex: none;
+    display: block;
+}

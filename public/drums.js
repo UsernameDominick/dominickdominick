@@ -365,9 +365,12 @@ function drumShapeEnv() {
 
 // plays one drum from the list (when is the audio clock time to start it). Every hit goes through the
 // drum track's filter, so CUT and RES on the strips shape the drums too
-function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5) {
-    const sound = DRUM_SOUNDS[soundIndex];
+function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5, releaseScale = 1, fx = null) {
+    const base = DRUM_SOUNDS[soundIndex];
+    // (with the drum's own settings: its pitch and how long it rings)
+    const sound = fx ? { ...base, p: tunedDrum(base.p, fx) } : base;
     const env = drumShapeEnv();
+    env.release *= releaseScale; // (the release setting in params.js)
     const held = Math.max(0.02, drumTiming(sound).decay * DRUM_HELD); // how long the hit is held for before it's let go
 
     // the shape from the dials (a volume that all of the drum's parts go through)
@@ -378,13 +381,37 @@ function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5) {
 
     const out = ctx.createGain();
     out.gain.value = 0.55 * sound.boost * (sound.p.level === undefined ? 1 : sound.p.level) * volume;
-    out.connect(shape);
+    // each drum has its own pan, and its own amounts for the echo and the room
+    let node = out;
+    if (fx && fx.pan !== 0.5) {
+        node = ctx.createStereoPanner();
+        node.pan.value = panFrom(fx.pan);
+        out.connect(node);
+    }
+    node.connect(shape);
+    if (fx) sendTo(node, fx.dly, fx.rev, DRUM_TRACK);
     VOICES[sound.type](sound.p, when, out);
 }
 
 // plays whatever drum a key is set to
-function playDrumNote(note, when = ctx.currentTime) {
-    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note));
+function playDrumNote(note, when = ctx.currentTime, velocity = 1, releaseScale = 1) {
+    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note) * velocity, releaseScale, drumFxAt(note));
+}
+
+// a drum with its PITCH and DECAY dials turned: the pitches are multiplied and the lengths are multiplied
+const DRUM_PITCH_KEYS = ["start", "end", "tone", "hz", "freq", "hp", "pitch"];
+const DRUM_DECAY_KEYS = ["decay", "toneDecay", "noiseDecay", "burstDecay", "tail"];
+function tunedDrum(p, fx) {
+    const pitch = 2 ** (pitchSemis(fx.pitch) / 12);
+    const length = drumDecayScale(fx.decay);
+    const tuned = { ...p };
+    DRUM_PITCH_KEYS.forEach((key) => {
+        if (typeof tuned[key] === "number") tuned[key] *= pitch;
+    });
+    DRUM_DECAY_KEYS.forEach((key) => {
+        if (typeof tuned[key] === "number") tuned[key] *= length;
+    });
+    return tuned;
 }
 
 // how the selected drum fades out, for the FADE graph: how long it takes to rise (attack), how long until
