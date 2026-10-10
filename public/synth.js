@@ -26,10 +26,18 @@ function filterTypeFrom(v) {
     return FILTER_TYPES[Math.min(2, Math.round(v * 2))];
 }
 
+// the EQ bands (the EQ tab): three bands that each boost or cut one part of the sound. Each has its frequency (e1f), its gain (e1g, the
+// middle is no change) and its width (e1q). They start at 150Hz, 1kHz and 6kHz with no change. (See eqFreq, eqGain and eqQ)
+const EQ_DEFAULTS = {
+    e1f: 0.292, e1g: 0.5, e1q: 0.261,
+    e2f: 0.566, e2g: 0.5, e2q: 0.261,
+    e3f: 0.826, e3g: 0.5, e3q: 0.261,
+};
 const FX_DEFAULTS = {
     pan: 0.5, drive: 0, detune: 0, oct: 0.5, semi: 0.5, glide: 0, ftype: 0, fenv: 0,
     dly: 0, dtime: 0.25, dfb: 0.35, rev: 0, vrate: 0.4, vdep: 0, trate: 0.4, tdep: 0,
     chord: 0, arp: 0, arate: 2 / 3, // (the PLAY tab: a chord for each note, an arpeggio, and how fast it steps. See playNote)
+    ...EQ_DEFAULTS,
 };
 const DIAL_DEFAULTS = {
     synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
@@ -421,6 +429,17 @@ const CHORDS = [
     { name: "POWER", steps: [0, 7, 12] },
     { name: "OCT", steps: [0, 12] },
 ];
+// A drum can roll (the PLAY tab on the drum track): the hit is played again and again, a step every ROLL, for as long as the key is
+// held (or, for a hit in the song, until the next hit of the same drum, but not longer than a beat). BUILD makes the roll start
+// soft and get louder, like a drummer building up a roll.
+const ROLL_RATES = [
+    { name: "OFF", beats: 0 },
+    { name: "1/8", beats: 0.5 },
+    { name: "1/16", beats: 0.25 },
+    { name: "1/32", beats: 0.125 },
+    { name: "1/64", beats: 0.0625 },
+];
+const ROLL_BUILD_SECONDS = 1.5; // how long a held roll takes to get from its soft start to full
 const ARP_MODES = ["OFF", "UP", "DOWN", "UP DOWN", "RANDOM"];
 const ARP_RATES = [
     { name: "1/4", beats: 1 },
@@ -445,10 +464,35 @@ function arpOffset(tones, mode, i) {
     return tones[Math.floor(Math.random() * n)]; // by chance
 }
 
+// plays a hit of a drum the way that drum says: once, or as a roll (see ROLL_RATES)
+function playDrum(frequency, when, hold, gate, velocity, releaseScale) {
+    const note = Math.round(69 + 12 * Math.log2(frequency / 440));
+    const fx = typeof drumFxAt === "function" ? drumFxAt(note) : null; // (the page can play before fx.js has loaded, as it starts)
+    const rate = fx ? placeOf(fx.roll, ROLL_RATES.length) : 0;
+    if (rate === 0) return playVoice(frequency, when, DRUM_TRACK, hold, gate, velocity, releaseScale);
+
+    const step = (ROLL_RATES[rate].beats * 60) / bpm; // seconds between hits
+    const start = 1 - 0.85 * fx.build; // how hard the first hit is, compared to the last (BUILD)
+    const hit = (time, progress) => playVoice(frequency, time, DRUM_TRACK, false, step, velocity * (start + (1 - start) * Math.min(1, progress)), releaseScale);
+    if (!hold) {
+        // a hit in the song: as many hits as fit in the time it is given
+        const count = Math.max(1, Math.floor(gate / step + 0.001));
+        for (let i = 0; i < count; i++) hit(when + i * step, count > 1 ? i / (count - 1) : 1);
+        return;
+    }
+    // a key held down: it keeps hitting, on the clock of the page, until it is let go
+    hit(when, 0);
+    const timer = setInterval(() => {
+        const now = ctx.currentTime;
+        hit(now, (now - when) / ROLL_BUILD_SECONDS);
+    }, step * 1000);
+    return { release: () => clearInterval(timer), expression() {} };
+}
+
 // plays a note the way its track says: as it is, or as a chord, or as an arpeggio. It takes and gives back the same things
 // as playVoice (one single sound, above), a held note gives back { release(time) }
 function playNote(frequency, when = ctx.currentTime, track = 0, hold = false, gate = DEFAULT_GATE, velocity = 1, releaseScale = 1) {
-    if (track === DRUM_TRACK) return playVoice(frequency, when, track, hold, gate, velocity, releaseScale);
+    if (track === DRUM_TRACK) return playDrum(frequency, when, hold, gate, velocity, releaseScale);
     const settings = trackSettings[track];
     const chord = CHORDS[placeOf(settings.chord, CHORDS.length)].steps;
     const mode = placeOf(settings.arp, ARP_MODES.length);
@@ -506,6 +550,18 @@ function selectedVolume() {
 // what each small strip means (they all run from 0 to 1)
 function cutoffFromSlider(v) {
     return 80 * 200 ** v; // 80Hz up to 16000Hz, in even musical steps
+}
+
+// what each EQ dial means: a band's frequency (20Hz to 20kHz, in even musical steps), its gain (18dB cut to 18dB boost) and its
+// width (Q: 0.3 is a very wide bump, 30 is a thin notch)
+function eqFreq(v) {
+    return 20 * 1000 ** v;
+}
+function eqGain(v) {
+    return (v - 0.5) * 36;
+}
+function eqQ(v) {
+    return 0.3 * 100 ** v;
 }
 
 function resonanceFromSlider(v) {
@@ -1227,10 +1283,16 @@ graphFilter.type = "lowpass";
 
 // 200 frequencies from 20Hz to 20000Hz, spaced evenly in musical steps
 const GRAPH_FREQS = new Float32Array(200).map((_, i) => 20 * 1000 ** (i / 199));
+const graphBands = [0, 1, 2].map(() => {
+    const band = graphFilter.context.createBiquadFilter(); // (the three EQ bands, to work out what they do to the sound)
+    band.type = "peaking";
+    return band;
+});
+const graphBandMags = new Float32Array(GRAPH_FREQS.length);
 const graphMags = new Float32Array(GRAPH_FREQS.length); // gets filled with the answers
 const graphPhases = new Float32Array(GRAPH_FREQS.length); // we don't draw these, but the browser wants a place to put them
 
-const GRAPH_DB_TOP = 15; // the top of the filter graph, in dB
+const GRAPH_DB_TOP = 20; // the top of the filter graph, in dB
 const GRAPH_DB_BOTTOM = -30; // the bottom of the filter graph, in dB
 const GRAPH_SECONDS = 3.2; // how much time the fade graph covers (a bit more than the longest release)
 const GRAPH_PAD = 4; // space above and below the line so it isn't cut off
@@ -1293,6 +1355,17 @@ function drawFilterGraph() {
     graphFilter.frequency.value = cutoffHz;
     graphFilter.Q.value = filterType === "bandpass" ? 0.7 + resonance : resonance;
     graphFilter.getFrequencyResponse(GRAPH_FREQS, graphMags, graphPhases);
+    // and the EQ bands add to it (their answers multiply)
+    const bandPoints = [];
+    graphBands.forEach((band, i) => {
+        const n = i + 1;
+        band.frequency.value = eqFreq(shown["e" + n + "f"]);
+        band.gain.value = eqGain(shown["e" + n + "g"]);
+        band.Q.value = eqQ(shown["e" + n + "q"]);
+        band.getFrequencyResponse(GRAPH_FREQS, graphBandMags, graphPhases);
+        for (let k = 0; k < graphMags.length; k++) graphMags[k] *= graphBandMags[k];
+        if (Math.abs(band.gain.value) >= 0.05) bandPoints.push(band.frequency.value);
+    });
 
     // turns a loudness in dB into a height on the graph
     const yFor = (db) => {
@@ -1327,13 +1400,25 @@ function drawFilterGraph() {
     g.lineWidth = 2;
     g.strokeStyle = "#17130f";
     g.stroke();
+    // a square on the line at each EQ band that is doing something
+    bandPoints.forEach((hz) => {
+        const x = (Math.log(hz / 20) / Math.log(1000)) * w;
+        const at = points.reduce((best, p) => (Math.abs(p.x - x) < Math.abs(best.x - x) ? p : best), points[0]);
+        g.beginPath();
+        g.rect(at.x - 4, at.y - 4, 8, 8);
+        g.fillStyle = GRAPH_TEXT;
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeStyle = "#17130f";
+        g.stroke();
+    });
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
     drawGraphLabel(g, "FILTER " + whose, h); // the label says whose filter this is
 
     filterGraph.setAttribute(
         "aria-label",
         "Filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
-            Math.round(resonance) + " decibels there"
+            Math.round(resonance) + " decibels there" + (bandPoints.length ? ", and " + bandPoints.length + " EQ band" + (bandPoints.length > 1 ? "s" : "") + " changing the sound" : "")
     );
 }
 

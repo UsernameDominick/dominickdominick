@@ -11,7 +11,7 @@ const exportButton = document.getElementById("exportAudio");
 
 // every list of nodes the engine builds for the tracks (buildTrackChains in fx.js adds to each)
 const chainLists = [
-    trackFilters, trackGains, trackBus, driveDry, drivePre, drivePost, driveWet, tremGain, tremDepth, tremLfo, trackPan,
+    trackFilters, trackGains, trackBus, trackEq, driveDry, drivePre, drivePost, driveWet, tremGain, tremDepth, tremLfo, trackPan,
     dlySend, dlyNode, dlyFeedback, revSend, vibLfo, vibGain, cutCtl, resCtl,
 ];
 

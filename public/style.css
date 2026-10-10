@@ -291,8 +291,8 @@ output {
    padding (the canvas is positioned inside it so it can't make the box taller) */
 .graph {
     position: relative;
-    flex: none; /* always 150px wide, on a narrow screen the box (the scope's) scrolls instead */
-    width: 150px;
+    flex: none; /* always 200px wide, on a narrow screen the box (the scope's) scrolls instead */
+    width: 200px;
     background: #1c1c1c;
     border-radius: var(--radius);
     overflow: hidden; /* trims the drawing to the rounded corners */

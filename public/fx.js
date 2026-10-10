@@ -1,7 +1,7 @@
 // more ways to shape a sound, and the dials that set them. Each track (and each drum on the drum track) can be given
 // a pan, a drive (distortion), a detune, a glide, a filter type and filter envelope, an echo and a room (reverb), a
 // vibrato and a tremolo, and be tuned up or down. The dials for all of them are in the box with the strips (container 4),
-// in five tabs, and they change the sound that's selected (the one the sound picker shows).
+// in tabs, and they change the sound that's selected (the one the sound picker shows).
 // This needs synth.js, drums.js and params.js loaded first.
 
 // makes an element with a class and some text (studio.js has the same, but it loads after this file)
@@ -61,8 +61,10 @@ function drumDecayScale(v) {
 //   pan: where it is, dly and rev: how much goes to the echo and the room, pitch and decay: how it's tuned and how long it rings
 //   drive, ftype, cutoff and resonance: the distortion and the filter, attack, edecay, sustain and release: the fade it is given
 //   (edecay is the fade's DEC dial: a drum's own decay is how long it rings), dtime and dfb: the echo's time and repeats, trate
-//   and tdep: the tremolo. They all start with no change to the sound
+//   and tdep: the tremolo, e1f to e3q: the three EQ bands, roll and build: the roll. They all start with no change to the sound
 const DRUM_FX_DEFAULTS = {
+    roll: 0, build: 0, // (the PLAY tab: how fast the drum rolls, 0 is no roll, and how much the roll builds up. See playDrum)
+    ...EQ_DEFAULTS,
     pan: 0.5, dly: 0, rev: 0, pitch: 0.5, decay: 0.5,
     drive: 0, ftype: 0, cutoff: 1, resonance: 0,
     attack: DIAL_DEFAULTS.drums.attack, edecay: DIAL_DEFAULTS.drums.decay, sustain: DIAL_DEFAULTS.drums.sustain, release: DIAL_DEFAULTS.drums.release,
@@ -99,6 +101,7 @@ function setDrumFx(note, key, v) {
 // room as side branches off the volume. The vibrato and the controls for each note's filter are made here too.
 
 const trackBus = [];
+const trackEq = []; // the three EQ bands of each track (a list of three filters)
 const driveDry = [];
 const drivePre = [];
 const drivePost = [];
@@ -143,6 +146,17 @@ function makeChain() {
     const bus = ctx.createGain();
     filter.connect(bus);
 
+    // the EQ: three bands one after another (a peaking filter boosts or cuts a part of the sound, and is no change at 0dB)
+    const bands = [0, 1, 2].map(() => {
+        const band = ctx.createBiquadFilter();
+        band.type = "peaking";
+        return band;
+    });
+    bus.connect(bands[0]);
+    bands[0].connect(bands[1]);
+    bands[1].connect(bands[2]);
+    const eqOut = bands[2];
+
     // drive: some of the sound goes through the squashing and some doesn't (DRIVE is how much)
     const dry = ctx.createGain();
     const pre = ctx.createGain();
@@ -152,9 +166,9 @@ function makeChain() {
     const post = ctx.createGain();
     const wet = ctx.createGain();
     const trem = ctx.createGain();
-    bus.connect(dry);
+    eqOut.connect(dry);
     dry.connect(trem);
-    bus.connect(pre);
+    eqOut.connect(pre);
     pre.connect(shaper);
     shaper.connect(post);
     post.connect(wet);
@@ -192,7 +206,7 @@ function makeChain() {
     gain.connect(rSend);
     rSend.connect(reverbIn);
 
-    return { filter, bus, dry, pre, post, wet, trem, tremWave, depth, pan, gain, dSend, delay, feedback, rSend };
+    return { filter, bus, bands, dry, pre, post, wet, trem, tremWave, depth, pan, gain, dSend, delay, feedback, rSend };
 }
 
 // builds all of it, once, when the audio starts (getCtx calls this)
@@ -220,6 +234,7 @@ function buildTrackChains() {
         trackFilters.push(c.filter);
         trackGains.push(c.gain);
         trackBus.push(c.bus);
+        trackEq.push(c.bands);
         driveDry.push(c.dry);
         drivePre.push(c.pre);
         drivePost.push(c.post);
@@ -246,7 +261,7 @@ function buildTrackChains() {
 // a track's chain, put together from the lists of its nodes
 function chainOf(t) {
     return {
-        filter: trackFilters[t], bus: trackBus[t], dry: driveDry[t], pre: drivePre[t], post: drivePost[t], wet: driveWet[t],
+        filter: trackFilters[t], bus: trackBus[t], bands: trackEq[t], dry: driveDry[t], pre: drivePre[t], post: drivePost[t], wet: driveWet[t],
         trem: tremGain[t], tremWave: tremLfo[t], depth: tremDepth[t], pan: trackPan[t], gain: trackGains[t], dSend: dlySend[t],
         delay: dlyNode[t], feedback: dlyFeedback[t], rSend: revSend[t],
     };
@@ -268,6 +283,13 @@ function applyChainFilter(c, s, instant = false) {
     c.filter.type = type;
     setParam(c.filter.frequency, cutoffFromSlider(s.cutoff), instant, now, 0.015);
     setParam(c.filter.Q, type === "bandpass" ? 0.7 + dB : dB, instant, now, 0.015);
+    // the EQ bands
+    c.bands.forEach((band, i) => {
+        const n = i + 1;
+        setParam(band.frequency, eqFreq(s["e" + n + "f"]), instant, now, 0.015);
+        setParam(band.gain, eqGain(s["e" + n + "g"]), instant, now, 0.015);
+        setParam(band.Q, eqQ(s["e" + n + "q"]), instant, now, 0.015);
+    });
 }
 
 // everything else a chain has, from the settings: the pan, the drive, the tremolo, the echo and the room
@@ -408,6 +430,7 @@ const settingDial = (group, label, key, aria, scope, def, format, defDrums = def
 const DIAL_TABS = [
     { id: "sound", name: "SOUND" },
     { id: "filter", name: "FILTER" },
+    { id: "eq", name: "EQ" },
     { id: "env", name: "ENV" },
     { id: "fx", name: "FX" },
     { id: "mod", name: "MOD" },
@@ -430,6 +453,13 @@ const DIALS = [
     { ...settingDial("filter", "CUT", "cutoff", "Filter cutoff", "both", 1, (v) => formatCutoff(cutoffFromSlider(v))), id: "cutoffSlider" },
     { ...settingDial("filter", "RES", "resonance", "Filter resonance", "both", 0, (v) => Math.round(resonanceFromSlider(v)) + "dB"), id: "resonanceSlider" },
     settingDial("filter", "FENV", "fenv", "Filter envelope: how far the fade opens the filter", "synth", 0, (v) => "+" + fenvOctaves(v).toFixed(1)),
+    // EQ: three bands, each with where it is (FREQ), how much it boosts or cuts (GAIN) and how wide it is (Q: a high one is narrow,
+    // for taking out one thing without touching what's round it)
+    ...[1, 2, 3].flatMap((n) => [
+        settingDial("eq", "FREQ " + n, "e" + n + "f", "EQ band " + n + " frequency: the part of the sound it works on", "both", EQ_DEFAULTS["e" + n + "f"], (v) => formatCutoff(eqFreq(v))),
+        settingDial("eq", "GAIN " + n, "e" + n + "g", "EQ band " + n + " gain in decibels: boosts or cuts that part of the sound", "both", 0.5, (v) => signed(Math.round(eqGain(v) * 10) / 10)),
+        settingDial("eq", "Q " + n, "e" + n + "q", "EQ band " + n + " width: a higher number works on a narrower part of the sound", "both", EQ_DEFAULTS["e" + n + "q"], (v) => eqQ(v).toFixed(1)),
+    ]),
     // ENV
     { ...settingDial("env", "ATK", "attack", "Attack time", "both", DIAL_DEFAULTS.synth.attack, (v) => formatSeconds(attackFromSlider(v)), DIAL_DEFAULTS.drums.attack), id: "attackSlider" },
     { ...settingDial("env", "DEC", "envdecay", "Decay time", "both", DIAL_DEFAULTS.synth.decay, (v) => formatSeconds(decayFromSlider(v)), DIAL_DEFAULTS.drums.decay), id: "decaySlider" },
@@ -449,6 +479,9 @@ const DIALS = [
     settingDial("play", "CHORD", "chord", "Chord: more notes played with each note", "synth", 0, (v) => CHORDS[placeOf(v, CHORDS.length)].name),
     settingDial("play", "ARP", "arp", "Arpeggio: plays the chord one note after another, in this order", "synth", 0, (v) => ARP_MODES[placeOf(v, ARP_MODES.length)]),
     settingDial("play", "RATE", "arate", "Arpeggio speed, in time with the song", "synth", 2 / 3, (v) => ARP_RATES[placeOf(v, ARP_RATES.length)].name),
+    // (a drum has its own PLAY dials: a roll)
+    settingDial("play", "ROLL", "roll", "Roll: hits the drum again and again, this fast, while the key is held", "drums", 0, (v) => ROLL_RATES[placeOf(v, ROLL_RATES.length)].name),
+    settingDial("play", "BUILD", "build", "Build: how soft a roll starts, it gets louder as it goes", "drums", 0, pct),
 ];
 // the steps of the stepped dials, so they click from one choice to the next
 DIALS.forEach((dial) => {
@@ -459,6 +492,7 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-chord") dial.step = 1 / (CHORDS.length - 1);
     if (dial.id === "dial-arp") dial.step = 1 / (ARP_MODES.length - 1);
     if (dial.id === "dial-arate") dial.step = 1 / (ARP_RATES.length - 1);
+    if (dial.id === "dial-roll") dial.step = 1 / (ROLL_RATES.length - 1);
 });
 
 const dialPanel = document.getElementById("dialPanel");
@@ -543,12 +577,8 @@ buildDialPanel();
 // pick a track or a drum)
 function showTrackSettings() {
     const drums = isDrums();
-    // (the drums have no PLAY tab: no chords or arpeggios, a drum is a drum)
-    const playTab = DIAL_TABS.findIndex((tab) => tab.id === "play");
-    dialTabButtons[playTab].disabled = drums;
     // (and says what the dials are for: the selected drum, or the selected track)
     dialEditing.textContent = "EDITING " + (drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : trackName(liveTrack));
-    if (drums && dialTab === "play") selectDialTab("sound");
     dialEntries.forEach(({ spec, box, input, strip }) => {
         const shown = spec.scope === "both" || (spec.scope === "drums") === drums;
         box.hidden = !shown;

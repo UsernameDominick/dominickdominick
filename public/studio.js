@@ -1009,15 +1009,22 @@ function playBeatOf(bar, beatInBar, time, skipTrack) {
     for (let t = 0; t < TRACKS; t++) {
         if (t === skipTrack || !audible(t)) continue;
         // (a long block plays its one bar of notes over and over, and a track on loop goes back to its start)
-        notesForBar(t, bar).forEach((n) => {
+        const notes = notesForBar(t, bar);
+        notes.forEach((n) => {
             if (Math.floor(n.beat) !== beatInBar) return;
             if (t === DRUM_TRACK && !drumAudible(drumSlot(n.note))) return; // a drum that's muted (or not on solo)
             // each note is played the way its own settings say: how hard, how early or late, or not at all
             const feel = humanize(n);
             if (!feel) return;
             const when = Math.max(ctx.currentTime, time + (n.beat - beatInBar + swingDelay(n.beat)) * beatSec + feel.shift);
-            // (a note in the song only knows where it starts, so each one is held for a beat and then let go)
-            playNote(noteToFrequency(n.note), when, t, false, beatSec, feel.velocity, feel.release);
+            // (a note in the song only knows where it starts, so each one is held for a beat and then let go. A drum that rolls rolls
+            // until the next hit of that drum, if that is sooner)
+            let gate = beatSec;
+            if (t === DRUM_TRACK) {
+                const next = notes.reduce((soonest, m) => (m.note === n.note && m.beat > n.beat ? Math.min(soonest, m.beat) : soonest), Infinity);
+                gate = Math.min(beatSec, (next - n.beat) * beatSec);
+            }
+            playNote(noteToFrequency(n.note), when, t, false, gate, feel.velocity, feel.release);
         });
     }
 }
