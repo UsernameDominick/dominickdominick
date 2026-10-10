@@ -115,14 +115,16 @@ const SOUNDS = [
 ];
 
 // plays one note (when is the audio clock time to start it, it defaults to right now,
-// and track is which track it's for: that track's sound, filter and release are used)
-function playNote(frequency, when = ctx.currentTime, track = 0) {
+// and track is which track it's for: that track's sound, filter and release are used).
+// Usually a note fades out by itself. With hold set it keeps sounding until you let go: it gives back
+// { release(time) }, and calling that starts the fade out (the song doesn't hold, a recorded note is just where it starts)
+function playNote(frequency, when = ctx.currentTime, track = 0, hold = false) {
     // the drum track doesn't use the synth: each piano key is a drum (drums.js), so hand the note over
     if (track === DRUM_TRACK) {
         const drumNote = Math.round(69 + 12 * Math.log2(frequency / 440)); // turn the frequency back into a key
         playDrumNote(drumNote, when);
         document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: drumNote, time: when, track } }));
-        return;
+        return hold ? { release() {} } : undefined; // a drum hit is over by itself, there's nothing to hold
     }
 
     const settings = trackSettings[track];
@@ -138,8 +140,9 @@ function playNote(frequency, when = ctx.currentTime, track = 0) {
     const now = when;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.3, now + 0.02);  // attack
-    gain.gain.exponentialRampToValueAtTime(0.001, now + release); // fade to silence
+    if (!hold) gain.gain.exponentialRampToValueAtTime(0.001, now + release); // fade to silence (a held note stays up until you let go)
 
+    const oscillators = [];
     layers.forEach((layer) => {
         // oscillator
         const osc = ctx.createOscillator();
@@ -159,7 +162,8 @@ function playNote(frequency, when = ctx.currentTime, track = 0) {
 
         // start and stop
         osc.start(now);
-        osc.stop(now + release + 0.05); // stop just after it's gone quiet
+        if (!hold) osc.stop(now + release + 0.05); // stop just after it's gone quiet
+        oscillators.push(osc);
 
         // once it's done, unplug the wheels from it
         osc.addEventListener("ended", () => {
@@ -174,6 +178,20 @@ function playNote(frequency, when = ctx.currentTime, track = 0) {
             detail: { note: Math.round(69 + 12 * Math.log2(frequency / 440)), time: now, track },
         })
     );
+
+    if (!hold) return;
+    let released = false;
+    return {
+        // lets go of the note: it fades out over the track's release time, then stops
+        release(time = ctx.currentTime) {
+            if (released) return;
+            released = true;
+            const t = Math.max(time, now + 0.02); // (not before the attack has finished)
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + release);
+            oscillators.forEach((osc) => osc.stop(t + release + 0.05));
+        },
+    };
 }
 
 // changes the master volume
@@ -415,16 +433,95 @@ const pianoScroll = piano.parentElement;
 const middleC = piano.querySelector('[data-note="60"]');
 pianoScroll.scrollLeft = middleC.offsetLeft - pianoScroll.clientWidth / 2 + middleC.offsetWidth / 2;
 
-// piano keys (every key plays the note in its data-note attribute)
+// piano keys (every key plays the note in its data-note attribute). A note starts when you press a key and
+// keeps sounding for as long as you hold it, then fades out over the track's release time when you let go.
+// Every finger (or mouse button, or keyboard key) is tracked on its own, so you can hold a chord.
+const heldKeys = new Map(); // what's being held right now: an id for the finger or key -> its { release }, or null while it's starting
+
+async function pressKey(id, note) {
+    heldKeys.set(id, null);
+    getCtx();
+    if (ctx.state === "suspended") await ctx.resume(); // browsers start audio suspended
+    const now = ctx.currentTime;
+    const stillDown = heldKeys.has(id); // (it could have been let go while the audio was waking up, then it's just a tap)
+    const handle = playNote(noteToFrequency(note), now, liveTrack, true);
+    if (stillDown) heldKeys.set(id, handle);
+    else handle.release(now);
+    // tell the rest of the page a note was played (studio.js listens, so it can record it)
+    document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now } }));
+}
+
+function releaseKey(id) {
+    const handle = heldKeys.get(id);
+    heldKeys.delete(id);
+    if (handle) handle.release(ctx.currentTime);
+}
+
+function releaseAllKeys() {
+    [...heldKeys.keys()].forEach(releaseKey);
+}
+window.addEventListener("blur", releaseAllKeys); // (don't leave a note stuck on if you switch away)
+
 document.querySelectorAll(".key").forEach((key) => {
-    key.addEventListener("click", async () => {
-        getCtx();
-        if (ctx.state === "suspended") await ctx.resume(); // browsers start audio suspended
-        const note = Number(key.dataset.note);
-        playNote(noteToFrequency(note), ctx.currentTime, liveTrack);
-        // tell the rest of the page a note was played (studio.js listens, so it can record it)
-        document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: ctx.currentTime } }));
+    const note = Number(key.dataset.note);
+    let waiting = null; // a touch that hasn't started its note yet: { id, x, y, timer }
+
+    // lets go of this key (the finger lifted, or the browser took the touch to scroll)
+    function finish(e) {
+        if (waiting && waiting.id === e.pointerId) {
+            clearTimeout(waiting.timer);
+            const tapped = e.type === "pointerup";
+            waiting = null;
+            if (!tapped) return; // it was a swipe that scrolled the piano, so no note
+            pressKey(e.pointerId, note); // a quick tap: the note is played and let go
+        }
+        releaseKey(e.pointerId);
+    }
+
+    key.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        try {
+            key.setPointerCapture(e.pointerId); // so letting go anywhere still lets go of the note
+        } catch {}
+        if (e.pointerType !== "touch") {
+            pressKey(e.pointerId, note);
+            return;
+        }
+        // on a touch screen a swipe along the piano scrolls it, so the note waits a moment to see if it is one
+        waiting = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            timer: setTimeout(() => {
+                const id = waiting.id;
+                waiting = null;
+                pressKey(id, note);
+            }, 90),
+        };
     });
+
+    key.addEventListener("pointermove", (e) => {
+        if (waiting && waiting.id === e.pointerId && Math.hypot(e.clientX - waiting.x, e.clientY - waiting.y) > 10) {
+            clearTimeout(waiting.timer); // it's moving, so it's a swipe
+            waiting = null;
+        }
+    });
+
+    key.addEventListener("pointerup", finish);
+    key.addEventListener("pointercancel", finish);
+    key.addEventListener("lostpointercapture", finish);
+    key.addEventListener("contextmenu", (e) => e.preventDefault()); // (no menu when you hold a key on a phone)
+
+    // the keyboard: Space or Enter on a key holds it too
+    key.addEventListener("keydown", (e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+        if (!e.repeat) pressKey("key" + note, note);
+    });
+    key.addEventListener("keyup", (e) => {
+        if (e.key === " " || e.key === "Enter") releaseKey("key" + note);
+    });
+    key.addEventListener("blur", () => releaseKey("key" + note));
 });
 
 // ---- dials ----

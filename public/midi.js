@@ -162,6 +162,8 @@ function inputNote(rawNote) {
     return note;
 }
 
+const heldMidi = new Map(); // the keys held down on the MIDI keyboard: its note number -> the note's { release }
+
 function onMidiMessage(e) {
     const [status, data1, data2] = e.data;
     const type = status & 0xf0;
@@ -169,11 +171,17 @@ function onMidiMessage(e) {
     if (!ctx) return; // the audio isn't ready yet
 
     if (type === 0x90 && data2 > 0) {
-        // a note on: play it on the selected track, and let the page know, so the song can record it
+        // a note on: play it on the selected track (it sounds until the key is let go), and let the page know, so
+        // the song can record it
         const note = inputNote(data1);
         const now = ctx.currentTime;
-        playNote(noteToFrequency(note), now, liveTrack);
+        if (heldMidi.has(data1)) heldMidi.get(data1).release(now); // the same key again, let go of the old one
+        heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true));
         document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now } }));
+    } else if (type === 0x80 || type === 0x90) {
+        // a note off (or a note on with no force, which also means off): let go of that key's note
+        if (heldMidi.has(data1)) heldMidi.get(data1).release(ctx.currentTime);
+        heldMidi.delete(data1);
     } else if (type === 0xe0) {
         // pitch bend: the wheel on the keyboard moves the pitch wheel (8192 is the middle)
         pitchWheel.value = Math.max(-1, Math.min(1, (((data2 << 7) | data1) - 8192) / 8192));

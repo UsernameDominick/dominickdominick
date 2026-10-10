@@ -22,6 +22,13 @@
     --radius: 8px; /* how round the corners of the buttons are (the pitch and mod wheels had this first) */
 }
 
+/* double tapping doesn't zoom the page in (pinching still does). It's on every element, because a box that scrolls
+   (like the piano) is the end of the line for what its parents say, so putting it on the body isn't enough.
+   (The dials and strips set their own touch-action: none, which wins over this) */
+* {
+    touch-action: manipulation;
+}
+
 body {
     margin: 0px;
     padding: 0px;
@@ -429,6 +436,9 @@ output {
 }
 
 .key {
+    -webkit-user-select: none;
+    user-select: none; /* holding a key doesn't select its name */
+    -webkit-touch-callout: none; /* nor does it pop up a menu on a phone */
     margin: 0;
     padding: 0 0 8px 0;
     font-size: 16px;
@@ -991,14 +1001,6 @@ output {
     color: white;
 }
 
-/* the track names stay put when the song is scrolled sideways */
-.corner,
-.track-head {
-    position: sticky;
-    left: 0;
-    z-index: 2;
-}
-
 /* a track, like a track in FL Studio: a grey header at the left (name, mute, solo) and a grey lane beside it
    that the blocks sit in. The greys are solid, so nothing shows through when the song scrolls under the header */
 .track-head {
@@ -1173,7 +1175,7 @@ output {
 /* the little buttons on the selected block's top border: shorter, longer, edit, delete */
 .block-tools {
     position: absolute;
-    z-index: 1; /* above the blocks, but under the track names, which stay put when the song scrolls */
+    z-index: 1; /* above the blocks and the lanes */
     display: flex;
     gap: var(--gap-tight);
     padding: var(--gap-tight);
