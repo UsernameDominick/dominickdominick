@@ -461,7 +461,7 @@ let scopeLast = 0; // the time of the last frame, in milliseconds
 
 // match the canvas resolution to its size on the page so the line stays sharp
 function sizeScope() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * uiScale; // (a bigger page is drawn sharper, not stretched)
     scopeW = canvas.clientWidth;
     scopeH = canvas.clientHeight;
     canvas.width = Math.round(scopeW * dpr);
@@ -994,7 +994,7 @@ const GRAPH_PAD = 4; // space above and below the line so it isn't cut off
 
 // gets a canvas ready to draw on (sharp on high resolution screens) and clears it
 function prepGraph(canvas) {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * uiScale; // (a bigger page is drawn sharper, not stretched)
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     canvas.width = Math.round(w * dpr);

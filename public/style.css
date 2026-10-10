@@ -32,6 +32,7 @@
 body {
     margin: 0px;
     padding: 0px;
+    overflow-x: hidden; /* (the page is scaled up to fit the screen, see fit.js, so it's never wider than the window) */
     font-family: "Karla", sans-serif;
     background: var(--page);
 }
@@ -728,7 +729,7 @@ output {
     position: fixed;
     z-index: 50;
     width: 400px;
-    max-width: calc(100vw - 16px);
+    max-width: calc((100vw - 16px) / var(--ui-scale, 1));
     box-sizing: border-box;
     padding: var(--gap);
     background: #1c1c1c;
@@ -743,7 +744,7 @@ output {
 
 /* if the screen isn't tall enough for everything, the inside scrolls (the arrow sits outside it, so it isn't cut off) */
 .popover-body {
-    max-height: calc(100vh - 2 * var(--gap) - 2 * 4px - 28px);
+    max-height: calc((100vh - 2 * var(--gap) - 2 * 4px - 28px) / var(--ui-scale, 1));
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #3a3a3a transparent;
@@ -812,7 +813,7 @@ output {
 }
 
 .step-scroll {
-    max-height: min(50vh, 380px);
+    max-height: min(calc(50vh / var(--ui-scale, 1)), 380px);
     overflow: auto;
     scrollbar-width: thin;
     scrollbar-color: #3a3a3a transparent;

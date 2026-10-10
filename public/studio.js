@@ -542,7 +542,7 @@ function toggleDrumHit(slot, b, e) {
 function drawDrumCells(b) {
     if (!drumsOpen) return;
     const bars = clipBars(DRUM_TRACK, b);
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * uiScale; // (a bigger page is drawn sharper, not stretched)
     const own = clipNotes(DRUM_TRACK, b);
     const ownBars = own.length > 0; // (a block with notes of its own isn't a repeat)
     drumRows.forEach(({ cells: row }, slot) => {
@@ -616,7 +616,7 @@ function drawBlock(t, b, fromLoop = false) {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (!w || !h) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * uiScale; // (a bigger page is drawn sharper, not stretched)
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     const g = canvas.getContext("2d");
@@ -709,7 +709,7 @@ handleEl.addEventListener("pointermove", (e) => {
     if (!resizing) return;
     const stride = barHeads[1].offsetLeft - barHeads[0].offsetLeft; // from one bar to the next
     const gap = stride - barHeads[0].offsetWidth;
-    const x = e.clientX - songEl.getBoundingClientRect().left; // (the song may be scrolled, its left moves with it)
+    const x = (e.clientX - songEl.getBoundingClientRect().left) / uiScale; // (the song may be scrolled, its left moves with it. And the page may be scaled up)
     const bars = Math.round((x - barHeads[selBar].offsetLeft + gap) / stride); // how many bars reach to the pointer
     const len = Math.max(1, Math.min(bars, BARS - selBar));
     if (len !== clipBars(selTrack, selBar)) setLength(len);
@@ -1412,7 +1412,7 @@ function drawParamCell(lane, b) {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (!w || !h) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * uiScale; // (a bigger page is drawn sharper, not stretched)
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     const g = canvas.getContext("2d");

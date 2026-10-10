@@ -56,10 +56,15 @@ function closePanel(name) {
 function openPopover(name) {
     const { button, popover, anchor } = panels[name];
     popover.hidden = false;
-    const gap = 14; // room for the arrow
+    // on a big screen the page is scaled up (see fit.js), and the popup is scaled up with it. Its size on the screen is
+    // its size times the scale, and where it goes (left and top) is measured on the screen
+    const scale = uiScale;
+    popover.style.transformOrigin = "0 0";
+    popover.style.transform = scale === 1 ? "none" : "scale(" + scale + ")";
+    const gap = 14 * scale; // room for the arrow
     const rect = (anchor ? anchor() : button).getBoundingClientRect();
-    const width = popover.offsetWidth;
-    const height = popover.offsetHeight;
+    const width = popover.offsetWidth * scale;
+    const height = popover.offsetHeight * scale;
 
     const above = rect.top - height - gap >= 8;
     popover.classList.toggle("above", above);
@@ -73,7 +78,7 @@ function openPopover(name) {
     const top = above ? rect.top - height - gap : rect.bottom + gap;
     popover.style.top = Math.max(8, Math.min(top, window.innerHeight - height - 8)) + "px";
     // the arrow stays over the button (but never right at the corner of the popup)
-    popover.style.setProperty("--arrow-x", Math.max(20, Math.min(buttonMiddle - left, width - 20)) + "px");
+    popover.style.setProperty("--arrow-x", Math.max(20, Math.min((buttonMiddle - left) / scale, width / scale - 20)) + "px");
 
     button.setAttribute("aria-expanded", "true");
     const chosen = popover.querySelector('[aria-pressed="true"]');
