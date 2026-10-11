@@ -1041,6 +1041,7 @@ function showSamplers(metas) {
 function samplerChanged(track, key, quiet) {
     if (key === "sshift" || key === "sbeats" || key === "srev") wantView(track);
     if (typeof refreshSamplerUi === "function") refreshSamplerUi(track, quiet);
+    if (track === liveTrack && typeof updateLeds === "function") updateLeds(); // (a chop's keys are lit above the piano)
 }
 
 // the tempo changed: a sample matched to the tempo is worked out again

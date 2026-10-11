@@ -183,8 +183,10 @@ try {
     }
 } catch {}
 try {
-    const savedTrackVolume = Number(localStorage.getItem("drumTrackVolume"));
-    if (Number.isFinite(savedTrackVolume) && savedTrackVolume >= 0 && savedTrackVolume <= 1) drumTrackVolume = savedTrackVolume;
+    const savedText = localStorage.getItem("drumTrackVolume");
+    const savedTrackVolume = Number(savedText);
+    // (nothing saved is not a volume of 0: Number(null) is 0, which would make the drums silent for someone who has not moved the slider yet)
+    if (savedText !== null && savedText !== "" && Number.isFinite(savedTrackVolume) && savedTrackVolume >= 0 && savedTrackVolume <= 1) drumTrackVolume = savedTrackVolume;
 } catch {}
 
 function setDrumTrackVolume(value) {

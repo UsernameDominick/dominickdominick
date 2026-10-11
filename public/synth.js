@@ -1042,6 +1042,7 @@ function setVolume(v) {
     trackSettings[liveTrack].volume = v;
     // setTargetAtTime glides to the new value so you don't hear a click
     trackGains[liveTrack].gain.setTargetAtTime(v, ctx.currentTime, 0.015);
+    if (typeof paintTrackVolume === "function") paintTrackVolume(liveTrack); // (the slider under the track's name)
 }
 
 // changes the volume of the whole song (v is the strip position, 0 to 1)

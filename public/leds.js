@@ -62,6 +62,18 @@ function updateLeds() {
         return;
     }
 
+    // a sampler in CHOP style: the LEDs show which keys have a chop (the first, gold, is the BASE key)
+    if (typeof isSampler === "function" && isSampler(liveTrack) && samplerState[liveTrack] && samplerState[liveTrack].data && sampleMode(trackSettings[liveTrack]) === 1) {
+        const base = sampleBase(trackSettings[liveTrack].sbase);
+        const count = samplerState[liveTrack].chops.length;
+        leds.forEach((led, note) => {
+            const on = note >= base && note < base + count;
+            led.classList.toggle("on", on);
+            led.classList.toggle("root", on && note === base);
+        });
+        return;
+    }
+
     const steps = SCALES[ledScale].steps;
     let lit = []; // the notes to light, as steps up from the key
     let rootStep = 0; // which of them gets the bigger LED

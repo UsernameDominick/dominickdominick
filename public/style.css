@@ -3402,3 +3402,179 @@ kbd {
 #randomButton:disabled {
     opacity: 0.4;
 }
+
+/* ================ a volume slider under each track's name ================
+   The name on top and a flat slider under it (a thin groove filled up to the volume in the track's colour, and a small cream handle). It replaces the
+   knob the drum track had */
+.track-label {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.track-label .track-name {
+    flex: 1;
+    min-height: 0;
+}
+
+.track-volume {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: none;
+    width: 100%;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.track-volume::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--track-color) var(--fill, 50%), #2a2623 var(--fill, 50%));
+}
+
+.track-volume::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: #2a2623;
+}
+
+.track-volume::-moz-range-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--track-color);
+}
+
+.track-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 8px;
+    height: 14px;
+    margin-top: -5px;
+    border: none;
+    border-radius: 2px;
+    background: var(--hardware-dim);
+}
+
+.track-volume::-moz-range-thumb {
+    width: 8px;
+    height: 14px;
+    border: none;
+    border-radius: 2px;
+    background: var(--hardware-dim);
+}
+
+.track-volume:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+}
+
+/* the empty space where the drum track has no arrow, so its M, S and L line up with the other tracks' */
+.head-space {
+    flex: none;
+    width: 24px;
+}
+
+/* ================ on a touch screen ================
+   Bigger things to press: the sampler's buttons, and the volume slider under each track name with a handle a finger can find */
+@media (pointer: coarse) {
+    .plate-button {
+        height: 32px;
+        padding: 0 12px;
+    }
+
+    .track-volume {
+        height: 18px;
+    }
+
+    .track-volume::-webkit-slider-thumb {
+        width: 14px;
+        height: 18px;
+        margin-top: -7px;
+    }
+
+    .track-volume::-moz-range-thumb {
+        width: 14px;
+        height: 18px;
+    }
+}
+
+/* ================ mute, solo and loop: drawn icons, lit by their border ================
+   The buttons have the same background as the track header they sit on. Off, they have a dim border and a cream icon. On, the border (and the icon)
+   light up: mute red, solo amber, loop green. The arrow that opens a track's note settings is the same */
+.mute,
+.solo,
+.loop,
+.params-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    border: 2px solid #5b534b;
+    border-radius: 4px;
+    background: var(--well);
+    color: var(--ink);
+}
+
+.mute svg,
+.solo svg,
+.loop svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.mute:active,
+.solo:active,
+.loop:active,
+.params-arrow:active {
+    background: #2a2623;
+}
+
+.params-arrow::before {
+    border-top-color: var(--ink);
+}
+
+.mute[aria-pressed="true"],
+.solo[aria-pressed="true"],
+.loop[aria-pressed="true"],
+.params-arrow[aria-expanded="true"] {
+    background: var(--well);
+}
+
+.mute[aria-pressed="true"] {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.solo[aria-pressed="true"] {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+.loop[aria-pressed="true"] {
+    border-color: var(--sage);
+    color: var(--sage);
+}
+
+.params-arrow[aria-expanded="true"] {
+    border-color: var(--ink);
+}
+
+.mute:focus-visible,
+.solo:focus-visible,
+.loop:focus-visible,
+.params-arrow:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 1px;
+}

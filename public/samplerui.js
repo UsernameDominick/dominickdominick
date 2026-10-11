@@ -266,6 +266,7 @@ function auditionChop(index) {
     const chopCanvas = dialViews.chop;
     let dragged = -1;
     let moved = false;
+    let lastMarkerPress = { marker: -1, time: 0 };
     const nearest = (e, st, view) => {
         const rect = chopCanvas.getBoundingClientRect();
         let best = -1;
@@ -286,6 +287,16 @@ function auditionChop(index) {
         e.preventDefault();
         const near = nearest(e, st, at.view);
         if (near > 0) {
+            // a second press on the same marker soon after the first takes it away (not a dblclick event: a phone does not send one)
+            const now = performance.now();
+            if (lastMarkerPress.marker === st.chops[near] && now - lastMarkerPress.time < 350) {
+                lastMarkerPress = { marker: -1, time: 0 };
+                st.chops.splice(near, 1);
+                rechop(liveTrack);
+                samplerChanged(liveTrack, null);
+                return;
+            }
+            lastMarkerPress = { marker: st.chops[near], time: now };
             dragged = near; // (the first chop always starts at the start)
             moved = false;
             chopCanvas.setPointerCapture(e.pointerId);
@@ -321,17 +332,6 @@ function auditionChop(index) {
     };
     chopCanvas.addEventListener("pointerup", finish);
     chopCanvas.addEventListener("pointercancel", finish);
-    chopCanvas.addEventListener("dblclick", (e) => {
-        const st = samplerState[liveTrack];
-        const at = timeAt(chopCanvas, e);
-        if (!st || !at) return;
-        const near = nearest(e, st, at.view);
-        if (near > 0) {
-            st.chops.splice(near, 1);
-            rechop(liveTrack);
-            samplerChanged(liveTrack, null);
-        }
-    });
 })();
 
 // ---- the buttons ----

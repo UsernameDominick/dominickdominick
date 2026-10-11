@@ -273,36 +273,87 @@ function make(tag, className, text) {
     return el;
 }
 
-function makeDrumTrackVolumeDial() {
-    const box = make("div", "dial drum-track-volume");
-    box.dataset.default = "1";
-    const label = make("label", "", "DRUM");
-    const face = make("div", "dial-face");
-    const input = document.createElement("input");
-    input.type = "range";
-    input.className = "dial-input";
-    input.min = "0";
-    input.max = "1";
-    input.step = "0.01";
-    input.value = String(drumTrackVolumeAt());
-    input.setAttribute("aria-label", "Volume of the whole drum track");
-    const output = document.createElement("output");
-    output.setAttribute("aria-hidden", "true");
-    box.append(label, face, input, output);
-    buildDial(box);
-    setUpDialDrag(box, input);
-    const showVolume = () => {
-        const value = Number(input.value);
-        setDrumTrackVolume(value);
-        updateDial(box, value);
-        const text = Math.round(value * 100) + "%";
-        output.textContent = text;
-        input.setAttribute("aria-valuetext", text);
-        box.title = "Drum track volume: " + text;
-    };
-    input.addEventListener("input", showVolume);
-    showVolume();
-    return box;
+// the drawn icons on the mute, solo and loop buttons (plain lines, so they are never an emoji): a speaker crossed out, headphones, and two
+// arrows going round
+const ICON_PATHS = {
+    mute: ["M4 9.5 H8 L13 5.5 V18.5 L8 14.5 H4 Z", "M16.5 9.5 L21 14.5", "M21 9.5 L16.5 14.5"],
+    solo: ["M5 15 V12.5 a7 7 0 0 1 14 0 V15", "M4.5 14 H7.5 a1 1 0 0 1 1 1 V19 a1 1 0 0 1 -1 1 H6 a1.5 1.5 0 0 1 -1.5 -1.5 Z", "M19.5 14 H16.5 a1 1 0 0 0 -1 1 V19 a1 1 0 0 0 1 1 H18 a1.5 1.5 0 0 0 1.5 -1.5 Z"],
+    loop: ["M17 3 L20.5 6.5 L17 10", "M3.5 11 V10 a3.5 3.5 0 0 1 3.5 -3.5 H20.5", "M7 21 L3.5 17.5 L7 14", "M20.5 13 V14 a3.5 3.5 0 0 1 -3.5 3.5 H3.5"],
+};
+
+function makeIconButton(kind, label) {
+    const button = make("button", kind);
+    button.title = label;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    ICON_PATHS[kind].forEach((d) => {
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", d);
+        svg.appendChild(path);
+    });
+    button.appendChild(svg);
+    return button;
+}
+
+// The volume of each track, a slider under its name (the drum track's is the volume of all the drums together, each drum has its own as well). A
+// synth track's is the same as the VOL dial in the dials box, so the two follow each other
+const DEFAULT_TRACK_VOLUME = 0.5;
+
+function trackVolumeOf(t) {
+    return t === DRUM_TRACK ? drumTrackVolumeAt() : trackSettings[t].volume;
+}
+
+function paintTrackVolume(t) {
+    const slider = trackHeads[t] && trackHeads[t].volume;
+    if (!slider) return;
+    slider.value = String(trackVolumeOf(t));
+    slider.style.setProperty("--fill", Math.round(trackVolumeOf(t) * 100) + "%");
+    slider.title = "Volume of " + trackName(t) + ": " + Math.round(trackVolumeOf(t) * 100) + "%";
+}
+
+function setTrackVolume(t, v) {
+    v = Math.min(1, Math.max(0, v));
+    if (t === DRUM_TRACK) {
+        setDrumTrackVolume(v);
+    } else {
+        trackSettings[t].volume = v;
+        // (it glides to the new value so there is no click)
+        if (ctx && trackGains[t]) trackGains[t].gain.setTargetAtTime(v, ctx.currentTime, 0.015);
+        if (t === liveTrack && typeof showTrackSettings === "function") showTrackSettings(); // (the VOL dial turns too)
+    }
+    paintTrackVolume(t);
+}
+
+// every slider shows its track's volume (after a song is opened, or a dial changed it)
+function showTrackVolumes() {
+    for (let t = 0; t < trackHeads.length; t++) paintTrackVolume(t);
+}
+
+function makeTrackVolume(t) {
+    const slider = make("input", "track-volume");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "1";
+    slider.step = "0.01";
+    slider.value = String(trackVolumeOf(t));
+    slider.setAttribute("aria-label", "Volume of track " + (t + 1));
+    slider.addEventListener("input", () => setTrackVolume(t, Number(slider.value)));
+    // (a second press soon after the first puts it back to where it starts: made here and not with dblclick, because a phone does not send that.
+    // It is when the finger or the button comes up, after the slider has moved to where it was pressed, so the reset is what is left)
+    let lastPress = 0;
+    slider.addEventListener("click", (e) => e.stopPropagation());
+    slider.addEventListener("pointerup", () => {
+        const now = performance.now();
+        if (now - lastPress < 350) {
+            lastPress = 0;
+            setTrackVolume(t, t === DRUM_TRACK ? 1 : DEFAULT_TRACK_VOLUME);
+        } else {
+            lastPress = now;
+        }
+    });
+    return slider;
 }
 
 // where the blocks start in a track: starts[bar] is the bar of the block that covers that bar
@@ -505,15 +556,15 @@ function buildSong() {
             head.style.setProperty("--track-color", trackColors[t]);
         const name = make("button", "track-name", trackName(t)); // the first track is always drums
         name.addEventListener("click", () => selectBlock(t, selBar));
-        const mute = make("button", "mute", "M");
+        const mute = makeIconButton("mute", "Mute");
         mute.setAttribute("aria-pressed", "false");
         mute.setAttribute("aria-label", "Mute track " + (t + 1));
         mute.addEventListener("click", () => toggleMute(t));
-        const solo = make("button", "solo", "S");
+        const solo = makeIconButton("solo", "Solo");
         solo.setAttribute("aria-pressed", "false");
         solo.setAttribute("aria-label", "Solo track " + (t + 1));
         solo.addEventListener("click", () => toggleSolo(t));
-        const loop = make("button", "loop", "L");
+        const loop = makeIconButton("loop", "Loop: repeat its blocks to the end of the song");
         loop.setAttribute("aria-pressed", "false");
         loop.setAttribute("aria-label", "Loop track " + (t + 1) + ": repeat its blocks to the end of the song");
         loop.addEventListener("click", () => toggleLoop(t));
@@ -523,10 +574,15 @@ function buildSong() {
         settings.addEventListener("click", () => toggleParamLane(t, null, settings));
         // (the drum track has no lane of its own: each drum has one, on its own row, so every drum is edited on its own.
         // An empty space is left where the arrow would be, so its M, S and L line up with the other tracks')
-        head.append(name, mute, solo, loop, t === DRUM_TRACK ? makeDrumTrackVolumeDial() : settings);
+        // (the name with the volume slider under it, then M, S, L and the arrow. The drum track has an empty space where the arrow would be)
+        const label = make("div", "track-label");
+        const volume = makeTrackVolume(t);
+        label.append(name, volume);
+        head.append(label, mute, solo, loop, t === DRUM_TRACK ? make("span", "head-space") : settings);
         head.addEventListener("contextmenu", (e) => openTrackMenu(e, t));
         songEl.appendChild(head);
-        trackHeads.push({ head, name, mute, solo, loop, settings });
+        trackHeads.push({ head, name, mute, solo, loop, settings, volume });
+        paintTrackVolume(t);
 
         if (t === DRUM_TRACK) {
             // the arrow that opens up the drums (a triangle drawn with borders, CSS turns it down when open)
@@ -588,19 +644,19 @@ function buildDrumRows() {
         const head = make("div", "track-head sub folded");
         const name = make("button", "track-name");
         name.addEventListener("click", () => pickDrum(note));
-        const mute = make("button", "mute", "M");
+        const mute = makeIconButton("mute", "Mute");
         mute.addEventListener("click", () => {
             focusDrum(slot);
             drumMuted[slot] = !drumMuted[slot];
             showAudible();
         });
-        const solo = make("button", "solo", "S");
+        const solo = makeIconButton("solo", "Solo");
         solo.addEventListener("click", () => {
             focusDrum(slot);
             drumSoloed[slot] = !drumSoloed[slot];
             showAudible();
         });
-        const loop = make("button", "loop", "L");
+        const loop = makeIconButton("loop", "Loop: repeat its blocks to the end of the song");
         loop.addEventListener("click", () => {
             focusDrum(slot);
             drumLooped[slot] = !drumLooped[slot];
@@ -919,6 +975,8 @@ function showSound() {
     showTrackSettings();
     refreshDrumRows();
     if (typeof showLabButtons === "function") showLabButtons(); // (the dice by the star, soundlab.js)
+    showTrackVolumes(); // (the sliders under the track names)
+    if (typeof updateLeds === "function") updateLeds(); // (a sampler's chops are lit, other sounds show the scale)
 }
 
 // gives the selected track a new sound (or the selected drum key a new drum), and plays it so you can hear it
