@@ -105,6 +105,13 @@ const markCurve = makeChoices([byId("popCurveChoices"), byId("curveChoices")], V
     markCurve(midiCurve);
 });
 
+// SOUND ENGINE: NEW uses the worklets (unison, the ladder, the matrix...), SAFE only the browser's own parts, for a computer that crackles
+const ENGINE_CHOICES = ["NEW", "SAFE"];
+const markEngine = makeChoices([byId("popEngineChoices"), byId("engineChoices")], ENGINE_CHOICES, (i) => {
+    setSafeEngine(i === 1);
+    markEngine(i);
+});
+
 // what the mouse does to a note you hold when you move it sideways (X) and up and down (Y): see synth.js
 const markX = makeChoices([byId("popXChoices"), byId("xChoices")], XY_TARGETS, (i) => {
     xyMod.x = i;
@@ -155,6 +162,7 @@ function refreshMidi() {
     markY(xyMod.y);
     markP(xyMod.p);
     markCurve(midiCurve);
+    markEngine(safeEngine ? 1 : 0);
     if (!currentInput) letGoOfPedalNotes(); // (an unplugged keyboard can't let the pedal up)
     updateMidiButton();
 }

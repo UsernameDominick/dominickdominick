@@ -22,7 +22,7 @@ async function renderSong() {
     getCtx(); // (so there is a live engine to put to one side, and a sample rate to use)
 
     const live = {
-        ctx, master, bendNode, modDepth, reverbIn, beatSec,
+        ctx, master, bendNode, modDepth, wheelNode, reverbIn, beatSec,
         lists: chainLists.map((list) => list.slice()),
         filters: activeFilters.map((set) => new Set(set)),
         last: lastFrequency.slice(),
@@ -58,6 +58,9 @@ async function renderSong() {
         lfo.frequency.value = LFO_RATE;
         lfo.connect(modDepth);
         lfo.start();
+        wheelNode = offline.createConstantSource();
+        wheelNode.offset.value = mod;
+        wheelNode.start();
 
         // every note of the song, bar after bar, exactly as playing it does (the muted tracks, the loops and the swing too)
         beatSec = perBeat;
@@ -79,6 +82,7 @@ async function renderSong() {
         master = live.master;
         bendNode = live.bendNode;
         modDepth = live.modDepth;
+        wheelNode = live.wheelNode;
         reverbIn = live.reverbIn;
         beatSec = live.beatSec;
         chainLists.forEach((list, i) => {

@@ -751,6 +751,33 @@ function buildDialPanel() {
         dialBar.right.textContent = DIAL_TABS.find((tab) => tab.id === id).name;
         drawGraphs(); // (each tab has its own picture to draw)
     }
+    // double-clicking a tab puts every dial on it back to where it starts, for the selected sound (a drum's start in a different place from a
+    // synth's). The tab says RESET for a moment
+    function resetTab(id) {
+        const names = new Set((PLATE_LAYOUT[id] || []).flatMap(([, labels]) => labels));
+        dialEntries.forEach(({ spec, box, input }) => {
+            if (!names.has(spec.label) || box.hidden) return;
+            input.value = box.dataset.default;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        if (typeof resetPicture === "function") resetPicture(id); // (a tab with a picture you edit, like the matrix, puts that back too)
+        const button = tabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)];
+        const name = DIAL_TABS.find((tab) => tab.id === id).name;
+        button.textContent = "RESET";
+        setTimeout(() => (button.textContent = name), 700);
+    }
+    tabButtons.forEach((button, i) => {
+        let lastTap = 0; // (a phone does not send a double click)
+        button.addEventListener("click", () => {
+            const now = performance.now();
+            if (now - lastTap < 350) {
+                lastTap = 0;
+                resetTab(DIAL_TABS[i].id);
+            } else {
+                lastTap = now;
+            }
+        });
+    });
     selectDialTab = showDialTab;
     showDialTab(dialTab);
 }

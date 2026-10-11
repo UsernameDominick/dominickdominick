@@ -53,6 +53,22 @@ const FX_DEFAULTS = {
     fmodel: 0, fdrive: 0, ktrack: 0,
     ...EQ_DEFAULTS,
 };
+// the modulation (the LFO, MENV and MATRIX tabs, mod-worklet.js): three LFOs, two more envelopes and a matrix that sends each of ten sources
+// (what moves) to each of eight destinations (what is moved) by an amount. The amount from -1 to 1 is kept as 0 to 1 (0.5 is nothing)
+const MOD_SOURCES = ["LFO 1", "LFO 2", "LFO 3", "ENV 2", "ENV 3", "VEL", "KEY", "WHEEL", "PRESS", "RAND"];
+const MOD_DESTS = ["PITCH", "CUTOFF", "RES", "AMP", "PAN", "PW", "F DRIVE", "SUB"];
+const LFO_SHAPES = ["SINE", "TRI", "SAW UP", "SAW DN", "SQUARE", "S&H", "SMOOTH"];
+const LFO_MODES = ["FREE", "KEY", "SYNC"]; // free runs on the clock, key starts again with each note, sync is in time with the song
+const LFO_SYNC = [
+    { name: "4 BARS", beats: 16 }, { name: "2 BARS", beats: 8 }, { name: "1 BAR", beats: 4 }, { name: "1/2", beats: 2 },
+    { name: "1/4", beats: 1 }, { name: "1/8", beats: 0.5 }, { name: "1/16", beats: 0.25 }, { name: "1/32", beats: 0.125 },
+];
+const lfoRateHz = (v) => 0.05 * 800 ** v; // the free rates: 0.05Hz up to 40Hz
+const lfoFadeSeconds = (v) => v * 4;
+for (let i = 1; i <= 3; i++) Object.assign(FX_DEFAULTS, { ["l" + i + "w"]: 0, ["l" + i + "m"]: 0, ["l" + i + "r"]: 0.4, ["l" + i + "f"]: 0 });
+for (const n of [2, 3]) Object.assign(FX_DEFAULTS, { ["v" + n + "a"]: 0.2, ["v" + n + "d"]: 0.5, ["v" + n + "s"]: 0.5, ["v" + n + "r"]: 0.3 });
+for (let source = 0; source < MOD_SOURCES.length; source++) for (let dest = 0; dest < MOD_DESTS.length; dest++) FX_DEFAULTS["x" + source + "_" + dest] = 0.5;
+
 const DIAL_DEFAULTS = {
     synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
     drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
@@ -97,6 +113,7 @@ let bend = 0; // pitch wheel position, -1 to 1
 let mod = 0; // mod wheel position, 0 to 1
 let bendNode; // one constant signal that every note's pitch listens to
 let modDepth; // the vibrato signal (LFO), scaled by the mod wheel
+let wheelNode; // the position of the mod wheel (0 to 1) as a signal, for the notes' modulation
 
 // a limiter: it turns down anything that would go over the top, so many tracks, rolls and EQ boosts at once don't clip. Under the
 // ceiling it does nothing. It gives back the node to plug into, and it goes on to the speakers (the context's destination) by itself
@@ -172,6 +189,11 @@ function getCtx() {
         modDepth.gain.value = mod * MOD_CENTS;
         lfo.connect(modDepth);
         lfo.start();
+
+        // the mod wheel as a signal too, so a note's modulation can use it
+        wheelNode = ctx.createConstantSource();
+        wheelNode.offset.value = mod;
+        wheelNode.start();
     }
     return ctx;
 }
@@ -275,12 +297,28 @@ const unisonShare = (count) => (count <= 3 ? 1 / count : 1 / Math.sqrt(3 * count
 // ---- the oscillator worklet ----
 // osc-worklet.js makes the waves itself (no aliasing, unison, pulse width, a sub wave and noise). The browser loads it when the audio starts,
 // which takes a moment: until it has, notes use the browser's own oscillators (three copies instead of up to sixteen, no pulse width).
+// SAFE ENGINE: notes use only the browser's own oscillators and filters (no worklets), which take much less of the computer. Switched in the MIDI
+// popup (SOUND ENGINE), for a computer that crackles. The new sounds (unison, pulse width, the ladder and the matrix) need the worklets and are
+// not heard in it. It is remembered
+let safeEngine = false;
+try {
+    safeEngine = localStorage.getItem("engine") === "safe";
+} catch {}
+
+function setSafeEngine(on) {
+    safeEngine = on;
+    try {
+        localStorage.setItem("engine", on ? "safe" : "new");
+    } catch {}
+}
+
 const OSC_WORKLET_URL = "osc-worklet.js";
 const FILTER_WORKLET_URL = "filter-worklet.js";
+const MOD_WORKLET_URL = "mod-worklet.js";
 
 // loads both worklets (the oscillator and the filter), and marks the audio context as ready for each as it loads
 function loadOscWorklet(context) {
-    if (!context.audioWorklet) return Promise.resolve([false, false]);
+    if (!context.audioWorklet) return Promise.resolve([false, false, false]);
     const load = (url, flag) =>
         context.audioWorklet
             .addModule(url)
@@ -289,7 +327,7 @@ function loadOscWorklet(context) {
                 return true;
             })
             .catch(() => false);
-    return Promise.all([load(OSC_WORKLET_URL, "oscReady"), load(FILTER_WORKLET_URL, "filterReady")]);
+    return Promise.all([load(OSC_WORKLET_URL, "oscReady"), load(FILTER_WORKLET_URL, "filterReady"), load(MOD_WORKLET_URL, "modReady")]);
 }
 
 // one layer of a note made by the worklet, with the parts of an OscillatorNode the note uses (frequency, detune, start, stop, ended)
@@ -331,7 +369,9 @@ class WorkletOsc {
 class NoteFilter {
     constructor(context, settings, keyCents, stopTime) {
         this.context = context;
-        this.worklet = context.filterReady === true;
+        // The browser's own filter does everything the SVF 12 model does (it follows the same curve), and takes a fraction of the computer, so the
+        // worklet is only used for the models and the drive that the browser's filter can't do
+        this.worklet = context.filterReady === true && !safeEngine && (filterModelFrom(settings.fmodel) !== 0 || settings.fdrive > 0.001);
         const dB = resonanceFromSlider(settings.resonance);
         if (this.worklet) {
             this.node = new AudioWorkletNode(context, "synth-filter", {
@@ -356,8 +396,16 @@ class NoteFilter {
             this.frequency = this.node.frequency;
             this.detune = this.node.detune;
             this.resonance = this.node.Q;
-            this.bandpass = this.node.type === "bandpass";
-            this.resonance.value = this.bandpass ? 0.7 + dB : 0; // (the others have the CUT and RES dials' signal plugged in)
+            // a low pass and a high pass have the RES dial's signal plugged into their Q (in dB). A band pass, a notch and a peak have it as a
+            // width, which is not in dB, so it is set when the note starts and stays
+            const type = this.node.type;
+            this.bandpass = type === "bandpass" || type === "notch" || type === "peaking"; // (named for the band pass: a width that is set once)
+            if (type === "bandpass") this.resonance.value = 0.7 + dB;
+            else if (type === "notch") this.resonance.value = 1 + dB;
+            else if (type === "peaking") {
+                this.resonance.value = 1;
+                this.node.gain.value = 6 + dB; // (how far it turns the band up)
+            } else this.resonance.value = 0;
         }
         this.input = this.node;
         this.frequency.value = FILTER_BASE;
@@ -387,6 +435,52 @@ class NoteFilter {
         } else {
             this.node.type = filterTypeFrom(settings.ftype);
         }
+    }
+}
+
+// what the matrix sends where for a track: a list of [source, destination, amount] for every amount that is not nothing
+function modRoutes(settings) {
+    const routes = [];
+    for (let source = 0; source < MOD_SOURCES.length; source++) {
+        for (let dest = 0; dest < MOD_DESTS.length; dest++) {
+            const amount = (settings["x" + source + "_" + dest] - 0.5) * 2;
+            if (Math.abs(amount) > 0.005) routes.push([source, dest, amount]);
+        }
+    }
+    return routes;
+}
+
+// the rate of an LFO in cycles a second: free in Hz, or in time with the song if its mode is SYNC
+function lfoCycles(settings, i) {
+    const mode = placeOf(settings["l" + i + "m"], LFO_MODES.length);
+    return mode === 2 ? bpm / 60 / LFO_SYNC[placeOf(settings["l" + i + "r"], LFO_SYNC.length)].beats : lfoRateHz(settings["l" + i + "r"]);
+}
+
+// the modulation of one note, made by the modulation worklet. Its eight outputs are the destinations (see MOD_DESTS), each plugged into a
+// parameter of the note, and the mod wheel and the pressure of the key come in as parameters
+class NoteMod {
+    constructor(context, options) {
+        this.node = new AudioWorkletNode(context, "synth-mod", {
+            numberOfInputs: 0,
+            numberOfOutputs: 8,
+            outputChannelCount: [1, 1, 1, 1, 1, 1, 1, 1],
+            processorOptions: options,
+        });
+        this.wheel = this.node.parameters.get("wheel");
+        this.pressure = this.node.parameters.get("pressure");
+        this.node.port.onmessage = (e) => {
+            if (e.data === "ended") this.node.disconnect();
+        };
+    }
+    // plugs a destination (0 to 7) into a parameter
+    plug(dest, param) {
+        this.node.connect(param, dest);
+    }
+    release(time) {
+        this.node.port.postMessage({ type: "release", time });
+    }
+    stop(time) {
+        this.node.port.postMessage({ type: "stop", time });
     }
 }
 
@@ -461,6 +555,15 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const gain = ctx.createGain();
     gain.gain.value = 0;
 
+    // what the matrix does to this note (nothing, for most tracks: then there is nothing made for it)
+    const routes = ctx.modReady === true && !safeEngine ? modRoutes(settings) : [];
+    const usesDest = new Array(MOD_DESTS.length).fill(false);
+    routes.forEach((r) => (usesDest[r[1]] = true));
+    // (the volume gets a stage of its own that the modulation can move up and down, and the pan needs a panner)
+    const ampStage = usesDest[3] ? ctx.createGain() : null;
+    if (ampStage) gain.connect(ampStage);
+    const gainOut = ampStage || gain;
+
     // the note's own filter: its type is the FILTER TYPE, its cutoff and resonance follow the CUT and RES dials (through
     // the control signals the track has), and FENV opens it with the fade. Then the track's bus, and the rest of the chain
     // (KEY makes the cutoff follow the note: all the way up, it moves as far as the note is from middle C)
@@ -474,12 +577,17 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     if (hold) {
         level = ctx.createGain();
         notePan = ctx.createStereoPanner();
-        gain.connect(level);
+        gainOut.connect(level);
         level.connect(filter.input);
         filter.connect(notePan);
         notePan.connect(trackBus[track]);
+    } else if (usesDest[4]) {
+        notePan = ctx.createStereoPanner();
+        gainOut.connect(filter.input);
+        filter.connect(notePan);
+        notePan.connect(trackBus[track]);
     } else {
-        gain.connect(filter.input);
+        gainOut.connect(filter.input);
         filter.connect(trackBus[track]);
     }
     const extras = []; // the signals made later by setExpression (they stop when the note does)
@@ -504,6 +612,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         oscillators.forEach((osc) => osc.stop(end)); // stop just after it's gone quiet
         extras.forEach((source) => source.stop(end));
         filter.stop(end + filterTail);
+        if (modNode) modNode.stop(end + filterTail);
         faded = true;
         voice.end = end;
     }
@@ -518,15 +627,55 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         oscillators.forEach((osc) => osc.stop(t + 0.06));
         extras.forEach((source) => source.stop(t + 0.06));
         filter.stop(t + 0.06 + filterTail);
+        if (modNode) modNode.stop(t + 0.06 + filterTail);
         faded = true;
         voice.end = t + 0.06;
     };
+
+    // the modulation: made if the matrix sends anything anywhere, and plugged into what it moves (the oscillators are plugged in as they are made)
+    let modNode = null;
+    let wheelSource = null; // (the mod wheel signal this note is plugged into, kept to unplug it from the same one)
+    if (routes.length) {
+        modNode = new NoteMod(ctx, {
+            startTime: when,
+            stopTime: hold ? undefined : when + gate + env.release + 0.05 + filterTail,
+            releaseTime: hold ? undefined : when + gate,
+            velocity,
+            key: Math.max(-1, Math.min(1, (noteNumber - 60) / 48)),
+            seed: noteNumber * 13 + track,
+            routes,
+            lfos: [1, 2, 3].map((i) => ({
+                shape: placeOf(settings["l" + i + "w"], LFO_SHAPES.length),
+                mode: placeOf(settings["l" + i + "m"], LFO_MODES.length),
+                hz: lfoCycles(settings, i),
+                fade: lfoFadeSeconds(settings["l" + i + "f"]),
+            })),
+            envs: [2, 3].map((n) => ({
+                a: attackFromSlider(settings["v" + n + "a"]),
+                d: decayFromSlider(settings["v" + n + "d"]),
+                s: sustainFromSlider(settings["v" + n + "s"]),
+                r: releaseFromSlider(settings["v" + n + "r"]),
+            })),
+        });
+        wheelSource = wheelNode;
+        wheelSource.connect(modNode.wheel);
+        if (usesDest[1]) modNode.plug(1, filter.detune);
+        if (usesDest[2]) modNode.plug(2, filter.resonance);
+        if (usesDest[3]) modNode.plug(3, ampStage.gain);
+        if (usesDest[4]) modNode.plug(4, notePan.pan);
+        if (usesDest[6] && filter.worklet) modNode.plug(6, filter.drive);
+    }
 
     // the voices: one for each layer of the sound. UNI makes each of them a stack of copies, spread apart in pitch by DETUNE and across the
     // speakers by SPREAD. Before the oscillator worklet has loaded, each copy is one of the browser's own oscillators instead
     const spread = detuneCents(settings.detune);
     const copies = unisonFrom(settings.uni);
-    const useWorklet = ctx.oscReady === true;
+    // The browser's own oscillators make the plain waves as cleanly (and as loudly) as the worklet, and take a fraction of the computer, so the
+    // worklet is only used when it is needed: unison, a pulse width, a sub wave, noise, or the matrix moving the pulse width or the sub
+    const needsWorklet =
+        copies > 1 || settings.sub > 0 || settings.noise > 0 || usesDest[5] || usesDest[7] ||
+        (Math.abs(pwFrom(settings.pw) - 0.5) > 0.002 && layers.some((l) => l.type === "square"));
+    const useWorklet = ctx.oscReady === true && !safeEngine && needsWorklet;
     const offsets = copies > 1 ? Array.from({ length: copies }, (_, i) => ((i / (copies - 1)) * 2 - 1) * spread) : [0];
     const oscillators = [];
     const layerPitches = []; // how far each oscillator is tuned from the note (the layer's semitones), for sliding them
@@ -563,6 +712,13 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
             osc.connect(share);
             share.connect(gain);
 
+            // the modulation: pitch, pulse width and sub go to this oscillator (the rest were plugged in with the filter and the volume)
+            if (modNode) {
+                if (usesDest[0]) modNode.plug(0, osc.detune);
+                if (useWorklet && usesDest[5]) modNode.plug(5, osc.pw);
+                if (useWorklet && usesDest[7]) modNode.plug(7, osc.sub);
+            }
+
             // pitch wheel, mod wheel vibrato and the track's vibrato all feed this oscillator's detune (they add together
             // with its own tuning)
             wheelBend.connect(osc.detune);
@@ -582,6 +738,11 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
                 alive--;
                 if (alive === 0) {
                     filter.unplug(filterCut, filterRes);
+                    if (modNode) {
+                        try {
+                            wheelSource.disconnect(modNode.wheel);
+                        } catch {}
+                    }
                     activeFilters[track].delete(filter);
                     const at = trackVoices[track].indexOf(voice);
                     if (at >= 0) trackVoices[track].splice(at, 1);
@@ -644,6 +805,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         if (xyVibratoDepth) xyVibratoDepth.gain.setTargetAtTime(v.vib * XY_VIBRATO_CENTS, t, 0.05);
         notePan.pan.setTargetAtTime(v.pan, t, 0.02);
         level.gain.setTargetAtTime(v.vol, t, 0.02);
+        if (modNode) modNode.pressure.setTargetAtTime(v.press || 0, t, 0.02); // (PRESS in the matrix)
     }
 
     let released = false;
@@ -662,6 +824,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
             if (released) return;
             released = true;
             const seconds = Math.max(0, time - now);
+            if (modNode) modNode.release(now + seconds); // (the envelopes in the matrix let go too)
             // stop the attack and decay where they've got to (cancelAndHoldAtTime keeps the value at that moment)
             if (param.cancelAndHoldAtTime) {
                 param.cancelAndHoldAtTime(now + seconds);
@@ -903,6 +1066,7 @@ function setBend(v) {
 function setMod(v) {
     mod = Math.min(1, Math.max(0, v));
     modDepth.gain.setTargetAtTime(mod * MOD_CENTS, ctx.currentTime, 0.01);
+    if (wheelNode) wheelNode.offset.setTargetAtTime(mod, ctx.currentTime, 0.01);
 }
 
 // scope (draws the waveform of everything coming out of the master gain), in the same style as the
@@ -1187,7 +1351,7 @@ document.addEventListener("pointerdown", (e) => pointerAt.set(e.pointerId, { x: 
 function expressionValues(dx, dy, press = 0) {
     const range = XY_RANGE_PX * uiScale; // (the page may be scaled up to fill a big screen)
     const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range)), press]; // (up is more)
-    const v = { pitch: 0, bright: 0, vib: 0, pan: 0, vol: 1 };
+    const v = { pitch: 0, bright: 0, vib: 0, pan: 0, vol: 1, press };
     [xyMod.x, xyMod.y, xyMod.p].forEach((target, i) => {
         const a = axes[i];
         const name = XY_TARGETS[target];

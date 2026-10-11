@@ -263,8 +263,15 @@ class SynthOsc extends AudioWorkletProcessor {
             this.subMix = this.pickedMix;
         }
 
+        // the pitch only has to be worked out when it has moved: once for the block if it is not moving, and every 8 samples if it is
+        const still = (freq.length === 1 || freq[0] === freq[size - 1]) && (detune.length === 1 || detune[0] === detune[size - 1]);
+        let nextPitch = to; // (the sample where it is worked out again)
+        if (moving && !still) nextPitch = from;
         for (let n = from; n < to; n++) {
-            if (moving) base = (freq.length > 1 ? freq[n] : freq[0]) * 2 ** ((detune.length > 1 ? detune[n] : detune[0]) / 1200);
+            if (n >= nextPitch) {
+                base = (freq.length > 1 ? freq[n] : freq[0]) * 2 ** ((detune.length > 1 ? detune[n] : detune[0]) / 1200);
+                nextPitch = n + 8;
+            }
             let l = 0;
             let r = 0;
             if (base > 0 && base < NYQUIST) {

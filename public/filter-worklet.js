@@ -73,6 +73,8 @@ class SynthFilter extends AudioWorkletProcessor {
         this.inHistory = [new Float64Array(32), new Float64Array(32)];
         this.outHistory = [new Float64Array(32), new Float64Array(32)];
         this.position = 0; // where in the rings the next sample goes
+        this.fastLoudest = 0; // (what the fast loop found in the block)
+        this.fastQuietIn = true;
         this.g = 0; // the filter's step for this sample (the tangent form, and the one pole stage's form)
         this.G = 0;
         this.k1 = 1;
@@ -178,6 +180,97 @@ class SynthFilter extends AudioWorkletProcessor {
         return this.svf(x, offset, this.g, this.k1, this.k2, this.stages, this.mode);
     }
 
+    // a whole block of sound through the state variable filter (one stage, or two for SVF 24), with no drive. Written out in full for speed: a
+    // note's filter works on every sample of it, and a song can have dozens of notes sounding at once. The cutoff only has to be worked out
+    // (a tangent and a power, which are slow) when it has moved: once for the block if it is not moving, and every 8 samples if it is
+    fastBlock(inL, inR, outL, outR, size, freq, detune, mode, model, k1, k2, untilStop, fadeFrames) {
+        const st = this.state;
+        const twoStages = model === 1;
+        // what each stage sends out: a bit of its low pass, its band pass and what came in (mode is the type)
+        const mix = (k) => (mode === 0 ? [1, 0, 0] : mode === 1 ? [-1, -k, 1] : mode === 2 ? [0, k, 0] : mode === 3 ? [0, -k, 1] : [2, k, -1]);
+        const m1 = mix(k1);
+        const m2 = mix(k2);
+        let l1a = st[0], l1b = st[1], l2a = st[2], l2b = st[3];
+        let r1a = st[8], r1b = st[9], r2a = st[10], r2b = st[11];
+        const still = (freq.length === 1 || freq[0] === freq[size - 1]) && (detune.length === 1 || detune[0] === detune[size - 1]);
+        const nyquist = RATE * 0.49;
+        let a1 = 0, a2 = 0, a3 = 0, b1 = 0, b2 = 0, b3 = 0;
+        let next = 0;
+        let loudest = 0;
+        let quietIn = true;
+        for (let n = 0; n < size; n++) {
+            if (n >= next) {
+                const index = still ? 0 : n;
+                const hz = (freq.length > 1 ? freq[index] : freq[0]) * 2 ** ((detune.length > 1 ? detune[index] : detune[0]) / 1200);
+                const g = Math.tan((Math.PI * (hz < 10 ? 10 : hz > nyquist ? nyquist : hz)) / RATE);
+                a1 = 1 / (1 + g * (g + k1));
+                a2 = g * a1;
+                a3 = g * a2;
+                b1 = 1 / (1 + g * (g + k2));
+                b2 = g * b1;
+                b3 = g * b2;
+                next = still ? size : n + 8;
+            }
+            const x0 = inL ? inL[n] : 0;
+            const x1 = inR ? inR[n] : 0;
+            if (x0 !== 0 || x1 !== 0) quietIn = false;
+            // left
+            let v3 = x0 - l1b;
+            let v1 = a1 * l1a + a2 * v3;
+            let v2 = l1b + a2 * l1a + a3 * v3;
+            l1a = 2 * v1 - l1a;
+            l1b = 2 * v2 - l1b;
+            let y0 = m1[0] * v2 + m1[1] * v1 + m1[2] * x0;
+            if (twoStages) {
+                const u = y0;
+                v3 = u - l2b;
+                v1 = b1 * l2a + b2 * v3;
+                v2 = l2b + b2 * l2a + b3 * v3;
+                l2a = 2 * v1 - l2a;
+                l2b = 2 * v2 - l2b;
+                y0 = m2[0] * v2 + m2[1] * v1 + m2[2] * u;
+            }
+            // right
+            v3 = x1 - r1b;
+            v1 = a1 * r1a + a2 * v3;
+            v2 = r1b + a2 * r1a + a3 * v3;
+            r1a = 2 * v1 - r1a;
+            r1b = 2 * v2 - r1b;
+            let y1 = m1[0] * v2 + m1[1] * v1 + m1[2] * x1;
+            if (twoStages) {
+                const u = y1;
+                v3 = u - r2b;
+                v1 = b1 * r2a + b2 * v3;
+                v2 = r2b + b2 * r2a + b3 * v3;
+                r2a = 2 * v1 - r2a;
+                r2b = 2 * v2 - r2b;
+                y1 = m2[0] * v2 + m2[1] * v1 + m2[2] * u;
+            }
+            if (!(y0 - y0 === 0) || !(y1 - y1 === 0)) {
+                // (a filter with a huge setting can blow up: start it again, quietly, rather than send out a scream)
+                l1a = l1b = l2a = l2b = r1a = r1b = r2a = r2b = 0;
+                y0 = 0;
+                y1 = 0;
+            }
+            const left = untilStop - n;
+            if (left < fadeFrames) {
+                const fade = left <= 0 ? 0 : left / fadeFrames;
+                y0 *= fade;
+                y1 *= fade;
+            }
+            outL[n] = y0;
+            outR[n] = y1;
+            const a = y0 < 0 ? -y0 : y0;
+            const b = y1 < 0 ? -y1 : y1;
+            if (a > loudest) loudest = a;
+            if (b > loudest) loudest = b;
+        }
+        st[0] = l1a; st[1] = l1b; st[2] = l2a; st[3] = l2b;
+        st[8] = r1a; st[9] = r1b; st[10] = r2a; st[11] = r2b;
+        this.fastLoudest = loudest;
+        this.fastQuietIn = quietIn;
+    }
+
     process(inputs, outputs, parameters) {
         const out = outputs[0];
         const input = inputs[0];
@@ -244,7 +337,12 @@ class SynthFilter extends AudioWorkletProcessor {
         const nyquist = rate * 0.49;
         const state = this.state;
 
-        for (let n = 0; n < size; n++) {
+        if (!oversample && model < 2) {
+            // the usual case (a state variable filter with no drive) has a quicker loop of its own
+            this.fastBlock(inL, inR, outL, outR, size, freq, detune, mode, model, k1, k2, untilStop, fadeFrames);
+            loudest = this.fastLoudest;
+            quietIn = this.fastQuietIn;
+        } else for (let n = 0; n < size; n++) {
             const hz = (freq.length > 1 ? freq[n] : freq[0]) * 2 ** ((detune.length > 1 ? detune[n] : detune[0]) / 1200);
             const fc = hz < 10 ? 10 : hz > nyquist ? nyquist : hz;
             const g = Math.tan((Math.PI * fc) / rate);
