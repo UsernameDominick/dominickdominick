@@ -122,19 +122,47 @@ const vibLfo = [];
 const vibGain = [];
 const cutCtl = []; // a signal for each track that the cutoff of every one of its notes' filters follows (in cents)
 const resCtl = []; // and the same for the resonance
-let reverbIn; // the room, shared by all tracks
+const trackRacks = []; // each track's effects rack (the chorus, phaser, flanger, crusher and compressor): { node, linked, timer }
+let reverbs = []; // the rooms (one for each size, made the first time it is used), shared by all tracks: the convolver of each
+const trackChains = []; // the whole chain of each track (everything makeChain gives back)
 const activeFilters = Array.from({ length: MAX_TRACKS }, () => new Set()); // the filters of the notes sounding now, for each track
 const lastFrequency = new Array(MAX_TRACKS).fill(0); // the last note each track played, for the glide
 
-// a room: two channels of noise that fades away, which the convolver turns into reverb
-function makeRoom() {
-    const length = Math.floor(ctx.sampleRate * 2.4);
-    const buffer = ctx.createBuffer(2, length, ctx.sampleRate);
+// a room: two channels of noise that fades away and gets duller as it goes (the high notes die first, as in a real room), after a few early
+// reflections, which the convolver turns into reverb. A different noise in each channel makes it wide
+function makeRoom(seconds) {
+    const rate = ctx.sampleRate;
+    const length = Math.floor(rate * seconds);
+    const buffer = ctx.createBuffer(2, length, rate);
     for (let channel = 0; channel < 2; channel++) {
         const data = buffer.getChannelData(channel);
-        for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3.5;
+        let low = 0;
+        for (let i = 0; i < length; i++) {
+            const t = i / length;
+            low += ((Math.random() * 2 - 1) - low) * (0.12 + 0.88 * (1 - t) ** 2.5); // (a filter that closes as it goes)
+            data[i] = low * (1 - t) ** 3.5 * (t < 0.01 ? t * 100 : 1);
+        }
+        // the first reflections: single clicks off the walls in the first 70ms, each quieter, in a different place in each channel
+        for (let k = 0; k < 7; k++) {
+            const at = Math.floor(rate * (0.007 + 0.009 * k * (1 + 0.37 * channel) + 0.004 * channel));
+            if (at < length) data[at] += (k % 2 ? -1 : 1) * 0.9 * 0.78 ** k;
+        }
     }
     return buffer;
+}
+
+// the convolver for a room size, made the first time something uses it
+function roomNode(size) {
+    if (!reverbs[size]) {
+        const conv = ctx.createConvolver();
+        conv.buffer = makeRoom(ROOM_SIZES[size].seconds);
+        const out = ctx.createGain();
+        out.gain.value = 0.7;
+        conv.connect(out);
+        out.connect(master);
+        reverbs[size] = conv;
+    }
+    return reverbs[size];
 }
 
 // the drive curve: the louder it goes in, the more it's squashed into a soft limit
@@ -203,24 +231,58 @@ function makeChain() {
     delay.connect(tone);
     tone.connect(feedback);
     feedback.connect(delay);
-    delay.connect(master);
+    // ping pong: a second delay that the echoes bounce to and from, the first in the left speaker, the second in the right. With PING off
+    // the sound goes round the first one alone and out in the middle, as it always did
+    const delay2 = ctx.createDelay(4);
+    const tone2 = ctx.createBiquadFilter();
+    tone2.type = "lowpass";
+    tone2.frequency.value = 3500;
+    const cross = ctx.createGain();
+    const cross2 = ctx.createGain();
+    tone.connect(cross);
+    cross.connect(delay2);
+    delay2.connect(tone2);
+    tone2.connect(cross2);
+    cross2.connect(delay);
+    const outCenter = ctx.createGain();
+    delay.connect(outCenter);
+    outCenter.connect(master);
+    const outLeft = ctx.createGain();
+    const panLeft = ctx.createStereoPanner();
+    panLeft.pan.value = -1;
+    delay.connect(outLeft);
+    outLeft.connect(panLeft);
+    panLeft.connect(master);
+    const outRight = ctx.createGain();
+    const panRight = ctx.createStereoPanner();
+    panRight.pan.value = 1;
+    delay2.connect(outRight);
+    outRight.connect(panRight);
+    panRight.connect(master);
 
-    // the room
+    // the room: a send, then how long after the sound it starts (PRE), how dull it is (DAMP), and the size of room it goes to (one of the
+    // gains is open, SIZE says which; each is joined to its room the first time it is opened)
     const rSend = ctx.createGain();
     gain.connect(rSend);
-    rSend.connect(reverbIn);
+    const rPre = ctx.createDelay(0.25);
+    const rDamp = ctx.createBiquadFilter();
+    rDamp.type = "lowpass";
+    rDamp.frequency.value = 16000;
+    rSend.connect(rPre);
+    rPre.connect(rDamp);
+    const rSizes = ROOM_SIZES.map(() => {
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        rDamp.connect(g);
+        return g;
+    });
 
-    return { filter, bus, bands, dry, pre, post, wet, trem, tremWave, depth, pan, gain, dSend, delay, feedback, rSend };
+    return { filter, bus, bands, dry, pre, post, wet, trem, tremWave, depth, pan, gain, dSend, delay, feedback, rSend, delay2, cross, cross2, outCenter, outLeft, outRight, rPre, rDamp, rSizes, rJoined: ROOM_SIZES.map(() => false) };
 }
 
 // builds all of it, once, when the audio starts (getCtx calls this)
 function buildTrackChains() {
-    reverbIn = ctx.createConvolver();
-    reverbIn.buffer = makeRoom();
-    const reverbOut = ctx.createGain();
-    reverbOut.gain.value = 0.7;
-    reverbIn.connect(reverbOut);
-    reverbOut.connect(master);
+    reverbs = []; // (a room is made the first time it is used, see roomNode)
 
     for (let t = 0; t < MAX_TRACKS; t++) { // (for every track the song could have, so adding one later needs nothing built)
         const c = makeChain();
@@ -255,20 +317,61 @@ function buildTrackChains() {
         vibGain.push(vibDepth);
         cutCtl.push(cut);
         resCtl.push(res);
+        trackRacks.push({ node: null, linked: false, timer: 0 });
+        trackChains.push(c);
 
         applyFilter(t, true);
         applyFx(t, true);
+        applyRack(t, true);
         c.gain.gain.value = t === DRUM_TRACK ? 1 : trackSettings[t].volume;
     }
 }
 
+// The effects rack sits between a track's pan and its volume. It is only put in when one of its effects is turned on (a worklet costs
+// something every moment, even for sound it does not change), and taken out again a moment after the last one is turned off, once its
+// MIX has faded to nothing so nothing clicks. The drums have none
+function applyRack(t, instant = false) {
+    if (!ctx || !trackPan[t] || t === DRUM_TRACK) return;
+    const rack = trackRacks[t];
+    const s = trackSettings[t];
+    const on = rackOn(s) && !safeEngine && ctx.rackReady === true;
+    if (on || (rack.linked && rack.node)) {
+        if (!rack.node) {
+            rack.node = new AudioWorkletNode(ctx, "synth-rack", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { config: rackConfig(s) } });
+        } else {
+            rack.node.port.postMessage({ type: "config", config: rackConfig(s) });
+        }
+    }
+    if (on) {
+        clearTimeout(rack.timer);
+        rack.timer = 0;
+        if (!rack.linked) {
+            trackPan[t].disconnect(trackGains[t]);
+            trackPan[t].connect(rack.node);
+            rack.node.connect(trackGains[t]);
+            rack.linked = true;
+        }
+    } else if (rack.linked && !rack.timer) {
+        const unlink = () => {
+            rack.timer = 0;
+            if (!rack.linked || rackOn(trackSettings[t])) return;
+            trackPan[t].disconnect(rack.node);
+            rack.node.disconnect();
+            trackPan[t].connect(trackGains[t]);
+            rack.linked = false;
+        };
+        if (instant || renderingOffline) unlink();
+        else rack.timer = setTimeout(unlink, 1500); // (the echoes of a flanger and the like take a moment to fade)
+    }
+}
+
+function applyAllRacks() {
+    for (let t = 0; t < MAX_TRACKS; t++) applyRack(t, true);
+}
+
 // a track's chain, put together from the lists of its nodes
 function chainOf(t) {
-    return {
-        filter: trackFilters[t], bus: trackBus[t], bands: trackEq[t], dry: driveDry[t], pre: drivePre[t], post: drivePost[t], wet: driveWet[t],
-        trem: tremGain[t], tremWave: tremLfo[t], depth: tremDepth[t], pan: trackPan[t], gain: trackGains[t], dSend: dlySend[t],
-        delay: dlyNode[t], feedback: dlyFeedback[t], rSend: revSend[t],
-    };
+    return trackChains[t];
 }
 
 // puts a value on a node's setting: it glides there (so turning a dial doesn't click), or, for a chain that has just been made
@@ -317,11 +420,29 @@ function applyChainFx(c, s, instant = false) {
     set(c.depth.gain, s.tdep / 2);
     set(c.tremWave.frequency, tremRateHz(s.trate));
 
-    // the echo and the room
+    // the echo: with PING on, the sound bounces between the two delays and out of the left and right speakers, not round the one and out in the
+    // middle (a drum has no PING)
+    const ping = placeOf(s.dping || 0, 2);
     set(c.dSend.gain, s.dly * 0.8);
-    set(c.feedback.gain, s.dfb * 0.85);
-    set(c.rSend.gain, s.rev * 0.8);
+    set(c.feedback.gain, s.dfb * 0.85 * (1 - ping));
+    set(c.cross.gain, s.dfb * 0.85 * ping);
+    set(c.cross2.gain, s.dfb * 0.85 * ping);
+    set(c.outCenter.gain, 1 - ping);
+    set(c.outLeft.gain, ping * 0.5); // (a stereo panner all the way to one side adds the two channels together, so they are turned down by half)
+    set(c.outRight.gain, ping * 0.5);
     set(c.delay.delayTime, echoSeconds(s), 0.03);
+    set(c.delay2.delayTime, echoSeconds(s), 0.03);
+
+    // the room (a drum has the middle size, open and no wait)
+    const size = placeOf(s.rsize === undefined ? 0.5 : s.rsize, ROOM_SIZES.length);
+    if (!c.rJoined[size]) {
+        c.rSizes[size].connect(roomNode(size));
+        c.rJoined[size] = true;
+    }
+    c.rSizes.forEach((g, i) => set(g.gain, i === size ? 1 : 0, 0.05));
+    set(c.rSend.gain, s.rev * 0.8);
+    set(c.rDamp.frequency, roomDampHz(s.rdamp === undefined ? 1 : s.rdamp));
+    set(c.rPre.delayTime, roomPreSeconds(s.rpre || 0), 0.03);
 }
 
 // how long the echo is, in seconds, from the settings (it's in time with the song)
@@ -348,6 +469,7 @@ function applyFx(t, instant = false) {
     applyChainFx(chainOf(t), s, instant);
     setParam(vibLfo[t].frequency, vibRateHz(s.vrate), instant, ctx.currentTime, 0.02);
     setParam(vibGain[t].gain, vibCents(s.vdep), instant, ctx.currentTime, 0.02);
+    applyRack(t, instant);
 }
 
 // the echo is in time with the song, so it follows the BPM (studio.js calls this when the BPM changes)
@@ -356,8 +478,15 @@ function updateDelayTimes(only) {
     for (let t = 0; t < MAX_TRACKS; t++) {
         if (only !== undefined && t !== only) continue;
         dlyNode[t].delayTime.setTargetAtTime(echoSeconds(trackSettings[t]), ctx.currentTime, 0.03);
+        trackChains[t].delay2.delayTime.setTargetAtTime(echoSeconds(trackSettings[t]), ctx.currentTime, 0.03);
     }
-    if (only === undefined) drumChannels.forEach((c, slot) => c && c.delay.delayTime.setTargetAtTime(echoSeconds(drumFx[slot]), ctx.currentTime, 0.03));
+    if (only === undefined) {
+        drumChannels.forEach((c, slot) => {
+            if (!c) return;
+            c.delay.delayTime.setTargetAtTime(echoSeconds(drumFx[slot]), ctx.currentTime, 0.03);
+            c.delay2.delayTime.setTargetAtTime(echoSeconds(drumFx[slot]), ctx.currentTime, 0.03);
+        });
+    }
 }
 
 // ---- each drum's own chain ----
@@ -420,6 +549,7 @@ function setSetting(key, v) {
         applyFilter(liveTrack);
     }
     drawGraphs(); // (the filter and the fade graphs follow the dials)
+    if (typeof dialEntries !== "undefined") dialEntries.forEach(({ strip }) => strip.update()); // (and the words on the dials, see lfoRateText)
 }
 
 const pct = (v) => Math.round(v * 100) + "%";
@@ -440,8 +570,25 @@ const DIAL_TABS = [
     { id: "env", name: "ENV" },
     { id: "fx", name: "FX" },
     { id: "mod", name: "MOD" },
+    { id: "move", name: "MOVE" },
+    { id: "grit", name: "GRIT" },
     { id: "play", name: "PLAY" },
+    { id: "lfo", name: "LFO" },
+    { id: "menv", name: "MENV" },
+    { id: "matrix", name: "MATRIX" },
 ];
+
+// what an LFO's RATE dial says: cycles a second, or a length of time in the song if the LFO is in sync mode
+function lfoRateText(i, v) {
+    if (placeOf(getSetting("l" + i + "m"), LFO_MODES.length) === 2) return LFO_SYNC[placeOf(v, LFO_SYNC.length)].name;
+    const hz = lfoRateHz(v);
+    return hz < 1 ? hz.toFixed(2) : hz < 10 ? hz.toFixed(1) : String(Math.round(hz));
+}
+
+const rackRateText = (v) => {
+    const hz = rackRateHz(v);
+    return hz < 1 ? hz.toFixed(2) : hz.toFixed(1);
+};
 
 const DIALS = [
     // SOUND
@@ -477,12 +624,36 @@ const DIALS = [
     settingDial("fx", "DLY", "dly", "Echo: how much of the sound goes to the echo", "both", 0, pct),
     settingDial("fx", "DTIME", "dtime", "Echo time, in time with the song", "both", 0.25, (v) => DELAY_NAMES[delayIndex(v)]),
     settingDial("fx", "DFB", "dfb", "Echo feedback: how many times it repeats", "both", 0.35, pct),
+    settingDial("fx", "PING", "dping", "Ping pong: the echoes bounce from one speaker to the other", "synth", 0, (v) => (placeOf(v, 2) ? "ON" : "OFF")),
     settingDial("fx", "REV", "rev", "Room: how much of the sound goes to the reverb", "both", 0, pct),
+    settingDial("fx", "SIZE", "rsize", "Room size: small, medium or large", "synth", 0.5, (v) => ROOM_SIZES[placeOf(v, ROOM_SIZES.length)].name),
+    settingDial("fx", "DAMP", "rdamp", "Room damping: how fast the high notes die away in the room, the top is not at all", "synth", 1, (v) => (v > 0.99 ? "OPEN" : formatCutoff(roomDampHz(v)))),
+    settingDial("fx", "PRE", "rpre", "Room pre delay: how long after the sound the room starts", "synth", 0, (v) => Math.round(roomPreSeconds(v) * 1000) + "ms"),
     // MOD
     settingDial("mod", "VRATE", "vrate", "Vibrato speed", "synth", 0.4, (v) => vibRateHz(v).toFixed(1)),
     settingDial("mod", "VDEP", "vdep", "Vibrato depth", "synth", 0, (v) => Math.round(vibCents(v)) + "c"),
     settingDial("mod", "TRATE", "trate", "Tremolo speed", "both", 0.4, (v) => tremRateHz(v).toFixed(1)),
     settingDial("mod", "TDEP", "tdep", "Tremolo depth", "both", 0, pct),
+    // MOVE and GRIT: the effects rack (rack-worklet.js)
+    settingDial("move", "CH MIX", "chmix", "Chorus: how much of the doubled, wobbling copies is mixed in", "synth", 0, pct),
+    settingDial("move", "CH SPD", "chrate", "Chorus speed", "synth", FX_DEFAULTS.chrate, (v) => rackRateText(v)),
+    settingDial("move", "CH DEP", "chdep", "Chorus depth: how far the copies wobble", "synth", FX_DEFAULTS.chdep, pct),
+    settingDial("move", "PH MIX", "phmix", "Phaser: how much of the swept sound is mixed in", "synth", 0, pct),
+    settingDial("move", "PH SPD", "phrate", "Phaser speed", "synth", FX_DEFAULTS.phrate, (v) => rackRateText(v)),
+    settingDial("move", "PH DEP", "phdep", "Phaser depth: how far the notches sweep", "synth", FX_DEFAULTS.phdep, pct),
+    settingDial("move", "PH FB", "phfb", "Phaser feedback: sends some round again, which makes the notches sharper", "synth", FX_DEFAULTS.phfb, pct),
+    settingDial("move", "FL MIX", "flmix", "Flanger: how much of the swept short delay is mixed in", "synth", 0, pct),
+    settingDial("move", "FL SPD", "flrate", "Flanger speed", "synth", FX_DEFAULTS.flrate, (v) => rackRateText(v)),
+    settingDial("move", "FL DEP", "fldep", "Flanger depth: how far the delay sweeps", "synth", FX_DEFAULTS.fldep, pct),
+    settingDial("move", "FL FB", "flfb", "Flanger feedback: sends some round again, which makes it ring", "synth", FX_DEFAULTS.flfb, pct),
+    settingDial("grit", "CR MIX", "crmix", "Crusher: how much of the crushed sound is mixed in", "synth", 0, pct),
+    settingDial("grit", "BITS", "crbits", "Crusher bits: how many steps the loudness has, fewer is grittier", "synth", FX_DEFAULTS.crbits, (v) => String(crushBits(v))),
+    settingDial("grit", "HOLD", "crhold", "Crusher hold: the sound is held for this many samples at a time, more is grittier", "synth", 0, (v) => "x" + crushHold(v)),
+    settingDial("grit", "CP MIX", "cpmix", "Compressor: how much of the compressed sound is mixed in", "synth", 0, pct),
+    settingDial("grit", "THRESH", "cpthr", "Compressor threshold: the level it starts turning the sound down at", "synth", FX_DEFAULTS.cpthr, (v) => Math.round(compThreshold(v)) + "dB"),
+    settingDial("grit", "RATIO", "cpratio", "Compressor ratio: how hard it turns down what goes over", "synth", FX_DEFAULTS.cpratio, (v) => compRatio(v).toFixed(1) + ":1"),
+    settingDial("grit", "ATTACK", "cpatk", "Compressor attack: how fast it turns the sound down", "synth", FX_DEFAULTS.cpatk, (v) => compAttackMs(v).toFixed(1) + "ms"),
+    settingDial("grit", "RELEASE", "cprel", "Compressor release: how fast it lets go", "synth", FX_DEFAULTS.cprel, (v) => Math.round(compReleaseMs(v)) + "ms"),
     // OSC (the oscillator, made by osc-worklet.js)
     settingDial("osc", "UNI", "uni", "Unison: how many copies of the wave play together", "synth", 0, (v) => String(unisonFrom(v))),
     settingDial("osc", "DETUNE", "detune", "Detune: how far apart in pitch the copies of the unison are", "synth", 0, (v) => Math.round(detuneCents(v)) + "c"),
@@ -500,6 +671,19 @@ const DIALS = [
     // (a drum has its own PLAY dials: a roll)
     settingDial("play", "ROLL", "roll", "Roll: hits the drum again and again, this fast, while the key is held", "drums", 0, (v) => ROLL_RATES[placeOf(v, ROLL_RATES.length)].name),
     settingDial("play", "BUILD", "build", "Build: how soft a roll starts, it gets louder as it goes", "drums", 0, pct),
+    // LFO and MENV: the modulation (mod-worklet.js). What each one moves is chosen in the MATRIX tab
+    ...[1, 2, 3].flatMap((i) => [
+        settingDial("lfo", "SHP " + i, "l" + i + "w", "LFO " + i + " shape", "synth", 0, (v) => LFO_SHAPES[placeOf(v, LFO_SHAPES.length)]),
+        settingDial("lfo", "MODE " + i, "l" + i + "m", "LFO " + i + " mode: free runs on the clock, key starts again with each note, sync is in time with the song", "synth", 0, (v) => LFO_MODES[placeOf(v, LFO_MODES.length)]),
+        settingDial("lfo", "RATE " + i, "l" + i + "r", "LFO " + i + " rate: in cycles a second, or a length of time in the song in sync mode", "synth", 0.4, (v) => lfoRateText(i, v)),
+        settingDial("lfo", "FADE " + i, "l" + i + "f", "LFO " + i + " fade in: how long it takes to come in after a note starts", "synth", 0, (v) => (v === 0 ? "0" : lfoFadeSeconds(v).toFixed(1) + "s")),
+    ]),
+    ...[2, 3].flatMap((n) => [
+        settingDial("menv", "ATK " + n, "v" + n + "a", "Envelope " + n + " attack time", "synth", FX_DEFAULTS["v" + n + "a"], (v) => formatSeconds(attackFromSlider(v))),
+        settingDial("menv", "DEC " + n, "v" + n + "d", "Envelope " + n + " decay time", "synth", FX_DEFAULTS["v" + n + "d"], (v) => formatSeconds(decayFromSlider(v))),
+        settingDial("menv", "SUS " + n, "v" + n + "s", "Envelope " + n + " sustain level", "synth", FX_DEFAULTS["v" + n + "s"], pct),
+        settingDial("menv", "REL " + n, "v" + n + "r", "Envelope " + n + " release time", "synth", FX_DEFAULTS["v" + n + "r"], (v) => releaseFromSlider(v).toFixed(1) + "s"),
+    ]),
 ];
 // the steps of the stepped dials, so they click from one choice to the next
 DIALS.forEach((dial) => {
@@ -508,6 +692,10 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-dtime") dial.step = 0.25;
     if (dial.id === "dial-ftype") dial.step = 0.25;
     if (dial.id === "dial-fmodel") dial.step = 0.5;
+    if (dial.id === "dial-dping") dial.step = 1;
+    if (dial.id === "dial-rsize") dial.step = 0.5;
+    if (/^dial-l[123]w$/.test(dial.id)) dial.step = 1 / (LFO_SHAPES.length - 1);
+    if (/^dial-l[123]m$/.test(dial.id)) dial.step = 1 / (LFO_MODES.length - 1);
     if (dial.id === "dial-chord") dial.step = 1 / (CHORDS.length - 1);
     if (dial.id === "dial-arp") dial.step = 1 / (ARP_MODES.length - 1);
     if (dial.id === "dial-arate") dial.step = 1 / (ARP_RATES.length - 1);
@@ -519,7 +707,9 @@ DIALS.forEach((dial) => {
 // left and right of a middle
 const SLIDER_MARKS = {
     "dial-chord": CHORDS.length, "dial-arp": ARP_MODES.length, "dial-arate": ARP_RATES.length, "dial-roll": ROLL_RATES.length,
-    "dial-ftype": 5, "dial-fmodel": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
+    "dial-l1w": LFO_SHAPES.length, "dial-l2w": LFO_SHAPES.length, "dial-l3w": LFO_SHAPES.length,
+    "dial-l1m": LFO_MODES.length, "dial-l2m": LFO_MODES.length, "dial-l3m": LFO_MODES.length,
+    "dial-ftype": 5, "dial-fmodel": 3, "dial-dping": 2, "dial-rsize": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
 };
 DIALS.forEach((dial) => {
     if (SLIDER_MARKS[dial.id]) dial.slider = SLIDER_MARKS[dial.id];
@@ -556,7 +746,7 @@ function buildDialPanel() {
     dialPanel.appendChild(barEl);
     const dialBody = mk("div", "dial-body");
     dialPanel.appendChild(dialBody);
-    dialBody.appendChild(tabs);
+    dialPanel.insertBefore(tabs, dialBody); // (a row of tabs under the bar)
 
     const groups = {};
     DIAL_TABS.forEach((tab) => {
@@ -589,9 +779,14 @@ function buildDialPanel() {
         filter: "Filter graph. Drag the C handle sideways for the cutoff and up and down for the resonance.",
         fx: "Picture of the echo and the room: the echoes as bars, and the room as a fading shade.",
         mod: "Picture of the vibrato and the tremolo as waves.",
+        move: "Picture of the chorus, the phaser and the flanger as the waves that sweep them. The ones turned on are bright.",
+        grit: "Picture of the bit crusher as a stepped wave, and of the compressor as a line from the level that goes in to the level that comes out.",
         play: "Picture of the chord and the arpeggio, or for a drum the roll.",
+        lfo: "Picture of the three LFOs as waves over two seconds, the ones that move something bright and the others dim.",
+        menv: "Picture of the two envelopes, the ones that move something bright and the others dim.",
+        matrix: "The matrix. Each row is something that is moved and each column is what moves it: click a square and drag up or down to set how much, between minus and plus one hundred percent. Double-click a square to clear it.",
     };
-    ["sound", "osc", "filter", "fx", "mod", "play"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
+    ["sound", "osc", "filter", "fx", "mod", "move", "grit", "play", "lfo", "menv", "matrix"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
 
     // the plates: the dials of each tab sit on engraved plates, with a title, grouped by what they do
     const PLATE_LAYOUT = {
@@ -600,9 +795,14 @@ function buildDialPanel() {
         filter: [["FILTER", ["MODEL", "TYPE", "CUT", "RES", "F DRIVE", "KEY"]], ["FILTER ENV", ["FENV"]]],
         eq: [1, 2, 3].map((n) => ["BAND " + n, ["FREQ " + n, "GAIN " + n, "Q " + n]]),
         env: [["ENVELOPE", ["ATK", "DEC", "SUS", "REL"]]],
-        fx: [["ECHO", ["DLY", "DTIME", "DFB"]], ["ROOM", ["REV"]]],
+        fx: [["ECHO", ["DLY", "DTIME", "DFB", "PING"]], ["ROOM", ["REV", "SIZE", "DAMP", "PRE"]]],
         mod: [["VIBRATO", ["VRATE", "VDEP"]], ["TREMOLO", ["TRATE", "TDEP"]]],
+        move: [["CHORUS", ["CH MIX", "CH SPD", "CH DEP"]], ["PHASER", ["PH MIX", "PH SPD", "PH DEP", "PH FB"]], ["FLANGER", ["FL MIX", "FL SPD", "FL DEP", "FL FB"]]],
+        grit: [["CRUSHER", ["CR MIX", "BITS", "HOLD"]], ["COMPRESSOR", ["CP MIX", "THRESH", "RATIO", "ATTACK", "RELEASE"]]],
         play: [["CHORD AND ARP", ["CHORD", "ARP", "RATE"]], ["VOICES", ["MODE", "VOICES"]], ["ROLL", ["ROLL", "BUILD"]]],
+        lfo: [1, 2, 3].map((i) => ["LFO " + i, ["SHP " + i, "MODE " + i, "RATE " + i, "FADE " + i]]),
+        menv: [2, 3].map((n) => ["ENV " + n, ["ATK " + n, "DEC " + n, "SUS " + n, "REL " + n]]),
+        matrix: [],
     };
     const plateOf = {}; // a dial's name -> the box its dial goes in
     for (const tab in PLATE_LAYOUT) {
@@ -746,8 +946,8 @@ function buildDialPanel() {
         });
         // (the tabs scroll if there are too many to fit, so the one that's picked is brought into view)
         const picked = tabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)];
-        if (picked.offsetTop < tabs.scrollTop) tabs.scrollTop = picked.offsetTop;
-        else if (picked.offsetTop + picked.offsetHeight > tabs.scrollTop + tabs.clientHeight) tabs.scrollTop = picked.offsetTop + picked.offsetHeight - tabs.clientHeight;
+        if (picked.offsetLeft < tabs.scrollLeft) tabs.scrollLeft = picked.offsetLeft;
+        else if (picked.offsetLeft + picked.offsetWidth > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = picked.offsetLeft + picked.offsetWidth - tabs.clientWidth;
         dialBar.right.textContent = DIAL_TABS.find((tab) => tab.id === id).name;
         drawGraphs(); // (each tab has its own picture to draw)
     }
@@ -787,10 +987,11 @@ buildDialPanel();
 // pick a track or a drum)
 function showTrackSettings() {
     const drums = isDrums();
-    // (a drum has no oscillator: that tab is not for it)
-    const oscTab = DIAL_TABS.findIndex((tab) => tab.id === "osc");
-    dialTabButtons[oscTab].disabled = drums;
-    if (drums && dialTab === "osc") selectDialTab("sound");
+    // (a drum has no oscillator, no modulation and no effects rack: those tabs are not for it)
+    ["osc", "move", "grit", "lfo", "menv", "matrix"].forEach((id) => {
+        dialTabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)].disabled = drums;
+        if (drums && dialTab === id) selectDialTab("sound");
+    });
     // (and says what the dials are for in the bar: the selected drum, or the selected track and its sound)
     dialBar.chip.textContent = drums ? "DRUMS" : trackName(liveTrack);
     dialBar.name.textContent = drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : SOUNDS[trackSettings[liveTrack].sound].name;

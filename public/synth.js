@@ -69,6 +69,41 @@ for (let i = 1; i <= 3; i++) Object.assign(FX_DEFAULTS, { ["l" + i + "w"]: 0, ["
 for (const n of [2, 3]) Object.assign(FX_DEFAULTS, { ["v" + n + "a"]: 0.2, ["v" + n + "d"]: 0.5, ["v" + n + "s"]: 0.5, ["v" + n + "r"]: 0.3 });
 for (let source = 0; source < MOD_SOURCES.length; source++) for (let dest = 0; dest < MOD_DESTS.length; dest++) FX_DEFAULTS["x" + source + "_" + dest] = 0.5;
 
+// the effects rack (the MOVE and GRIT tabs, rack-worklet.js): a chorus (ch), a phaser (ph), a flanger (fl), a bit crusher (cr) and a compressor
+// (cp), each with a MIX that is nothing at 0. Only a track that has one turned on gets the rack put in its chain
+Object.assign(FX_DEFAULTS, {
+    chmix: 0, chrate: 0.4, chdep: 0.5,
+    phmix: 0, phrate: 0.3, phdep: 0.5, phfb: 0.3,
+    flmix: 0, flrate: 0.3, fldep: 0.5, flfb: 0.4,
+    crmix: 0, crbits: 6 / 14, crhold: 0,
+    cpmix: 0, cpthr: 0.4, cpratio: 0.2, cpatk: 0.3, cprel: 0.4,
+});
+// the echo and the room, more (the FX tab): DPING makes the echo bounce from one speaker to the other (0 off, 1 on), RSIZE is the size of the room
+// (small, medium or large), RDAMP how fast the high notes die away in it (the top is not at all) and RPRE how long after the sound the room starts
+Object.assign(FX_DEFAULTS, { dping: 0, rsize: 0.5, rdamp: 1, rpre: 0 });
+const ROOM_SIZES = [{ name: "SMALL", seconds: 0.9 }, { name: "MEDIUM", seconds: 2.4 }, { name: "LARGE", seconds: 5 }];
+const roomDampHz = (v) => 800 * 20 ** v; // 800Hz up to 16kHz
+const roomPreSeconds = (v) => v * 0.1; // up to 100ms
+const RACK_MIXES = ["chmix", "phmix", "flmix", "crmix", "cpmix"];
+const rackRateHz = (v) => 0.1 * 100 ** v; // 0.1Hz up to 10Hz
+const crushBits = (v) => 2 + Math.round(v * 14); // 2 to 16 bits
+const crushHold = (v) => 1 + Math.round(v * 31); // each sound held for 1 to 32 samples
+const compThreshold = (v) => -v * 50; // 0dB down to -50dB
+const compRatio = (v) => 1.5 + v * 18.5; // 1.5 to 1 up to 20 to 1
+const compAttackMs = (v) => 0.5 * 200 ** v; // 0.5ms to 100ms
+const compReleaseMs = (v) => 20 * 50 ** v; // 20ms to 1000ms
+const rackOn = (s) => RACK_MIXES.some((key) => s[key] > 0.001);
+// what the rack worklet is told (its "config")
+function rackConfig(s) {
+    return {
+        chorus: { mix: s.chmix, rate: rackRateHz(s.chrate), depth: s.chdep },
+        phaser: { mix: s.phmix, rate: rackRateHz(s.phrate), depth: s.phdep, feedback: s.phfb * 0.85 },
+        flanger: { mix: s.flmix, rate: rackRateHz(s.flrate), depth: s.fldep, feedback: s.flfb * 0.85 },
+        crush: { mix: s.crmix, bits: crushBits(s.crbits), reduce: crushHold(s.crhold) },
+        comp: { mix: s.cpmix, threshold: compThreshold(s.cpthr), ratio: compRatio(s.cpratio), attack: compAttackMs(s.cpatk), release: compReleaseMs(s.cprel) },
+    };
+}
+
 const DIAL_DEFAULTS = {
     synth: { attack: 0.23, decay: 0.57, sustain: 0.5, release: 0.25 },
     drums: { attack: 0, decay: 0.5, sustain: 1, release: 1 },
@@ -315,10 +350,11 @@ function setSafeEngine(on) {
 const OSC_WORKLET_URL = "osc-worklet.js";
 const FILTER_WORKLET_URL = "filter-worklet.js";
 const MOD_WORKLET_URL = "mod-worklet.js";
+const RACK_WORKLET_URL = "rack-worklet.js";
 
 // loads both worklets (the oscillator and the filter), and marks the audio context as ready for each as it loads
 function loadOscWorklet(context) {
-    if (!context.audioWorklet) return Promise.resolve([false, false, false]);
+    if (!context.audioWorklet) return Promise.resolve([false, false, false, false]);
     const load = (url, flag) =>
         context.audioWorklet
             .addModule(url)
@@ -327,7 +363,12 @@ function loadOscWorklet(context) {
                 return true;
             })
             .catch(() => false);
-    return Promise.all([load(OSC_WORKLET_URL, "oscReady"), load(FILTER_WORKLET_URL, "filterReady"), load(MOD_WORKLET_URL, "modReady")]);
+    const rack = load(RACK_WORKLET_URL, "rackReady").then((ok) => {
+        // (a track that already has an effect on is given its rack now)
+        if (ok && context === ctx && typeof applyAllRacks === "function") applyAllRacks();
+        return ok;
+    });
+    return Promise.all([load(OSC_WORKLET_URL, "oscReady"), load(FILTER_WORKLET_URL, "filterReady"), load(MOD_WORKLET_URL, "modReady"), rack]);
 }
 
 // one layer of a note made by the worklet, with the parts of an OscillatorNode the note uses (frequency, detune, start, stop, ended)

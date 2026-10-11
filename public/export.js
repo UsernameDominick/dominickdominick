@@ -12,7 +12,7 @@ const exportButton = document.getElementById("exportAudio");
 // every list of nodes the engine builds for the tracks (buildTrackChains in fx.js adds to each)
 const chainLists = [
     trackFilters, trackGains, trackBus, trackEq, driveDry, drivePre, drivePost, driveWet, tremGain, tremDepth, tremLfo, trackPan,
-    dlySend, dlyNode, dlyFeedback, revSend, vibLfo, vibGain, cutCtl, resCtl,
+    dlySend, dlyNode, dlyFeedback, revSend, vibLfo, vibGain, cutCtl, resCtl, trackRacks, trackChains,
 ];
 
 // works out the song as sound: gives back an AudioBuffer
@@ -22,7 +22,7 @@ async function renderSong() {
     getCtx(); // (so there is a live engine to put to one side, and a sample rate to use)
 
     const live = {
-        ctx, master, bendNode, modDepth, wheelNode, reverbIn, beatSec,
+        ctx, master, bendNode, modDepth, wheelNode, reverbs, beatSec,
         lists: chainLists.map((list) => list.slice()),
         filters: activeFilters.map((set) => new Set(set)),
         last: lastFrequency.slice(),
@@ -83,7 +83,7 @@ async function renderSong() {
         bendNode = live.bendNode;
         modDepth = live.modDepth;
         wheelNode = live.wheelNode;
-        reverbIn = live.reverbIn;
+        reverbs = live.reverbs;
         beatSec = live.beatSec;
         chainLists.forEach((list, i) => {
             list.length = 0;

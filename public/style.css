@@ -55,8 +55,8 @@ output {
     /* the top row is a fixed height, taller than the others, so the song volume dial fits in it with its name above it
        (the other ten rows are the same as before) */
     /* (the four rows the song sits in are a set height, 88px, so five tracks of 48px fit in it with the toolbar, and the two rows of the dials box
-   are 116px, so a bar, a picture and the plates of dials fit) */
-    grid-template-rows: 108px repeat(2, 1fr) repeat(4, 88px) repeat(2, 116px) repeat(2, 1fr);
+   are 122px, so a bar, a row of tabs, a picture and the plates of dials fit) */
+    grid-template-rows: 108px repeat(2, 1fr) repeat(4, 88px) repeat(2, 122px) repeat(2, 1fr);
     gap: 7px;
 }
 
@@ -3226,4 +3226,76 @@ kbd {
 /* eight tabs fit the height of the dials box a little closer together */
 .dial-tab {
     height: 21px;
+}
+
+/* ================ the tabs are a row under the bar ================
+   There are a lot of tabs now, so they sit in a row (which scrolls sideways if they do not all fit) and the picture and the plates have the
+   whole width of the box */
+.dial-tabs {
+    flex: none;
+    flex-direction: row;
+    align-self: stretch;
+    max-height: none;
+    gap: 3px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.dial-tab {
+    flex: none;
+    width: auto;
+    min-width: 66px;
+    height: 24px;
+    padding: 0 12px;
+}
+
+/* the LFO tab has three plates of four dials, so its dials are a little smaller, to fit in the width of the box */
+.dial-group[data-tab="lfo"] .dial,
+.dial-group[data-tab="move"] .dial {
+    width: 72px;
+}
+
+.dial-group[data-tab="lfo"] .dial .dial-face,
+.dial-group[data-tab="lfo"] .dial .dial-input,
+.dial-group[data-tab="move"] .dial .dial-face,
+.dial-group[data-tab="move"] .dial .dial-input {
+    width: 72px;
+    height: 72px;
+}
+
+.dial-group[data-tab="lfo"] .dial output,
+.dial-group[data-tab="move"] .dial output {
+    top: 57px;
+}
+
+.dial-group[data-tab="lfo"] .dial.slider output,
+.dial-group[data-tab="move"] .dial.slider output {
+    top: 94px;
+}
+
+.dial-group[data-tab="lfo"] .curve-editor,
+.dial-group[data-tab="move"] .curve-editor {
+    width: 200px;
+}
+
+.dial-group[data-tab="lfo"] .plate-dials,
+.dial-group[data-tab="move"] .plate-dials {
+    gap: 2px;
+}
+
+/* the matrix is all picture: it takes the whole width */
+.dial-group[data-tab="matrix"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.dial-group[data-tab="matrix"] .curve-editor {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+/* (a label on the MOVE tab stays on one line, so the dials stay in a row) */
+.dial-group[data-tab="move"] .dial label {
+    white-space: nowrap;
 }
