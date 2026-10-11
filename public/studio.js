@@ -556,6 +556,26 @@ function buildSong() {
             head.style.setProperty("--track-color", trackColors[t]);
         const name = make("button", "track-name", trackName(t)); // the first track is always drums
         name.addEventListener("click", () => selectBlock(t, selBar));
+        // (a long press on a name opens the track's menu on a touch screen, where there is no right click, and Safari on an iPhone sends no contextmenu event)
+        let pressTimer = 0;
+        let pressAt = null;
+        const stopPress = () => {
+            clearTimeout(pressTimer);
+            pressTimer = 0;
+        };
+        name.addEventListener("pointerdown", (e) => {
+            if (e.pointerType === "mouse") return;
+            pressAt = { x: e.clientX, y: e.clientY };
+            pressTimer = setTimeout(() => {
+                pressTimer = 0;
+                openTrackMenu({ preventDefault() {}, clientX: pressAt.x, clientY: pressAt.y }, t);
+            }, 550);
+        });
+        name.addEventListener("pointermove", (e) => {
+            if (pressTimer && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) > 10) stopPress();
+        });
+        name.addEventListener("pointerup", stopPress);
+        name.addEventListener("pointercancel", stopPress);
         const mute = makeIconButton("mute", "Mute");
         mute.setAttribute("aria-pressed", "false");
         mute.setAttribute("aria-label", "Mute track " + (t + 1));

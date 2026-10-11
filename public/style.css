@@ -1867,7 +1867,7 @@ output {
     --hardware-dim: #cdb78c; /* the small buttons (M, S, L...) */
     --hardware-ink: #2b2620; /* text on the hardware */
     --amber: #f2a900;
-    --red: #d63a1d;
+    --red: #c93619; /* (cream writing on it is 4.7 to 1, which is enough to read) */
     --sage: #a9d3ae;
     --well: #2d2a27; /* the track headers */
     --lane: #23211f;
@@ -3587,4 +3587,94 @@ kbd {
 .plate-buttons.row .plate-button {
     min-width: 0;
     padding: 0 10px;
+}
+
+/* ================ for everyone: seeing where you are, and not selecting by accident ================
+   A keyboard user needs to see which control has the focus: an amber ring on anything that takes it (the dials are a hidden slider over a
+   picture of a knob, so the ring goes round the knob) */
+:focus-visible {
+    outline: 3px solid var(--amber);
+    outline-offset: 2px;
+}
+
+.dial:has(.dial-input:focus-visible) .dial-face {
+    outline: 3px solid var(--amber);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
+.dial:has(.dial-input:focus-visible) {
+    outline: none;
+}
+
+.dial-input:focus-visible {
+    outline: none;
+}
+
+/* a long press on a button must not select its words or open the browser's own menu (the long press on a track's name opens the track's menu) */
+button,
+.block,
+.white,
+.black {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ================ on a touch screen: targets a finger can hit ================
+   Small things keep their size (the song and the dials box are laid out in rows of a set height) but are given a bigger place to press, by an
+   invisible area round them that is no bigger than the gap to the next control, and the tabs are a little taller */
+@media (pointer: coarse) {
+    .mute,
+    .solo,
+    .loop,
+    .dial-tab,
+    .track-name,
+    .track-volume,
+    #sizeButton {
+        position: relative;
+    }
+
+    .mute::after,
+    .solo::after,
+    .loop::after {
+        content: "";
+        position: absolute;
+        inset: -4px -2px;
+    }
+
+    .params-arrow::after,
+    .fold::after {
+        content: "";
+        position: absolute;
+        inset: -4px -3px;
+    }
+
+    .arrow::after {
+        content: "";
+        position: absolute;
+        inset: -2px -9px;
+    }
+
+    .track-name::after {
+        content: "";
+        position: absolute;
+        inset: -8px 0 -1px;
+    }
+
+    .track-volume::after {
+        content: "";
+        position: absolute;
+        inset: -2px 0 -6px;
+    }
+
+    #sizeButton::after {
+        content: "";
+        position: absolute;
+        inset: -8px 0;
+    }
+
+    .dial-tab {
+        height: 30px;
+    }
 }
