@@ -101,7 +101,7 @@ function makeLimiter(context) {
     return limiter;
 }
 
-// STOP ALL: cuts every sound at once, the keys that are held, rolls, arpeggios, the notes that are still fading out, the echoes and the
+// STOP, pressed twice: cuts every sound at once, the keys that are held, rolls, arpeggios, the notes that are still fading out, the echoes and the
 // room, and stops the song. The sound engine is made again from the settings (the same way the song is made into a file, export.js)
 function stopAllSounds() {
     if (renderingOffline || !ctx) return;
@@ -122,7 +122,6 @@ function stopAllSounds() {
     getCtx();
     if (ctx.state === "suspended") ctx.resume();
 }
-document.getElementById("stopAll").addEventListener("click", stopAllSounds);
 
 // create the context and master gain the first time, only after a click
 function getCtx() {
@@ -1537,6 +1536,21 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
         x: (i / (GRAPH_FREQS.length - 1)) * w,
         y: yFor(20 * Math.log10(graphMags[i])),
     }));
+    if (editor) {
+        // the marks: a faint line every 6dB, the dB written down the left (the editor's range is the same as the GAIN dials) and the
+        // pitch written along the bottom
+        g.fillStyle = withAlpha(accent, 0.14);
+        [-12, -6, 6, 12].forEach((db) => g.fillRect(0, Math.round(yFor(db)), w, 1));
+        g.font = "bold 16px Karla, sans-serif";
+        g.textAlign = "left";
+        g.textBaseline = "alphabetic";
+        g.fillStyle = withAlpha(GRAPH_TEXT, 0.8);
+        g.fillText("+18", 6, yFor(18) + 14);
+        g.fillText("0", 6, yFor(0) - 5);
+        g.fillText("-18", 6, yFor(-18) - 4);
+        g.textAlign = "center";
+        [[100, "100"], [1000, "1k"], [10000, "10k"]].forEach(([hz, text]) => g.fillText(text, (Math.log(hz / 20) / Math.log(1000)) * w, h - 4));
+    }
     drawLine(g, points, h, accent, w);
 
     // a dot on the line where the filter cuts off
@@ -1580,7 +1594,7 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
         });
     }
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
-    drawGraphLabel(g, editor ? "EQ" : "FILTER " + whose, h);
+    if (!editor) drawGraphLabel(g, "FILTER " + whose, h); // (an editor's tab says what it is)
 
     canvas.setAttribute(
         "aria-label",
@@ -1596,6 +1610,26 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
 // sustain level (DEC and SUS), stays there while it's held, then fades out (REL). The time scale stretches to fit all
 // of it, and the faint lines mark where each part ends (the last one is where the note is let go).
 // On the drum track it's the fade of the drum on the key you last played (drums.js works it out)
+// ---- the envelope editor in the dials box ----
+// It is drawn to real time: the width is the time from the key press to the end of the fade (with some room to the right, to pull
+// the fade longer), so a long attack looks long and a short one looks short. The scale fits the fade, and while a handle is being
+// dragged it is held still (envEditorFrozen), so the handle stays under the pointer
+let envEditorFrozen = null; // { hold, span } while dragging
+const EDITOR_ROOM = 0.82; // the fade fills this much of the width
+
+function envEditorTimes() {
+    const settings = liveTrack === DRUM_TRACK ? drumFxAt(selectedDrumNote) : trackSettings[liveTrack];
+    const env = liveTrack === DRUM_TRACK ? drumShapeEnv(settings) : envelopeOf(liveTrack);
+    const hold = envEditorFrozen ? envEditorFrozen.hold : Math.max(0.15, 0.3 * (env.attack + env.decay + env.release)); // how long the note is held, just for the picture
+    const span = envEditorFrozen ? envEditorFrozen.span : (env.attack + env.decay + hold + env.release) / EDITOR_ROOM;
+    return { env, hold, span, letGoAt: env.attack + env.decay + hold };
+}
+
+// where a dial is (0 to 1) for a time in seconds (the other way round from attackFromSlider and the others)
+const attackToSlider = (seconds) => Math.log(Math.max(0.005, seconds) / 0.005) / Math.log(400);
+const decayToSlider = (seconds) => Math.log(Math.max(0.02, seconds) / 0.02) / Math.log(150);
+const releaseToSlider = (seconds) => (seconds - 0.05) / 2.95;
+
 function drawFadeGraph(canvas = fadeGraph, editor = false) {
     const { g, w, h } = prepGraph(canvas);
 
@@ -1605,55 +1639,36 @@ function drawFadeGraph(canvas = fadeGraph, editor = false) {
     const yFor = (loudness) => pad + (1 - loudness) * (h - pad * 2); // loudness is 0 to 1
     const accent = graphAccent();
     canvas.parentElement.style.setProperty("--accent", accent);
-    drawGrid(g, w, h, 6, 4, accent);
+    drawGrid(g, w, h, editor ? 1 : 6, 4, accent); // (the editor has lines for the time instead)
 
-    let points, name, words;
+    let points, name, words, editorHandles = null, editorSpan = 0;
     if (editor) {
-        const settings = liveTrack === DRUM_TRACK ? drumFxAt(selectedDrumNote) : trackSettings[liveTrack];
-        const env = liveTrack === DRUM_TRACK ? drumShapeEnv(settings) : envelopeOf(liveTrack);
-        const decayValue = liveTrack === DRUM_TRACK ? settings.edecay : settings.decay;
-        const attackX = 0.05 + settings.attack * 0.18;
-        const decayX = 0.3 + decayValue * 0.18;
-        const sustainX = 0.62;
-        const releaseX = 0.76 + settings.release * 0.18;
+        const { env, span, letGoAt } = envEditorTimes();
+        const xFor = (seconds) => (seconds / span) * w;
         const floor = 0.001;
-        name = "ENV";
-        words = "Drag A, D, S, or R to change attack, decay, sustain, or release.";
+        name = "";
+        words = "Drag A, D, S, or R to change attack, decay, sustain, or release. The width of the graph is " + formatSeconds(span) + ".";
+        // a faint line at each step of time, and a stronger one where each part ends
+        const step = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2].find((seconds) => span / seconds <= 8) || 2;
+        g.fillStyle = withAlpha(accent, 0.14);
+        for (let t = step; t < span; t += step) g.fillRect(Math.round(xFor(t)), 0, 1, h);
         g.fillStyle = withAlpha(accent, 0.35);
-        [attackX, decayX, sustainX].forEach((x) => g.fillRect(Math.round(x * w), 0, 1, h));
+        [env.attack, env.attack + env.decay, letGoAt].forEach((t) => g.fillRect(Math.round(xFor(t)), 0, 1, h));
         points = [
             { x: 0, y: yFor(0) },
-            { x: attackX * w, y: yFor(1) },
+            { x: xFor(env.attack), y: yFor(1) },
         ];
-        for (let i = 1; i <= 40; i++) {
-            points.push({ x: attackX * w + (decayX - attackX) * w * (i / 40), y: yFor(env.sustain ** (i / 40)) });
-        }
-        points.push({ x: sustainX * w, y: yFor(env.sustain) });
-        for (let i = 1; i <= 40; i++) {
-            const level = env.sustain * (floor / env.sustain) ** (i / 40);
-            points.push({ x: sustainX * w + (releaseX - sustainX) * w * (i / 40), y: yFor(level) });
-        }
+        for (let i = 1; i <= 40; i++) points.push({ x: xFor(env.attack + env.decay * (i / 40)), y: yFor(env.sustain ** (i / 40)) });
+        points.push({ x: xFor(letGoAt), y: yFor(env.sustain) });
+        for (let i = 1; i <= 40; i++) points.push({ x: xFor(letGoAt + env.release * (i / 40)), y: yFor(env.sustain * (floor / env.sustain) ** (i / 40)) });
         points.push({ x: w, y: yFor(0) });
-        const handles = [
-            { label: "A", x: attackX * w, y: yFor(1) },
-            { label: "D", x: decayX * w, y: yFor(env.sustain) },
-            { label: "S", x: sustainX * w, y: yFor(env.sustain) },
-            { label: "R", x: releaseX * w, y: yFor(0) },
+        editorHandles = [
+            { label: "A", x: xFor(env.attack), y: yFor(1) },
+            { label: "D", x: xFor(env.attack + env.decay), y: yFor(env.sustain) },
+            { label: "S", x: xFor(letGoAt), y: yFor(env.sustain) },
+            { label: "R", x: xFor(letGoAt + env.release), y: yFor(0) },
         ];
-        handles.forEach(({ label, x, y }) => {
-            g.beginPath();
-            g.arc(x, y, 12, 0, Math.PI * 2);
-            g.fillStyle = GRAPH_TEXT;
-            g.fill();
-            g.lineWidth = 2;
-            g.strokeStyle = "#17130f";
-            g.stroke();
-            g.fillStyle = "#17130f";
-            g.font = "bold 16px Karla, sans-serif";
-            g.textAlign = "center";
-            g.textBaseline = "middle";
-            g.fillText(label, x, y);
-        });
+        editorSpan = span;
     } else if (drum) {
         // the drum's own fade (it rises over attack and has gone quiet at end) multiplied by the shape the dials give it
         const env = drumShapeEnv(drumFxAt(selectedDrumNote));
@@ -1715,7 +1730,29 @@ function drawFadeGraph(canvas = fadeGraph, editor = false) {
     }
 
     drawLine(g, points, h, accent, w);
-    drawGraphLabel(g, name, h);
+    if (editorHandles) {
+        // (the handles go over the line, and the time the width stands for is written at the top right)
+        g.font = "bold 16px Karla, sans-serif";
+        g.textAlign = "right";
+        g.textBaseline = "alphabetic";
+        g.fillStyle = withAlpha(GRAPH_TEXT, 0.8);
+        g.fillText(formatSeconds(editorSpan), w - 8, 22);
+        editorHandles.forEach(({ label, x, y }) => {
+            g.beginPath();
+            g.arc(x, y, 12, 0, Math.PI * 2);
+            g.fillStyle = GRAPH_TEXT;
+            g.fill();
+            g.lineWidth = 2;
+            g.strokeStyle = "#17130f";
+            g.stroke();
+            g.fillStyle = "#17130f";
+            g.textAlign = "center";
+            g.textBaseline = "middle";
+            g.fillText(label, x, y);
+        });
+    } else {
+        drawGraphLabel(g, name, h);
+    }
 
     canvas.setAttribute("aria-label", (editor ? "Interactive envelope graph: " : "Fade graph: ") + words);
 }

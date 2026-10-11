@@ -130,6 +130,7 @@ document.addEventListener("keydown", (e) => {
     if (key === " " && !e.repeat) {
         e.preventDefault();
         if (stepCursor !== null) stepRest();
+        else if (running) stopPlaying();
         else playBtn.click();
     } else if (key === "r" && e.shiftKey && !e.repeat) {
         e.preventDefault();

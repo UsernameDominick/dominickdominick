@@ -98,8 +98,6 @@
                 <input type="range" class="dial-input" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
                 <output for="songVolume" aria-hidden="true">50%</output>
             </div>
-            <!-- STOP ALL: cuts every sound at once, held keys, rolls, fading notes and echoes, and stops the song (synth.js) -->
-            <button class="tool stop-all" id="stopAll" title="Stop all sounds" aria-label="Stop all sounds">STOP ALL</button>
             <!-- two icon buttons, one on top of the other, pushed over to the right edge of the box: the gear opens the list of keyboard
                  shortcuts and the i opens the popup about the page (about.js) -->
             <div class="button-stack save-stack info-stack">
@@ -153,8 +151,17 @@
                             <path d="M12 3 L14.8 9 L21 9.7 L16.4 14 L17.7 20.5 L12 17.3 L6.3 20.5 L7.6 14 L3 9.7 L9.2 9 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>
                         </svg>
                     </button>
-                    <button class="tool" id="playButton">PLAY</button>
-                    <button class="tool rec" id="recButton">REC</button>
+                    <!-- play, stop and record, with drawn icons. STOP pressed twice quickly stops everything for good (studio.js) -->
+                    <button class="tool transport" id="playButton" aria-label="Play" title="Play (Space)">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d="M7 4.5 L19.5 12 L7 19.5 Z"></path></svg>
+                    </button>
+                    <button class="tool transport" id="stopButton" aria-label="Stop. Press twice to stop every sound" title="Stop (press twice to stop every sound)">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
+                    </button>
+                    <button class="tool rec" id="recButton" aria-label="Record" title="Record (Shift+R)">
+                        <svg class="rec-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="7.5"></circle></svg>
+                        <span class="rec-text"></span>
+                    </button>
                     <!-- the little arrow by REC opens the recording options: quantize, swing, loop record, step record (studio.js, record.js) -->
                     <button class="tool rec-arrow" id="recOptions" aria-expanded="false" aria-label="Recording options: quantize, swing, loop record and step record">
                         <span class="menu-arrow" aria-hidden="true"></span>
@@ -308,54 +315,48 @@
         <div class="popover-body">
             <div class="about">
                 <h1 id="shortcutsTitle">Keyboard shortcuts</h1>
-                <h2>Play</h2>
-                <dl class="keys">
-                    <dt><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd></dt>
-                    <dd>The white keys of the piano, starting on C. <kbd>S</kbd> <kbd>D</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> are the black keys.</dd>
-                    <dt><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>I</kbd> <kbd>O</kbd> <kbd>P</kbd></dt>
-                    <dd>The next octave up. <kbd>2</kbd> <kbd>3</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> <kbd>9</kbd> <kbd>0</kbd> are its black keys.</dd>
-                    <dt><kbd>[</kbd> <kbd>]</kbd></dt>
-                    <dd>Move the keys down and up an octave.</dd>
-                    <dt>Drum track</dt>
-                    <dd>Z to M, A to J and Q to I play the drums, one key each.</dd>
-                    <dt>Hold a key and move the mouse</dt>
-                    <dd>On the piano on the screen, this bends the note. The MIDI button sets what it does.</dd>
-                </dl>
-                <h2>Song</h2>
-                <dl class="keys">
-                    <dt><kbd>Space</kbd></dt>
-                    <dd>Play and stop.</dd>
-                    <dt><kbd>Shift</kbd> <kbd>R</kbd></dt>
-                    <dd>Record. <kbd>Esc</kbd> stops step recording.</dd>
-                    <dt><kbd>Shift</kbd> <kbd>M</kbd> <kbd>S</kbd> <kbd>L</kbd></dt>
-                    <dd>Mute, solo and loop the selected track (one of them with Shift).</dd>
-                    <dt><kbd>Shift</kbd> <kbd>E</kbd></dt>
-                    <dd>Open the step sequencer for the selected block.</dd>
-                    <dt><kbd>Arrows</kbd></dt>
-                    <dd>Move to the block before, after, above or below.</dd>
-                </dl>
-                <h2>Edit</h2>
-                <dl class="keys">
-                    <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt>
-                    <dd>Undo. <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> or <kbd>Ctrl</kbd> <kbd>Y</kbd> redoes.</dd>
-                    <dt><kbd>Ctrl</kbd> <kbd>C</kbd> <kbd>V</kbd></dt>
-                    <dd>Copy the selected block and paste into another.</dd>
-                    <dt><kbd>Delete</kbd></dt>
-                    <dd>Clear the selected block.</dd>
-                    <dt><kbd>Ctrl</kbd> <kbd>S</kbd></dt>
-                    <dd>Save the song.</dd>
-                    <dt>Double-click a dial</dt>
-                    <dd>Puts it back to where it started.</dd>
-                </dl>
-                <h2>MIDI keyboard</h2>
-                <dl class="keys">
-                    <dt>Sustain pedal</dt>
-                    <dd>Holds the notes after you let go. The word on the MIDI button squashes flat while it is down.</dd>
-                    <dt>Wheels and pressure</dt>
-                    <dd>The pitch wheel and mod wheel work, and pressing harder on a held key can bend, brighten or wobble it (set in the MIDI popup).</dd>
-                    <dt><kbd>STOP ALL</kbd></dt>
-                    <dd>The button by the song volume cuts every sound at once.</dd>
-                </dl>
+                <table class="keys-table">
+                    <thead>
+                        <tr><th scope="col">Keys</th><th scope="col">What they do</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="group"><th scope="rowgroup" colspan="2">Play the piano</th></tr>
+                        <tr><td><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd></td><td>White keys, starting on C</td></tr>
+                        <tr><td><kbd>S</kbd> <kbd>D</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd></td><td>Black keys of that row</td></tr>
+                        <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>I</kbd> <kbd>O</kbd> <kbd>P</kbd></td><td>White keys, the next octave up</td></tr>
+                        <tr><td><kbd>2</kbd> <kbd>3</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> <kbd>9</kbd> <kbd>0</kbd></td><td>Black keys of that row</td></tr>
+                        <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Move the keys an octave down and up</td></tr>
+                        <tr><td>Drum track: <kbd>Z</kbd> to <kbd>M</kbd>, <kbd>A</kbd> to <kbd>J</kbd>, <kbd>Q</kbd> to <kbd>I</kbd></td><td>Play the drums, one key each</td></tr>
+                        <tr><td>Hold a piano key and move the mouse</td><td>Bends the note (the MIDI button sets what it does)</td></tr>
+
+                        <tr class="group"><th scope="rowgroup" colspan="2">Play and record the song</th></tr>
+                        <tr><td><kbd>Space</kbd></td><td>Play, or stop if it is playing</td></tr>
+                        <tr><td><kbd>Shift</kbd> <kbd>R</kbd></td><td>Record</td></tr>
+                        <tr><td><kbd>Esc</kbd></td><td>Stop step recording</td></tr>
+                        <tr><td>STOP button, clicked twice</td><td>Stops every sound at once: the song, held keys, rolls, fading notes and echoes</td></tr>
+
+                        <tr class="group"><th scope="rowgroup" colspan="2">Tracks and blocks</th></tr>
+                        <tr><td><kbd>Shift</kbd> <kbd>M</kbd></td><td>Mute the selected track</td></tr>
+                        <tr><td><kbd>Shift</kbd> <kbd>S</kbd></td><td>Solo the selected track</td></tr>
+                        <tr><td><kbd>Shift</kbd> <kbd>L</kbd></td><td>Loop the selected track</td></tr>
+                        <tr><td><kbd>Shift</kbd> <kbd>E</kbd></td><td>Open the step sequencer for the selected block</td></tr>
+                        <tr><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Move to the block before, after, above or below</td></tr>
+
+                        <tr class="group"><th scope="rowgroup" colspan="2">Edit</th></tr>
+                        <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> or <kbd>Ctrl</kbd> <kbd>Y</kbd></td><td>Redo</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> <kbd>C</kbd></td><td>Copy the selected block</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> <kbd>V</kbd></td><td>Paste into the selected block</td></tr>
+                        <tr><td><kbd>Delete</kbd></td><td>Clear the selected block</td></tr>
+                        <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Save the song</td></tr>
+                        <tr><td>Double-click a dial</td><td>Put it back to where it started</td></tr>
+
+                        <tr class="group"><th scope="rowgroup" colspan="2">With a MIDI keyboard</th></tr>
+                        <tr><td>Sustain pedal</td><td>Holds the notes after you let go (the word on the MIDI button squashes flat while it is down)</td></tr>
+                        <tr><td>Pitch wheel and mod wheel</td><td>Bend the pitch and add vibrato</td></tr>
+                        <tr><td>Pressing harder on a held key</td><td>Bends, brightens or wobbles the note (set in the MIDI popup)</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
         <span class="popover-arrow" aria-hidden="true"></span>

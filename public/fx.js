@@ -585,37 +585,43 @@ function buildDialPanel() {
     eqEditor.addEventListener("pointercancel", stopEqEdit);
 
     let draggedEnvStage = null;
+    // (the editor is drawn to real time, see envEditorTimes in synth.js: a handle is at a time, so dragging it sideways sets a time)
+    const envPad = () => (EDITOR_PAD * envEditor.getBoundingClientRect().height) / envEditor.offsetHeight;
     const envHandles = () => {
-        const attack = getSetting("attack");
-        const decay = getSetting("envdecay");
-        const sustain = getSetting("sustain");
-        const release = getSetting("release");
+        const { env, span, letGoAt } = envEditorTimes();
         return [
-            { stage: "attack", x: 0.05 + attack * 0.18, y: 0 },
-            { stage: "decay", x: 0.3 + decay * 0.18, y: 1 - sustain },
-            { stage: "sustain", x: 0.62, y: 1 - sustain },
-            { stage: "release", x: 0.76 + release * 0.18, y: 1 },
+            { stage: "attack", x: env.attack / span, y: 0 },
+            { stage: "decay", x: (env.attack + env.decay) / span, y: 1 - env.sustain },
+            { stage: "sustain", x: letGoAt / span, y: 1 - env.sustain },
+            { stage: "release", x: (letGoAt + env.release) / span, y: 1 },
         ];
     };
     const editEnvAt = (e) => {
         const rect = envEditor.getBoundingClientRect();
-        const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-        const pad = (EDITOR_PAD * rect.height) / envEditor.offsetHeight;
+        const pad = envPad();
+        let x = (e.clientX - rect.left) / rect.width;
+        if (x > 0.97) envEditorFrozen.span *= 1.03; // (pulling a handle past the right edge zooms the graph out)
+        x = Math.min(1, Math.max(0, x));
         const y = Math.min(1, Math.max(0, (e.clientY - rect.top - pad) / (rect.height - 2 * pad)));
-        if (draggedEnvStage === "attack") setDialValue("attackSlider", (x - 0.05) / 0.18);
-        if (draggedEnvStage === "decay") setDialValue("decaySlider", (x - 0.3) / 0.18);
+        const t = x * envEditorFrozen.span; // the time under the pointer, in seconds
+        const { env } = envEditorTimes();
+        if (draggedEnvStage === "attack") setDialValue("attackSlider", attackToSlider(t));
+        if (draggedEnvStage === "decay") setDialValue("decaySlider", decayToSlider(t - env.attack));
         if (draggedEnvStage === "sustain") setDialValue("sustainSlider", 1 - y);
-        if (draggedEnvStage === "release") setDialValue("releaseSlider", (x - 0.76) / 0.18);
+        if (draggedEnvStage === "release") setDialValue("releaseSlider", releaseToSlider(t - (env.attack + env.decay + envEditorFrozen.hold)));
     };
     envEditor.addEventListener("pointerdown", (e) => {
         const rect = envEditor.getBoundingClientRect();
+        const pad = envPad();
         const x = (e.clientX - rect.left) / rect.width;
-        const pad = (EDITOR_PAD * rect.height) / envEditor.offsetHeight;
         const y = (e.clientY - rect.top - pad) / (rect.height - 2 * pad);
+        envEditorFrozen = null; // (the handles are where the scale that fits the fade puts them)
         draggedEnvStage = envHandles().reduce((closest, handle) => {
             const distance = Math.hypot((handle.x - x) * rect.width, (handle.y - y) * (rect.height - 2 * pad));
             return distance < closest.distance ? { stage: handle.stage, distance } : closest;
         }, { stage: "attack", distance: Infinity }).stage;
+        const { hold, span } = envEditorTimes();
+        envEditorFrozen = { hold, span }; // (and the scale is held still while it is dragged, so the handle stays under the pointer)
         e.preventDefault();
         envEditor.setPointerCapture(e.pointerId);
         editEnvAt(e);
@@ -623,7 +629,11 @@ function buildDialPanel() {
     envEditor.addEventListener("pointermove", (e) => {
         if (draggedEnvStage !== null) editEnvAt(e);
     });
-    const stopEnvEdit = () => (draggedEnvStage = null);
+    const stopEnvEdit = () => {
+        draggedEnvStage = null;
+        envEditorFrozen = null;
+        drawGraphs(); // (the scale fits the fade again)
+    };
     envEditor.addEventListener("pointerup", stopEnvEdit);
     envEditor.addEventListener("pointercancel", stopEnvEdit);
 

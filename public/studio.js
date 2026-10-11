@@ -83,7 +83,9 @@ let lastNowBar = -1; // which bar is lit up as playing right now (-1 is none)
 // things on the page
 const songEl = document.getElementById("song");
 const playBtn = document.getElementById("playButton");
+const stopBtn = document.getElementById("stopButton");
 const recBtn = document.getElementById("recButton");
+const recText = recBtn.querySelector(".rec-text");
 const copyBtn = document.getElementById("copyButton");
 const pasteBtn = document.getElementById("pasteButton");
 const clearBtn = document.getElementById("clearButton");
@@ -408,7 +410,7 @@ function layoutSong() {
     let row = 2;
     for (let t = 0; t < TRACKS; t++) {
         rowOfTrack[t] = row++;
-        heights.push("38px");
+        heights.push("48px");
         if (paramOpen[t]) {
             rowOfParam[t] = row++;
             heights.push(PARAM_ROW + "px");
@@ -1267,11 +1269,13 @@ function updateButtons() {
     const counting = running && recordArmed && countBeats > 0 && beat < countBeats;
     const recording = running && recordArmed && beat >= countBeats;
 
-    playBtn.textContent = running ? "STOP" : "PLAY";
     playBtn.classList.toggle("on", running && !recordArmed);
     recBtn.classList.toggle("on", recording || stepCursor !== null);
     recBtn.classList.toggle("counting", counting);
-    recBtn.textContent = stepCursor !== null ? "STEP" : counting ? String(Math.floor((Math.max(0, beat)) % BEATS) + 1) : "REC";
+    // (REC is a red disc, and it says STEP while step recording and counts the beats in while it counts in)
+    const recWords = stepCursor !== null ? "STEP" : counting ? String(Math.floor((Math.max(0, beat)) % BEATS) + 1) : "";
+    recText.textContent = recWords;
+    recBtn.classList.toggle("has-text", recWords !== "");
     pasteBtn.disabled = !clipboard;
 }
 
@@ -1295,9 +1299,31 @@ function uiLoop() {
     requestAnimationFrame(uiLoop);
 }
 
-playBtn.addEventListener("click", () => {
+// PLAY plays (it does nothing while the song is going), STOP stops. STOP pressed twice quickly stops everything for good: the song, held
+// keys, rolls, notes that are fading out and echoes (stopAllSounds, synth.js)
+function stopPlaying() {
+    if (stepCursor !== null) stopStepRecording();
     if (running) stopTransport();
-    else startTransport(false);
+}
+
+playBtn.addEventListener("click", () => {
+    if (!running) startTransport(false);
+});
+
+let lastStopClick = 0;
+stopBtn.addEventListener("click", () => {
+    const now = performance.now();
+    if (now - lastStopClick < 400) {
+        lastStopClick = 0;
+        stopPlaying();
+        stopAllSounds();
+        // (a short flash, so you can see it did it)
+        stopBtn.classList.add("on");
+        setTimeout(() => stopBtn.classList.remove("on"), 350);
+    } else {
+        lastStopClick = now;
+        stopPlaying();
+    }
 });
 
 recBtn.addEventListener("click", () => {
