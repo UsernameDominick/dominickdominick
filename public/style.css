@@ -2489,9 +2489,20 @@ body {
     border-bottom-left-radius: 0;
 }
 
-#recButton {
+#recButton,
+#metroButton {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+}
+
+/* the metronome button, joined to its arrow the same way (the icon only) */
+#metroButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    width: 56px;
+    padding: 0;
 }
 
 /* the recording options popup: two wide rows of five, then four pairs */

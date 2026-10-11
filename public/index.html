@@ -171,8 +171,9 @@
                         <span id="bpmText">100 BPM</span>
                         <span class="menu-arrow" aria-hidden="true"></span>
                     </button>
-                    <!-- the metronome: opens a popup with its settings (studio.js) -->
-                    <button class="tool menu-button" id="metroButton" aria-expanded="false" aria-label="Metronome settings">
+                    <!-- the metronome: the button turns it on and off, and the little arrow by it opens a popup with its settings, the same as
+                         REC and its arrow (studio.js) -->
+                    <button class="tool" id="metroButton" aria-pressed="true" aria-label="Metronome" title="Metronome on or off">
                         <!-- a metronome, drawn: the case, the arm swinging and its weight -->
                         <svg class="metro-icon" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false">
                             <path d="M8 21 L10.2 3 H13.8 L16 21 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
@@ -180,6 +181,8 @@
                             <circle cx="15" cy="10" r="2" fill="currentColor"></circle>
                             <path d="M6 21 H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
                         </svg>
+                    </button>
+                    <button class="tool rec-arrow" id="metroOptions" aria-expanded="false" aria-label="Metronome options: when it clicks, count-in, sound and volume">
                         <span class="menu-arrow" aria-hidden="true"></span>
                     </button>
                     <span class="toolbar-gap"></span>

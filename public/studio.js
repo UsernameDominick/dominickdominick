@@ -1802,8 +1802,26 @@ document.addEventListener("pointercancel", endParamDrag);
 
 // ---- the metronome's settings (the METRO button by BPM) ----
 const metroButton = document.getElementById("metroButton");
+const metroOptionsButton = document.getElementById("metroOptions");
 const metroPopover = document.getElementById("metroPopover");
-registerPanel("metro", metroButton, metroPopover, null, null, { popupOnly: true }); // a popup on a phone too
+registerPanel("metro", metroOptionsButton, metroPopover, null, null, { popupOnly: true }); // a popup on a phone too
+
+// the metronome button turns it on and off. Off is no ticks at all (not even the count-in), and on goes back to the way it was set
+// (count-in or always)
+let metroLastOn = metro.when || 1;
+metroButton.addEventListener("click", () => {
+    if (metro.when !== 0) {
+        metroLastOn = metro.when;
+        metro.when = 0;
+    } else {
+        metro.when = metroLastOn;
+    }
+    try {
+        localStorage.setItem("metronome", JSON.stringify(metro));
+    } catch {}
+    showMetro();
+    if (metro.when !== 0) previewClick();
+});
 
 async function previewClick() {
     getCtx();
@@ -1813,6 +1831,8 @@ async function previewClick() {
 
 // fills each group of choices and marks the one that's chosen. Choosing one changes the setting and saves it
 function showMetro() {
+    metroButton.classList.toggle("on", metro.when !== 0); // (lit when it is on)
+    metroButton.setAttribute("aria-pressed", String(metro.when !== 0));
     [
         ["metroClick", "when", CLICK_WHEN],
         ["metroCount", "countIn", COUNT_INS],
@@ -1821,6 +1841,7 @@ function showMetro() {
     ].forEach(([id, key, names]) => {
         fillChoices([document.getElementById(id)], names, metro[key], (i) => {
             metro[key] = i;
+            if (key === "when" && i !== 0) metroLastOn = i;
             try {
                 localStorage.setItem("metronome", JSON.stringify(metro));
             } catch {}
