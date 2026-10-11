@@ -509,7 +509,9 @@ const dialEntries = []; // { spec, box, input, strip } for every dial
 let dialTab = "sound";
 let selectDialTab; // shows a tab (buildDialPanel sets it)
 let dialTabButtons = []; // the buttons of the tabs
-let dialEditing; // the words at the top right that say which sound the dials are for
+let dialBar; // the bar along the top of the dials box that says which sound the dials are for ({ chip, name, right })
+const dialViews = {}; // the picture on the left of each tab (a canvas), drawn by dialviews.js (the EQ and ENV ones are here)
+const dialPlates = []; // the plates the dials sit on: { el, dials }
 try {
     const savedTab = localStorage.getItem("dialTab");
     if (DIAL_TABS.some((tab) => tab.id === savedTab)) dialTab = savedTab;
@@ -526,15 +528,20 @@ function buildDialPanel() {
         tabs.appendChild(button);
         return button;
     }));
-    dialPanel.appendChild(tabs);
-    dialEditing = mk("div", "dial-editing");
-    dialPanel.appendChild(dialEditing);
+    // the bar along the top: what is being edited (the track or the drum, its sound), and the tab you are on
+    const barEl = mk("div", "dial-bar");
+    dialBar = { el: barEl, edit: mk("span", "", "EDITING"), chip: mk("span", "dial-bar-chip"), name: mk("span", ""), right: mk("span", "dial-bar-right") };
+    barEl.append(dialBar.edit, dialBar.chip, dialBar.name, dialBar.right);
+    dialPanel.appendChild(barEl);
+    const dialBody = mk("div", "dial-body");
+    dialPanel.appendChild(dialBody);
+    dialBody.appendChild(tabs);
 
     const groups = {};
     DIAL_TABS.forEach((tab) => {
         groups[tab.id] = mk("div", "dial-group");
         groups[tab.id].dataset.tab = tab.id;
-        dialPanel.appendChild(groups[tab.id]);
+        dialBody.appendChild(groups[tab.id]);
     });
 
     function addCurveEditor(tab, label) {
@@ -552,6 +559,41 @@ function buildDialPanel() {
     const envEditor = addCurveEditor("env", "Envelope graph. Drag A, D, S, or R to adjust attack, decay, sustain, or release.");
     registerEqEditorGraph(eqEditor);
     registerEnvEditorGraph(envEditor);
+    dialViews.eq = eqEditor;
+    dialViews.env = envEditor;
+    // (every other tab has a picture too, drawn by dialviews.js)
+    const VIEW_LABELS = {
+        sound: "Picture of the selected sound: the shape of its wave, or for a drum how long it rings.",
+        filter: "Filter graph. Drag the C handle sideways for the cutoff and up and down for the resonance.",
+        fx: "Picture of the echo and the room: the echoes as bars, and the room as a fading shade.",
+        mod: "Picture of the vibrato and the tremolo as waves.",
+        play: "Picture of the chord and the arpeggio, or for a drum the roll.",
+    };
+    ["sound", "filter", "fx", "mod", "play"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
+
+    // the plates: the dials of each tab sit on engraved plates, with a title, grouped by what they do
+    const PLATE_LAYOUT = {
+        sound: [["LEVEL", ["VOL", "PAN"]], ["TUNING", ["OCT", "SEMI", "DETUNE", "GLIDE", "PITCH", "DECAY"]], ["DIRT", ["DRIVE"]]],
+        filter: [["FILTER", ["TYPE", "CUT", "RES"]], ["FILTER ENV", ["FENV"]]],
+        eq: [1, 2, 3].map((n) => ["BAND " + n, ["FREQ " + n, "GAIN " + n, "Q " + n]]),
+        env: [["ENVELOPE", ["ATK", "DEC", "SUS", "REL"]]],
+        fx: [["ECHO", ["DLY", "DTIME", "DFB"]], ["ROOM", ["REV"]]],
+        mod: [["VIBRATO", ["VRATE", "VDEP"]], ["TREMOLO", ["TRATE", "TDEP"]]],
+        play: [["CHORD AND ARP", ["CHORD", "ARP", "RATE"]], ["ROLL", ["ROLL", "BUILD"]]],
+    };
+    const plateOf = {}; // a dial's name -> the box its dial goes in
+    for (const tab in PLATE_LAYOUT) {
+        PLATE_LAYOUT[tab].forEach(([title, names]) => {
+            const el = mk("div", "plate");
+            ["tl", "tr", "bl", "br"].forEach((corner) => el.appendChild(mk("span", "screw " + corner)));
+            el.appendChild(mk("h3", "", title));
+            const row = mk("div", "plate-dials");
+            el.appendChild(row);
+            groups[tab].appendChild(el);
+            dialPlates.push({ el, row });
+            names.forEach((name) => (plateOf[name] = row));
+        });
+    }
 
     function setDialValue(id, value) {
         const input = document.getElementById(id);
@@ -657,7 +699,7 @@ function buildDialPanel() {
         output.setAttribute("aria-hidden", "true");
         output.textContent = spec.format(spec.def);
         box.append(label, face, input, output);
-        groups[spec.group].appendChild(box);
+        (plateOf[spec.label] || groups[spec.group]).appendChild(box);
         if (spec.slider) {
             box.classList.add("slider");
             buildSlider(box, spec.slider);
@@ -683,7 +725,8 @@ function buildDialPanel() {
         const picked = tabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)];
         if (picked.offsetTop < tabs.scrollTop) tabs.scrollTop = picked.offsetTop;
         else if (picked.offsetTop + picked.offsetHeight > tabs.scrollTop + tabs.clientHeight) tabs.scrollTop = picked.offsetTop + picked.offsetHeight - tabs.clientHeight;
-        if (id === "eq" || id === "env") drawGraphs();
+        dialBar.right.textContent = DIAL_TABS.find((tab) => tab.id === id).name;
+        drawGraphs(); // (each tab has its own picture to draw)
     }
     selectDialTab = showDialTab;
     showDialTab(dialTab);
@@ -694,8 +737,9 @@ buildDialPanel();
 // pick a track or a drum)
 function showTrackSettings() {
     const drums = isDrums();
-    // (and says what the dials are for: the selected drum, or the selected track)
-    dialEditing.textContent = "EDITING " + (drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : trackName(liveTrack));
+    // (and says what the dials are for in the bar: the selected drum, or the selected track and its sound)
+    dialBar.chip.textContent = drums ? "DRUMS" : trackName(liveTrack);
+    dialBar.name.textContent = drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : SOUNDS[trackSettings[liveTrack].sound].name;
     dialEntries.forEach(({ spec, box, input, strip }) => {
         const shown = spec.scope === "both" || (spec.scope === "drums") === drums;
         box.hidden = !shown;
@@ -704,5 +748,7 @@ function showTrackSettings() {
         input.value = spec.get();
         strip.update();
     });
+    // a plate with no dials showing (a synth's filter envelope on a drum, a drum's roll on a synth) is not shown
+    dialPlates.forEach(({ el, row }) => (el.hidden = [...row.children].every((box) => box.hidden)));
     drawGraphs();
 }

@@ -1481,7 +1481,12 @@ function drawGraphLabel(g, text, h) {
 }
 
 // filter graph: pitch goes left to right (low to high), loudness goes bottom to top
-function drawFilterGraph(canvas = filterGraph, editor = false) {
+// the filter picture in the dials box (the FILTER tab) can be dragged: sideways sets the cutoff and up and down sets the resonance. Its
+// range of dB, at the top and the bottom
+const FILTER_VIEW_TOP = 15;
+const FILTER_VIEW_BOTTOM = -30;
+
+function drawFilterGraph(canvas = filterGraph, editor = false, filterEditor = false) {
     const { g, w, h } = prepGraph(canvas);
 
     // the graphs show the selected sound
@@ -1503,15 +1508,16 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
         band.gain.value = eqGain(shown["e" + n + "g"]);
         band.Q.value = eqQ(shown["e" + n + "q"]);
         bandValues.push({ frequency: band.frequency.value, gain: band.gain.value });
+        if (filterEditor) return; // (the FILTER tab shows the filter on its own)
         band.getFrequencyResponse(GRAPH_FREQS, graphBandMags, graphPhases);
         for (let k = 0; k < graphMags.length; k++) graphMags[k] *= graphBandMags[k];
         if (Math.abs(band.gain.value) >= 0.05) bandPoints.push(band.frequency.value);
     });
 
     // turns a loudness in dB into a height on the graph
-    const dbTop = editor ? 18 : GRAPH_DB_TOP;
-    const dbBottom = editor ? -18 : GRAPH_DB_BOTTOM;
-    const pad = editor ? EDITOR_PAD : GRAPH_PAD; // (an editor has room for its handles at the top and the bottom)
+    const dbTop = editor ? 18 : filterEditor ? FILTER_VIEW_TOP : GRAPH_DB_TOP;
+    const dbBottom = editor ? -18 : filterEditor ? FILTER_VIEW_BOTTOM : GRAPH_DB_BOTTOM;
+    const pad = editor || filterEditor ? EDITOR_PAD : GRAPH_PAD; // (an editor has room for its handles at the top and the bottom)
     const yFor = (db) => {
         const clamped = Math.min(dbTop, Math.max(dbBottom, db));
         return pad + ((dbTop - clamped) / (dbTop - dbBottom)) * (h - pad * 2);
@@ -1547,18 +1553,49 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
         g.textAlign = "center";
         [[100, "100"], [1000, "1k"], [10000, "10k"]].forEach(([hz, text]) => g.fillText(text, (Math.log(hz / 20) / Math.log(1000)) * w, h - 4));
     }
+    if (filterEditor) {
+        // the marks: a faint line every 6dB up the side and the pitch written along the bottom
+        g.fillStyle = withAlpha(accent, 0.14);
+        [-24, -18, -12, -6, 6, 12].forEach((db) => g.fillRect(0, Math.round(yFor(db)), w, 1));
+        g.font = "bold 16px Karla, sans-serif";
+        g.textAlign = "left";
+        g.textBaseline = "alphabetic";
+        g.fillStyle = withAlpha(GRAPH_TEXT, 0.8);
+        g.fillText("+12", 6, yFor(12) + 14);
+        g.fillText("0", 6, yFor(0) - 5);
+        g.fillText("-24", 6, yFor(-24) - 4);
+        g.textAlign = "center";
+        [[100, "100"], [1000, "1k"], [10000, "10k"]].forEach(([hz, text]) => g.fillText(text, (Math.log(hz / 20) / Math.log(1000)) * w, h - 4));
+    }
     drawLine(g, points, h, accent, w);
 
-    // a dot on the line where the filter cuts off
     const cutX = (Math.log(cutoffHz / 20) / Math.log(1000)) * w;
-    const nearest = points.reduce((best, p) => (Math.abs(p.x - cutX) < Math.abs(best.x - cutX) ? p : best), points[0]);
-    g.beginPath();
-    g.arc(nearest.x, nearest.y, 4.5, 0, Math.PI * 2);
-    g.fillStyle = tint(accent, 0.7);
-    g.fill();
-    g.lineWidth = 2;
-    g.strokeStyle = "#17130f";
-    g.stroke();
+    if (filterEditor) {
+        // a handle where the filter cuts off: drag it sideways for the cutoff and up and down for the resonance
+        const hy = yFor(resonance);
+        g.beginPath();
+        g.arc(cutX, hy, 12, 0, Math.PI * 2);
+        g.fillStyle = GRAPH_TEXT;
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeStyle = "#17130f";
+        g.stroke();
+        g.fillStyle = "#17130f";
+        g.font = "bold 16px Karla, sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("C", cutX, hy);
+    } else {
+        // a dot on the line where the filter cuts off
+        const nearest = points.reduce((best, p) => (Math.abs(p.x - cutX) < Math.abs(best.x - cutX) ? p : best), points[0]);
+        g.beginPath();
+        g.arc(nearest.x, nearest.y, 4.5, 0, Math.PI * 2);
+        g.fillStyle = tint(accent, 0.7);
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeStyle = "#17130f";
+        g.stroke();
+    }
     // a square on the line at each EQ band that is doing something
     (editor ? [] : bandPoints).forEach((hz) => { // (the editor has its own numbered handles)
         const x = (Math.log(hz / 20) / Math.log(1000)) * w;
@@ -1590,11 +1627,13 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
         });
     }
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
-    if (!editor) drawGraphLabel(g, "FILTER " + whose, h); // (an editor's tab says what it is)
+    if (!editor && !filterEditor) drawGraphLabel(g, "FILTER " + whose, h); // (an editor's tab says what it is)
 
     canvas.setAttribute(
         "aria-label",
-        editor
+        filterEditor
+            ? "Interactive filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz. Drag the C handle sideways for the cutoff and up and down for the resonance."
+            : editor
             ? "Interactive EQ graph for " + whose + ". Drag numbered bands to change frequency and gain."
             : "Filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
                 Math.round(resonance) + " decibels there" + (bandPoints.length ? ", and " + bandPoints.length + " EQ band" + (bandPoints.length > 1 ? "s" : "") + " changing the sound" : "")
@@ -1758,6 +1797,7 @@ function drawGraphs() {
     drawFadeGraph();
     if (eqEditorGraph) drawFilterGraph(eqEditorGraph, true);
     if (envEditorGraph) drawFadeGraph(envEditorGraph, true);
+    if (typeof drawDialViews === "function") drawDialViews(); // (the pictures on the other tabs of the dials box, dialviews.js)
 }
 
 drawGraphs();

@@ -54,8 +54,9 @@ output {
     grid-template-columns: repeat(8, 1fr);
     /* the top row is a fixed height, taller than the others, so the song volume dial fits in it with its name above it
        (the other ten rows are the same as before) */
-    /* (the four rows the song sits in are a set height, 88px, so five tracks of 48px fit in it with the toolbar) */
-    grid-template-rows: 108px repeat(2, 1fr) repeat(4, 88px) repeat(4, 1fr);
+    /* (the four rows the song sits in are a set height, 88px, so five tracks of 48px fit in it with the toolbar, and the two rows of the dials box
+   are 116px, so a bar, a picture and the plates of dials fit) */
+    grid-template-rows: 108px repeat(2, 1fr) repeat(4, 88px) repeat(2, 116px) repeat(2, 1fr);
     gap: 7px;
 }
 
@@ -3033,4 +3034,141 @@ kbd {
 .dial output,
 .dial.slider output {
     color: var(--ink);
+}
+
+/* ================ the dials box: modules ================
+   A bar in the colour of the selected track says what is being edited and which tab you are on. Under it, the tabs, then for each tab a
+   picture on the left (a graph you can drag where it makes sense) and engraved plates with the dials on them, grouped by what they do */
+#dialPanel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    overflow: hidden;
+}
+
+.dial-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 6px;
+    color: var(--ink);
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    background: linear-gradient(90deg, var(--accent, var(--red)), color-mix(in srgb, var(--accent, var(--red)) 30%, #2d2a27) 70%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.dial-bar-chip {
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--ink);
+    color: var(--hardware-ink);
+    line-height: 22px;
+}
+
+.dial-bar-right {
+    margin-left: auto;
+}
+
+.dial-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #1c1c1c transparent;
+}
+
+.dial-tabs {
+    align-self: flex-start;
+}
+
+.dial-group {
+    align-items: stretch;
+    gap: 10px;
+}
+
+.curve-editor {
+    width: 300px;
+    min-height: 0;
+    align-self: stretch;
+}
+
+.dial-group[data-tab="eq"] {
+    gap: 8px;
+}
+
+.dial-group[data-tab="eq"] .curve-editor {
+    width: 240px;
+    margin-right: 0;
+}
+
+.plate {
+    position: relative;
+    flex: none;
+    box-sizing: border-box;
+    padding: 8px 12px 6px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.16));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 243, 220, 0.1),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 1px 0 rgba(255, 243, 220, 0.08);
+}
+
+.plate[hidden] {
+    display: none;
+}
+
+.plate h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 2px;
+    font-size: 16px;
+    letter-spacing: 0.14em;
+    color: var(--amber);
+}
+
+.plate h3::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(242, 169, 0, 0.45);
+}
+
+.plate-dials {
+    display: flex;
+    gap: 4px;
+}
+
+.screw {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #cfc8b8, #6d675d);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.screw.tl { left: 4px; top: 4px; }
+.screw.tr { right: 4px; top: 4px; }
+.screw.bl { left: 4px; bottom: 4px; }
+.screw.br { right: 4px; bottom: 4px; }
+
+.dial-group[data-tab="eq"] .plate {
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.dial-group[data-tab="eq"] .plate-dials {
+    gap: 0;
 }
