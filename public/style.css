@@ -3172,3 +3172,40 @@ kbd {
 .dial-group[data-tab="eq"] .plate-dials {
     gap: 0;
 }
+
+/* ================ the LEDs above the keys ================
+   Each LED is as wide as its key: a white key's sits low, right above the key, and a black key's sits higher up, over the gap, so they
+   never cover each other. Unlit they are dark slots, lit they are solid colour with a lighter top edge (no glow). The key of the scale
+   is gold, the rest of the scale is orange, and a note that is playing is cream */
+.led {
+    justify-self: stretch;
+    align-self: end;
+    width: auto;
+    height: 9px;
+    margin: 0 1px 2px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #151311, #2d2a27);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 243, 220, 0.14);
+}
+
+.led.black-key {
+    align-self: start;
+    height: 8px;
+    margin: 2px 2px 0;
+}
+
+.led.on {
+    background: linear-gradient(180deg, #ff9a6e, #ff6a3d 55%, #e04a1f);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.led.root {
+    width: auto;
+    background: linear-gradient(180deg, #ffe08a, #f2a900 60%, #d68f00);
+}
+
+.led.hit {
+    outline: none;
+    background: linear-gradient(180deg, #fffdf6, #efe0bf);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 0 rgba(0, 0, 0, 0.4);
+}
