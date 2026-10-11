@@ -3299,3 +3299,93 @@ kbd {
 .dial-group[data-tab="move"] .dial label {
     white-space: nowrap;
 }
+
+/* ================ the sampler ================
+   The tabs for a sampler's sound. The waveform is wider than the other pictures, and the buttons sit on the plates in columns */
+.dial-tab[hidden] {
+    display: none;
+}
+
+.dial-group[data-tab="sample"] .curve-editor {
+    width: 540px;
+}
+
+.dial-group[data-tab="chop"] .curve-editor {
+    width: 620px;
+}
+
+.dial-group[data-tab="tune"] .curve-editor {
+    width: 440px;
+}
+
+.dial-group[data-tab="chop"] canvas {
+    cursor: crosshair;
+}
+
+.dial-group[data-tab="sample"] canvas {
+    cursor: ew-resize;
+}
+
+.plate-buttons {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 96px;
+}
+
+.plate-buttons.row {
+    flex-direction: row;
+    min-width: 0;
+}
+
+.plate-buttons.grid {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    align-content: center;
+    min-width: 0;
+}
+
+.plate-button {
+    height: 24px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 4px;
+    background: var(--hardware-dim);
+    color: var(--hardware-ink);
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.plate-button[aria-pressed="true"] {
+    background: var(--red);
+    color: var(--ink);
+}
+
+.plate-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.sample-readout {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
+    line-height: 20px;
+    color: var(--ink);
+}
+
+.sample-readout.dim {
+    opacity: 0.7;
+}
+
+#dialPanel.dropping {
+    outline: 3px solid var(--amber);
+    outline-offset: -3px;
+}

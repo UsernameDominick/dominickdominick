@@ -44,6 +44,7 @@ function songSnapshot() {
             looped: looped[t],
             clipLen: clipLen[t].slice(0, BARS),
             bars: song[t].slice(0, BARS).map((bar) => bar.map((n) => ({ ...n }))),
+            sampler: isSampler(t) ? samplerMeta(t) : null, // (what is about a sampler's sound, not the sound: that stays in this browser)
         });
     }
     return {
@@ -133,6 +134,7 @@ function cleanSong(raw) {
             looped: r.looped === true,
             clipLen: length,
             bars,
+            sampler: settings.sound >= 0 && SOUNDS[settings.sound] && SOUNDS[settings.sound].sampler ? cleanSamplerMeta(r.sampler) : null,
         });
     }
 
@@ -213,6 +215,8 @@ function showSong(clean) {
         }
         setTrackColor(t, r.color);
     });
+
+    showSamplers(clean.tracks.map((r) => r.sampler)); // (the sampler's sounds are found in the browser)
 
     const d = clean.drums;
     d.kit.forEach((sound, i) => (drumKit[i] = sound));
@@ -315,8 +319,12 @@ function flashSaved() {
 // what the quick save popup says about the song on the screen
 function saveSummary() {
     const found = storedSongs().find((entry) => sameName(entry.name, songName));
-    if (!found) return "Not saved yet. The page keeps your latest work and brings it back when you come back.";
-    return songChanged() ? "Changed since the last save." : "All changes saved.";
+    // (a sampler's sound is kept in this browser, not in the song: a file or a link needs it loaded again)
+    let sampled = false;
+    for (let t = 0; t < TRACKS; t++) if (isSampler(t) && samplerState[t] && samplerState[t].id) sampled = true;
+    const note = sampled ? " The sounds in a sampler stay in this browser: a song file or a link does not carry them." : "";
+    if (!found) return "Not saved yet. The page keeps your latest work and brings it back when you come back." + note;
+    return (songChanged() ? "Changed since the last save." : "All changes saved.") + note;
 }
 
 // a button that asks "sure?" first: the first click changes its words, a second click soon after does it

@@ -932,8 +932,17 @@ async function setSound(index) {
         return;
     }
 
+    const wasSampler = isSampler(selTrack);
     trackSettings[selTrack].sound = (index + SOUNDS.length) % SOUNDS.length; // goes round at the ends of the list
+    if (isSampler(selTrack) && !wasSampler) {
+        // (a sample plays as it is: no rise and no fall to a sustain, and a short fade out. The dials are still the track's to change)
+        Object.assign(trackSettings[selTrack], { attack: 0, decay: 0.5, sustain: 1, release: 0.2 });
+    }
     showSound();
+    if (isSampler(selTrack)) {
+        selectDialTab("sample"); // (the sampler's own tabs)
+        return; // (there is nothing to hear until a sound is loaded)
+    }
     playNote(noteToFrequency(60), ctx.currentTime, selTrack); // middle C
 }
 
@@ -1350,6 +1359,7 @@ function setBpm(v, save = true) {
     if (document.activeElement !== bpmInput) bpmInput.value = String(bpm); // (not while you're typing in it)
     showBpmPresets();
     updateDelayTimes(); // (the echo is in time with the song)
+    if (typeof samplerTempoChanged === "function") samplerTempoChanged(); // (a sample matched to the tempo is worked out again)
     if (save) {
         try {
             localStorage.setItem("bpm", String(bpm));

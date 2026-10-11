@@ -84,6 +84,10 @@ Object.assign(FX_DEFAULTS, { dping: 0, rsize: 0.5, rdamp: 1, rpre: 0 });
 const ROOM_SIZES = [{ name: "SMALL", seconds: 0.9 }, { name: "MEDIUM", seconds: 2.4 }, { name: "LARGE", seconds: 5 }];
 const roomDampHz = (v) => 800 * 20 ** v; // 800Hz up to 16kHz
 const roomPreSeconds = (v) => v * 0.1; // up to 100ms
+// the sampler (the SAMPLE, CHOP and TUNE tabs, sampler.js): SMODE is how the keys play the sound (pitch, chop or loop), SREV plays it backwards, SSTART and
+// SEND are the part of it that plays, SROOT and SFINE the note it is at, SBASE the key of the first chop, SSENS how small a hit counts when chopping,
+// SSHIFT how many semitones it is moved by (key match) and SBEATS how many beats long it is (tempo match, 0 is off)
+Object.assign(FX_DEFAULTS, { smode: 0, srev: 0, sstart: 0, send: 1, sroot: 0.5, sfine: 0.5, sbase: 0.25, ssens: 0.5, sshift: 0.5, sbeats: 0 });
 const RACK_MIXES = ["chmix", "phmix", "flmix", "crmix", "cpmix"];
 const rackRateHz = (v) => 0.1 * 100 ** v; // 0.1Hz up to 10Hz
 const crushBits = (v) => 2 + Math.round(v * 14); // 2 to 16 bits
@@ -271,6 +275,8 @@ const SOUNDS = [
             { type: "square", semitones: 7, cents: 0 },
         ],
     },
+    // a sound of your own (sampler.js): the layer is only there for the pictures, the keys play the sample
+    { name: "SAMPLER", sampler: true, layers: [{ type: "sine", semitones: 0, cents: 0 }] },
 ];
 
 // how loud a note is at its peak (the top of its fade)
@@ -581,6 +587,11 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const peak = PEAK * velocity; // how loud the top of the fade is
     const noteNumber = Math.round(69 + 12 * Math.log2(frequency / 440)); // the key it is, before the track tunes it
 
+    // the sampler plays what its key is (a chop, or the whole sound), or nothing if there is no sound or no chop on that key
+    const sampler = SOUNDS[settings.sound].sampler === true;
+    const sampled = sampler ? samplerVoice(track, noteNumber, frequency) : null;
+    if (sampler && !sampled) return hold ? { release() {}, expression() {} } : undefined;
+
     // OCT and SEMI tune the whole track, and GLIDE slides to the note from the one the track played before it
     const tuned = frequency * 2 ** ((octFrom(settings.oct) * 12 + semiFrom(settings.semi)) / 12);
     const glideTime = glideSeconds(settings.glide);
@@ -710,12 +721,12 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     // the voices: one for each layer of the sound. UNI makes each of them a stack of copies, spread apart in pitch by DETUNE and across the
     // speakers by SPREAD. Before the oscillator worklet has loaded, each copy is one of the browser's own oscillators instead
     const spread = detuneCents(settings.detune);
-    const copies = unisonFrom(settings.uni);
+    const copies = sampler ? 1 : unisonFrom(settings.uni);
     // The browser's own oscillators make the plain waves as cleanly (and as loudly) as the worklet, and take a fraction of the computer, so the
     // worklet is only used when it is needed: unison, a pulse width, a sub wave, noise, or the matrix moving the pulse width or the sub
     const needsWorklet =
-        copies > 1 || settings.sub > 0 || settings.noise > 0 || usesDest[5] || usesDest[7] ||
-        (Math.abs(pwFrom(settings.pw) - 0.5) > 0.002 && layers.some((l) => l.type === "square"));
+        !sampler && (copies > 1 || settings.sub > 0 || settings.noise > 0 || usesDest[5] || usesDest[7] ||
+        (Math.abs(pwFrom(settings.pw) - 0.5) > 0.002 && layers.some((l) => l.type === "square")));
     const useWorklet = ctx.oscReady === true && !safeEngine && needsWorklet;
     const offsets = copies > 1 ? Array.from({ length: copies }, (_, i) => ((i / (copies - 1)) * 2 - 1) * spread) : [0];
     const oscillators = [];
@@ -725,7 +736,9 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         (useWorklet ? [0] : offsets).forEach((offset) => {
             const layerPitch = 2 ** (layer.semitones / 12);
             let osc;
-            if (useWorklet) {
+            if (sampled) {
+                osc = new SampleSource(ctx, sampled);
+            } else if (useWorklet) {
                 osc = new WorkletOsc(ctx, {
                     wave: layer.type,
                     uni: copies,

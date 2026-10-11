@@ -548,6 +548,7 @@ function setSetting(key, v) {
         applyFx(liveTrack);
         applyFilter(liveTrack);
     }
+    if (typeof SAMPLER_KEYS !== "undefined" && SAMPLER_KEYS.has(key) && !isDrums()) samplerChanged(liveTrack, key);
     drawGraphs(); // (the filter and the fade graphs follow the dials)
     if (typeof dialEntries !== "undefined") dialEntries.forEach(({ strip }) => strip.update()); // (and the words on the dials, see lfoRateText)
 }
@@ -565,6 +566,9 @@ const settingDial = (group, label, key, aria, scope, def, format, defDrums = def
 const DIAL_TABS = [
     { id: "sound", name: "SOUND" },
     { id: "osc", name: "OSC" },
+    { id: "sample", name: "SAMPLE" },
+    { id: "chop", name: "CHOP" },
+    { id: "tune", name: "TUNE" },
     { id: "filter", name: "FILTER" },
     { id: "eq", name: "EQ" },
     { id: "env", name: "ENV" },
@@ -654,6 +658,17 @@ const DIALS = [
     settingDial("grit", "RATIO", "cpratio", "Compressor ratio: how hard it turns down what goes over", "synth", FX_DEFAULTS.cpratio, (v) => compRatio(v).toFixed(1) + ":1"),
     settingDial("grit", "ATTACK", "cpatk", "Compressor attack: how fast it turns the sound down", "synth", FX_DEFAULTS.cpatk, (v) => compAttackMs(v).toFixed(1) + "ms"),
     settingDial("grit", "RELEASE", "cprel", "Compressor release: how fast it lets go", "synth", FX_DEFAULTS.cprel, (v) => Math.round(compReleaseMs(v)) + "ms"),
+    // SAMPLE, CHOP and TUNE (the sampler, sampler.js and samplerui.js: only on a track whose sound is SAMPLER)
+    settingDial("sample", "STYLE", "smode", "Style: pitch plays the whole sound, higher or lower for each key. Chop plays one piece of it on each key. Loop goes round the part between start and end while the key is held", "synth", 0, (v) => SAMPLE_MODES[placeOf(v, SAMPLE_MODES.length)]),
+    settingDial("sample", "REV", "srev", "Reverse: plays the sound backwards", "synth", 0, (v) => (v >= 0.5 ? "ON" : "OFF")),
+    settingDial("sample", "START", "sstart", "Start: where the sound starts, or where a loop starts", "synth", 0, (v) => sampleTimeText(v)),
+    settingDial("sample", "END", "send", "End: where the sound ends, or where a loop goes back to the start", "synth", 1, (v) => sampleTimeText(v)),
+    settingDial("chop", "SENS", "ssens", "Sensitivity: how small a rise in the sound counts as a hit when it is chopped at its hits", "synth", 0.5, pct),
+    settingDial("chop", "BASE", "sbase", "Base key: the key of the first chop, and each key above it plays the next", "synth", 0.25, (v) => noteLabel(sampleBase(v))),
+    settingDial("tune", "ROOT", "sroot", "Root: the note the sound is at. Playing that key plays it as it is", "synth", 0.5, (v) => noteLabel(sampleRoot(v))),
+    settingDial("tune", "FINE", "sfine", "Fine: how many cents above or below the root note the sound is", "synth", 0.5, (v) => signed(sampleFine(v)) + "c"),
+    settingDial("tune", "SHIFT", "sshift", "Shift: moves the sound up or down in semitones without changing its speed. Key match sets it", "synth", 0.5, (v) => signed(sampleShift(v))),
+    settingDial("tune", "BEATS", "sbeats", "Beats: how many beats long the sound is. It is stretched to fit the song's tempo without changing its pitch. Off leaves it as it is", "synth", 0, (v) => (sampleBeats(v) === 0 ? "OFF" : String(sampleBeats(v)))),
     // OSC (the oscillator, made by osc-worklet.js)
     settingDial("osc", "UNI", "uni", "Unison: how many copies of the wave play together", "synth", 0, (v) => String(unisonFrom(v))),
     settingDial("osc", "DETUNE", "detune", "Detune: how far apart in pitch the copies of the unison are", "synth", 0, (v) => Math.round(detuneCents(v)) + "c"),
@@ -693,6 +708,12 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-ftype") dial.step = 0.25;
     if (dial.id === "dial-fmodel") dial.step = 0.5;
     if (dial.id === "dial-dping") dial.step = 1;
+    if (dial.id === "dial-smode") dial.step = 0.5;
+    if (dial.id === "dial-srev") dial.step = 1;
+    if (dial.id === "dial-sroot") dial.step = 1 / 72;
+    if (dial.id === "dial-sbase") dial.step = 1 / 48;
+    if (dial.id === "dial-sshift") dial.step = 1 / 24;
+    if (dial.id === "dial-sbeats") dial.step = 1 / (BEAT_CHOICES.length - 1);
     if (dial.id === "dial-rsize") dial.step = 0.5;
     if (/^dial-l[123]w$/.test(dial.id)) dial.step = 1 / (LFO_SHAPES.length - 1);
     if (/^dial-l[123]m$/.test(dial.id)) dial.step = 1 / (LFO_MODES.length - 1);
@@ -709,7 +730,7 @@ const SLIDER_MARKS = {
     "dial-chord": CHORDS.length, "dial-arp": ARP_MODES.length, "dial-arate": ARP_RATES.length, "dial-roll": ROLL_RATES.length,
     "dial-l1w": LFO_SHAPES.length, "dial-l2w": LFO_SHAPES.length, "dial-l3w": LFO_SHAPES.length,
     "dial-l1m": LFO_MODES.length, "dial-l2m": LFO_MODES.length, "dial-l3m": LFO_MODES.length,
-    "dial-ftype": 5, "dial-fmodel": 3, "dial-dping": 2, "dial-rsize": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
+    "dial-ftype": 5, "dial-fmodel": 3, "dial-dping": 2, "dial-rsize": 3, "dial-smode": 3, "dial-srev": 2, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
 };
 DIALS.forEach((dial) => {
     if (SLIDER_MARKS[dial.id]) dial.slider = SLIDER_MARKS[dial.id];
@@ -780,18 +801,24 @@ function buildDialPanel() {
         fx: "Picture of the echo and the room: the echoes as bars, and the room as a fading shade.",
         mod: "Picture of the vibrato and the tremolo as waves.",
         move: "Picture of the chorus, the phaser and the flanger as the waves that sweep them. The ones turned on are bright.",
+        sample: "The waveform of the sound. Drag the START and END handles to choose the part that plays.",
+        chop: "The waveform of the sound with a marker where each chop starts. Click to add a marker, drag one to move it, double-click one to take it away.",
+        tune: "What was found in the sound: its note, its key and its tempo, and how much of each of the twelve notes it has, with a dot under the notes of the song's scale.",
         grit: "Picture of the bit crusher as a stepped wave, and of the compressor as a line from the level that goes in to the level that comes out.",
         play: "Picture of the chord and the arpeggio, or for a drum the roll.",
         lfo: "Picture of the three LFOs as waves over two seconds, the ones that move something bright and the others dim.",
         menv: "Picture of the two envelopes, the ones that move something bright and the others dim.",
         matrix: "The matrix. Each row is something that is moved and each column is what moves it: click a square and drag up or down to set how much, between minus and plus one hundred percent. Double-click a square to clear it.",
     };
-    ["sound", "osc", "filter", "fx", "mod", "move", "grit", "play", "lfo", "menv", "matrix"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
+    ["sound", "osc", "sample", "chop", "tune", "filter", "fx", "mod", "move", "grit", "play", "lfo", "menv", "matrix"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
 
     // the plates: the dials of each tab sit on engraved plates, with a title, grouped by what they do
     const PLATE_LAYOUT = {
         sound: [["LEVEL", ["VOL", "PAN"]], ["TUNING", ["OCT", "SEMI", "GLIDE", "PITCH", "DECAY"]], ["DIRT", ["DRIVE"]]],
         osc: [["UNISON", ["UNI", "DETUNE", "SPREAD"]], ["WAVE", ["PW", "SUB", "NOISE"]]],
+        sample: [["SOURCE", []], ["PLAY", ["STYLE", "REV", "START", "END"]]],
+        chop: [["AUTO", ["SENS"]], ["KEYS", ["BASE"]]],
+        tune: [["TUNE", ["ROOT", "FINE"]], ["MATCH", ["SHIFT", "BEATS"]]],
         filter: [["FILTER", ["MODEL", "TYPE", "CUT", "RES", "F DRIVE", "KEY"]], ["FILTER ENV", ["FENV"]]],
         eq: [1, 2, 3].map((n) => ["BAND " + n, ["FREQ " + n, "GAIN " + n, "Q " + n]]),
         env: [["ENVELOPE", ["ATK", "DEC", "SUS", "REL"]]],
@@ -811,6 +838,7 @@ function buildDialPanel() {
             ["tl", "tr", "bl", "br"].forEach((corner) => el.appendChild(mk("span", "screw " + corner)));
             el.appendChild(mk("h3", "", title));
             const row = mk("div", "plate-dials");
+            if (!names.length) row.dataset.buttons = "true"; // (a plate of buttons only: samplerui.js puts them in)
             el.appendChild(row);
             groups[tab].appendChild(el);
             dialPlates.push({ el, row });
@@ -992,6 +1020,14 @@ function showTrackSettings() {
         dialTabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)].disabled = drums;
         if (drums && dialTab === id) selectDialTab("sound");
     });
+    // (a sampler has no oscillator but has the tabs for its sound, and no other track has those)
+    const sampler = !drums && isSampler(liveTrack);
+    dialTabButtons[DIAL_TABS.findIndex((tab) => tab.id === "osc")].hidden = sampler;
+    ["sample", "chop", "tune"].forEach((id) => {
+        dialTabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)].hidden = !sampler;
+        if (!sampler && dialTab === id) selectDialTab("sound");
+    });
+    if (sampler && dialTab === "osc") selectDialTab("sample");
     // (and says what the dials are for in the bar: the selected drum, or the selected track and its sound)
     dialBar.chip.textContent = drums ? "DRUMS" : trackName(liveTrack);
     dialBar.name.textContent = drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : SOUNDS[trackSettings[liveTrack].sound].name;
@@ -1004,6 +1040,7 @@ function showTrackSettings() {
         strip.update();
     });
     // a plate with no dials showing (a synth's filter envelope on a drum, a drum's roll on a synth) is not shown
-    dialPlates.forEach(({ el, row }) => (el.hidden = [...row.children].every((box) => box.hidden)));
+    dialPlates.forEach(({ el, row }) => (el.hidden = !row.dataset.buttons && [...row.children].every((box) => box.hidden)));
+    if (typeof refreshSamplerUi === "function") refreshSamplerUi(liveTrack);
     drawGraphs();
 }

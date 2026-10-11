@@ -54,6 +54,10 @@ function drawSoundView(canvas) {
         drawFadeGraph(canvas); // (a drum has no wave to show, so it shows how long it rings)
         return;
     }
+    if (isSampler(liveTrack) && typeof drawSamplePicture === "function") {
+        drawSamplePicture(canvas, "mini"); // (a sampler's wave is the sound that was loaded)
+        return;
+    }
     const { g, w, h, accent } = viewSetup(canvas, 6, 4);
     const sound = SOUNDS[trackSettings[liveTrack].sound];
     // the layers of the sound added together, three times round, as loud as they can be without leaving the picture

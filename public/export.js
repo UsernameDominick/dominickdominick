@@ -20,6 +20,7 @@ async function renderSong() {
     if (running) stopTransport();
     stopStepRecording();
     getCtx(); // (so there is a live engine to put to one side, and a sample rate to use)
+    await prepareSamplers(); // (a sampler's sound, matched to the tempo and the key, is ready before the notes are made)
 
     const live = {
         ctx, master, bendNode, modDepth, wheelNode, reverbs, beatSec,
