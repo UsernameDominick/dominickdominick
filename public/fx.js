@@ -15,7 +15,7 @@ function mk(tag, className, text) {
 // ---- what each dial means ----
 
 const FILTER_BASE = 1000; // a note's filter starts at this cutoff and the CUT dial moves it (in cents) from there, see playNote
-const FILTER_TYPE_NAMES = ["LP", "HP", "BP"];
+const FILTER_TYPE_NAMES = ["LP", "HP", "BP", "NOTCH", "PEAK"];
 const DELAY_BEATS = [0.25, 0.5, 0.75, 1, 2]; // how long the echo is, in beats: a 16th, an 8th, a dotted 8th, a quarter, a half
 const DELAY_NAMES = ["1/16", "1/8", "3/16", "1/4", "1/2"];
 
@@ -74,10 +74,14 @@ const drumFx = DRUM_NOTES.map(() => ({ ...DRUM_FX_DEFAULTS }));
 try {
     const savedFx = JSON.parse(localStorage.getItem("drumFx"));
     if (Array.isArray(savedFx) && savedFx.length === drumFx.length) {
+        // (the filter types a drum had saved before there were five were 0, 0.5 and 1, and are moved to where those are now, once)
+        const moveTypes = localStorage.getItem("filterTypes5") !== "1";
         savedFx.forEach((entry, i) => {
             for (const key in drumFx[i]) if (entry && typeof entry[key] === "number" && entry[key] >= 0 && entry[key] <= 1) drumFx[i][key] = entry[key];
+            if (moveTypes) drumFx[i].ftype = legacyFilterType(drumFx[i].ftype);
         });
     }
+    localStorage.setItem("filterTypes5", "1");
 } catch {}
 
 function drumFxAt(note) {
@@ -282,7 +286,8 @@ function applyChainFilter(c, s, instant = false) {
     const type = filterTypeFrom(s.ftype);
     c.filter.type = type;
     setParam(c.filter.frequency, cutoffFromSlider(s.cutoff), instant, now, 0.015);
-    setParam(c.filter.Q, type === "bandpass" ? 0.7 + dB : dB, instant, now, 0.015);
+    setParam(c.filter.Q, drumFilterQ(type, dB), instant, now, 0.015);
+    setParam(c.filter.gain, 6, instant, now, 0.015); // (how far the peak turns the band up, the other types have no use for it)
     // the EQ bands
     c.bands.forEach((band, i) => {
         const n = i + 1;
@@ -333,7 +338,7 @@ function applyFilter(t, instant = false) {
     setParam(cutCtl[t].offset, 1200 * Math.log2(cutoffFromSlider(s.cutoff) / FILTER_BASE), instant, now, 0.015);
     setParam(resCtl[t].offset, resonanceFromSlider(s.resonance), instant, now, 0.015);
     applyChainFilter(chainOf(t), s, instant);
-    activeFilters[t].forEach((f) => (f.type = filterTypeFrom(s.ftype)));
+    activeFilters[t].forEach((filter) => filter.configure(s));
 }
 
 // puts everything else a track has on its nodes: the drive, the tremolo, the vibrato, the pan, the echo and the room
@@ -429,6 +434,7 @@ const settingDial = (group, label, key, aria, scope, def, format, defDrums = def
 
 const DIAL_TABS = [
     { id: "sound", name: "SOUND" },
+    { id: "osc", name: "OSC" },
     { id: "filter", name: "FILTER" },
     { id: "eq", name: "EQ" },
     { id: "env", name: "ENV" },
@@ -443,15 +449,17 @@ const DIALS = [
     settingDial("sound", "PAN", "pan", "Pan of the selected sound, left to right", "both", 0.5, (v) => (Math.abs(v - 0.5) < 0.01 ? "C" : (v < 0.5 ? "L" : "R") + Math.round(Math.abs(v - 0.5) * 200))),
     settingDial("sound", "OCT", "oct", "Tune the selected sound up or down in octaves", "synth", 0.5, (v) => signed(octFrom(v))),
     settingDial("sound", "SEMI", "semi", "Tune the selected sound up or down in semitones", "synth", 0.5, (v) => signed(semiFrom(v))),
-    settingDial("sound", "DETUNE", "detune", "Detune: spreads three copies of the sound apart", "synth", 0, (v) => Math.round(detuneCents(v)) + "c"),
     settingDial("sound", "GLIDE", "glide", "Glide: how long a note takes to slide from the one before", "synth", 0, (v) => Math.round(glideSeconds(v) * 1000) + "ms"),
     settingDial("sound", "DRIVE", "drive", "Drive: distortion", "both", 0, pct),
     settingDial("sound", "PITCH", "pitch", "Pitch of the selected drum", "drums", 0.5, (v) => signed(pitchSemis(v))),
     settingDial("sound", "DECAY", "decay", "How long the selected drum rings", "drums", 0.5, (v) => "x" + drumDecayScale(v).toFixed(2)),
     // FILTER
-    settingDial("filter", "TYPE", "ftype", "Filter type: low pass, high pass or band pass", "both", 0, (v) => FILTER_TYPE_NAMES[Math.min(2, Math.round(v * 2))]),
+    settingDial("filter", "MODEL", "fmodel", "Filter model: SVF 12 is a smooth two pole filter, SVF 24 is two of them, and the ladder is the four pole filter of a Minimoog, which rings by itself with the resonance up", "synth", 0, (v) => FILTER_MODELS[filterModelFrom(v)]),
+    settingDial("filter", "TYPE", "ftype", "Filter type: low pass, high pass, band pass, notch or peak", "both", 0, (v) => FILTER_TYPE_NAMES[filterModeFrom(v)]),
     { ...settingDial("filter", "CUT", "cutoff", "Filter cutoff", "both", 1, (v) => formatCutoff(cutoffFromSlider(v))), id: "cutoffSlider" },
     { ...settingDial("filter", "RES", "resonance", "Filter resonance", "both", 0, (v) => Math.round(resonanceFromSlider(v)) + "dB"), id: "resonanceSlider" },
+    settingDial("filter", "F DRIVE", "fdrive", "Filter drive: pushes the sound into the filter (and, in the ladder, round its loop) so it squashes and warms up", "synth", 0, pct),
+    settingDial("filter", "KEY", "ktrack", "Key tracking: how much the cutoff follows the note you play, all the way up it moves as far as the note does", "synth", 0, pct),
     settingDial("filter", "FENV", "fenv", "Filter envelope: how far the fade opens the filter", "synth", 0, (v) => "+" + fenvOctaves(v).toFixed(1)),
     // EQ: three bands, each with where it is (FREQ), how much it boosts or cuts (GAIN) and how wide it is (Q: a high one is narrow,
     // for taking out one thing without touching what's round it)
@@ -475,10 +483,20 @@ const DIALS = [
     settingDial("mod", "VDEP", "vdep", "Vibrato depth", "synth", 0, (v) => Math.round(vibCents(v)) + "c"),
     settingDial("mod", "TRATE", "trate", "Tremolo speed", "both", 0.4, (v) => tremRateHz(v).toFixed(1)),
     settingDial("mod", "TDEP", "tdep", "Tremolo depth", "both", 0, pct),
+    // OSC (the oscillator, made by osc-worklet.js)
+    settingDial("osc", "UNI", "uni", "Unison: how many copies of the wave play together", "synth", 0, (v) => String(unisonFrom(v))),
+    settingDial("osc", "DETUNE", "detune", "Detune: how far apart in pitch the copies of the unison are", "synth", 0, (v) => Math.round(detuneCents(v)) + "c"),
+    settingDial("osc", "SPREAD", "spread", "Spread: how wide the copies are in the speakers", "synth", 0.5, pct),
+    settingDial("osc", "PW", "pw", "Pulse width: the width of a square wave, the middle is a plain square", "synth", 0.5, (v) => Math.round(pwFrom(v) * 100) + "%"),
+    settingDial("osc", "SUB", "sub", "Sub: a square wave an octave under the note", "synth", 0, pct),
+    settingDial("osc", "NOISE", "noise", "Noise: a hiss added to the sound", "synth", 0, pct),
     // PLAY (chords and the arpeggiator, played in playNote in synth.js)
     settingDial("play", "CHORD", "chord", "Chord: more notes played with each note", "synth", 0, (v) => CHORDS[placeOf(v, CHORDS.length)].name),
     settingDial("play", "ARP", "arp", "Arpeggio: plays the chord one note after another, in this order", "synth", 0, (v) => ARP_MODES[placeOf(v, ARP_MODES.length)]),
     settingDial("play", "RATE", "arate", "Arpeggio speed, in time with the song", "synth", 2 / 3, (v) => ARP_RATES[placeOf(v, ARP_RATES.length)].name),
+    // (how notes share the track)
+    settingDial("play", "MODE", "mode", "Mode: poly plays as many notes as you like, mono one at a time, legato slides from note to note", "synth", 0, (v) => VOICE_MODES[placeOf(v, VOICE_MODES.length)]),
+    settingDial("play", "VOICES", "voices", "Voices: the most notes that sound at once on this track", "synth", 1, (v) => String(voiceLimitFrom(v))),
     // (a drum has its own PLAY dials: a roll)
     settingDial("play", "ROLL", "roll", "Roll: hits the drum again and again, this fast, while the key is held", "drums", 0, (v) => ROLL_RATES[placeOf(v, ROLL_RATES.length)].name),
     settingDial("play", "BUILD", "build", "Build: how soft a roll starts, it gets louder as it goes", "drums", 0, pct),
@@ -488,17 +506,20 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-oct") dial.step = 0.25;
     if (dial.id === "dial-semi") dial.step = 1 / 24;
     if (dial.id === "dial-dtime") dial.step = 0.25;
-    if (dial.id === "dial-ftype") dial.step = 0.5;
+    if (dial.id === "dial-ftype") dial.step = 0.25;
+    if (dial.id === "dial-fmodel") dial.step = 0.5;
     if (dial.id === "dial-chord") dial.step = 1 / (CHORDS.length - 1);
     if (dial.id === "dial-arp") dial.step = 1 / (ARP_MODES.length - 1);
     if (dial.id === "dial-arate") dial.step = 1 / (ARP_RATES.length - 1);
     if (dial.id === "dial-roll") dial.step = 1 / (ROLL_RATES.length - 1);
+    if (dial.id === "dial-uni" || dial.id === "dial-voices") dial.step = 1 / 15;
+    if (dial.id === "dial-mode") dial.step = 1 / (VOICE_MODES.length - 1);
 });
 // the dials that are sliders and not knobs (how many marks each has): the ones that choose from a short list, and PAN, which sits
 // left and right of a middle
 const SLIDER_MARKS = {
     "dial-chord": CHORDS.length, "dial-arp": ARP_MODES.length, "dial-arate": ARP_RATES.length, "dial-roll": ROLL_RATES.length,
-    "dial-ftype": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3,
+    "dial-ftype": 5, "dial-fmodel": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
 };
 DIALS.forEach((dial) => {
     if (SLIDER_MARKS[dial.id]) dial.slider = SLIDER_MARKS[dial.id];
@@ -564,22 +585,24 @@ function buildDialPanel() {
     // (every other tab has a picture too, drawn by dialviews.js)
     const VIEW_LABELS = {
         sound: "Picture of the selected sound: the shape of its wave, or for a drum how long it rings.",
+        osc: "Picture of the oscillator: the shape of the wave with its pulse width and sub wave, and where the copies of the unison are in pitch and in the speakers.",
         filter: "Filter graph. Drag the C handle sideways for the cutoff and up and down for the resonance.",
         fx: "Picture of the echo and the room: the echoes as bars, and the room as a fading shade.",
         mod: "Picture of the vibrato and the tremolo as waves.",
         play: "Picture of the chord and the arpeggio, or for a drum the roll.",
     };
-    ["sound", "filter", "fx", "mod", "play"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
+    ["sound", "osc", "filter", "fx", "mod", "play"].forEach((tab) => (dialViews[tab] = addCurveEditor(tab, VIEW_LABELS[tab])));
 
     // the plates: the dials of each tab sit on engraved plates, with a title, grouped by what they do
     const PLATE_LAYOUT = {
-        sound: [["LEVEL", ["VOL", "PAN"]], ["TUNING", ["OCT", "SEMI", "DETUNE", "GLIDE", "PITCH", "DECAY"]], ["DIRT", ["DRIVE"]]],
-        filter: [["FILTER", ["TYPE", "CUT", "RES"]], ["FILTER ENV", ["FENV"]]],
+        sound: [["LEVEL", ["VOL", "PAN"]], ["TUNING", ["OCT", "SEMI", "GLIDE", "PITCH", "DECAY"]], ["DIRT", ["DRIVE"]]],
+        osc: [["UNISON", ["UNI", "DETUNE", "SPREAD"]], ["WAVE", ["PW", "SUB", "NOISE"]]],
+        filter: [["FILTER", ["MODEL", "TYPE", "CUT", "RES", "F DRIVE", "KEY"]], ["FILTER ENV", ["FENV"]]],
         eq: [1, 2, 3].map((n) => ["BAND " + n, ["FREQ " + n, "GAIN " + n, "Q " + n]]),
         env: [["ENVELOPE", ["ATK", "DEC", "SUS", "REL"]]],
         fx: [["ECHO", ["DLY", "DTIME", "DFB"]], ["ROOM", ["REV"]]],
         mod: [["VIBRATO", ["VRATE", "VDEP"]], ["TREMOLO", ["TRATE", "TDEP"]]],
-        play: [["CHORD AND ARP", ["CHORD", "ARP", "RATE"]], ["ROLL", ["ROLL", "BUILD"]]],
+        play: [["CHORD AND ARP", ["CHORD", "ARP", "RATE"]], ["VOICES", ["MODE", "VOICES"]], ["ROLL", ["ROLL", "BUILD"]]],
     };
     const plateOf = {}; // a dial's name -> the box its dial goes in
     for (const tab in PLATE_LAYOUT) {
@@ -737,6 +760,10 @@ buildDialPanel();
 // pick a track or a drum)
 function showTrackSettings() {
     const drums = isDrums();
+    // (a drum has no oscillator: that tab is not for it)
+    const oscTab = DIAL_TABS.findIndex((tab) => tab.id === "osc");
+    dialTabButtons[oscTab].disabled = drums;
+    if (drums && dialTab === "osc") selectDialTab("sound");
     // (and says what the dials are for in the bar: the selected drum, or the selected track and its sound)
     dialBar.chip.textContent = drums ? "DRUMS" : trackName(liveTrack);
     dialBar.name.textContent = drums ? DRUM_SOUNDS[drumSoundAt(selectedDrumNote)].name : SOUNDS[trackSettings[liveTrack].sound].name;

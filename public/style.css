@@ -2747,8 +2747,8 @@ body {
 
 .slider-track {
     position: absolute;
-    left: 6px;
-    right: 6px;
+    left: 10px;
+    right: 10px;
     top: 19px;
     height: 8px;
     border-radius: 4px;
@@ -3221,4 +3221,9 @@ kbd {
     background: #fffdf6;
     box-shadow: none;
     transform: none;
+}
+
+/* eight tabs fit the height of the dials box a little closer together */
+.dial-tab {
+    height: 21px;
 }

@@ -21,9 +21,16 @@ const DRUM_TRACK = 0; // the first track is always the drum track (drums.js play
 // detune, tuning, glide, the filter type and how far the fade opens the filter, the echo (how much, how long, how many
 // repeats), the room, and the vibrato and the tremolo. All 0 to 1, and they start with no change to the sound.
 // (the filter type is a dial that clicks between three: low pass, high pass and band pass)
-const FILTER_TYPES = ["lowpass", "highpass", "bandpass"];
+// the filter TYPE has five places: low pass, high pass, band pass, notch and peak. (A song or a preset from before there were five has 0, 0.5 or
+// 1 for low pass, high pass or band pass: legacyFilterType gives where those are now.) The MODEL is the kind of filter: two pole (SVF 12), two of
+// them (SVF 24) or the ladder
+const FILTER_TYPES = ["lowpass", "highpass", "bandpass", "notch", "peaking"];
+const FILTER_MODELS = ["SVF 12", "SVF 24", "LADDER"];
+const filterModeFrom = (v) => Math.min(4, Math.round(v * 4));
+const filterModelFrom = (v) => Math.min(2, Math.round(v * 2));
+const legacyFilterType = (v) => Math.min(2, Math.round(v * 2)) / 4;
 function filterTypeFrom(v) {
-    return FILTER_TYPES[Math.min(2, Math.round(v * 2))];
+    return FILTER_TYPES[filterModeFrom(v)];
 }
 
 // the EQ bands (the EQ tab): three bands that each boost or cut one part of the sound. Each has its frequency (e1f), its gain (e1g, the
@@ -37,6 +44,13 @@ const FX_DEFAULTS = {
     pan: 0.5, drive: 0, detune: 0, oct: 0.5, semi: 0.5, glide: 0, ftype: 0, fenv: 0,
     dly: 0, dtime: 0.25, dfb: 0.35, rev: 0, vrate: 0.4, vdep: 0, trate: 0.4, tdep: 0,
     chord: 0, arp: 0, arate: 2 / 3, // (the PLAY tab: a chord for each note, an arpeggio, and how fast it steps. See playNote)
+    // the oscillator (the OSC tab, osc-worklet.js): UNI is how many copies of the wave there are (0 is one), SPREAD how wide they are in the
+    // speakers, PW the width of a square (the middle is a plain square), SUB and NOISE how much of a sub wave and a hiss are added.
+    // And how notes share the track (the PLAY tab): MODE is poly, mono or legato, VOICES the most notes at once (the top is 16)
+    uni: 0, spread: 0.5, pw: 0.5, sub: 0, noise: 0, mode: 0, voices: 1,
+    // the filter (the FILTER tab, filter-worklet.js): MODEL is the kind of filter, F DRIVE (fdrive) pushes the sound into it, and KEY (ktrack) makes
+    // the cutoff follow the note you play
+    fmodel: 0, fdrive: 0, ktrack: 0,
     ...EQ_DEFAULTS,
 };
 const DIAL_DEFAULTS = {
@@ -118,6 +132,8 @@ function stopAllSounds() {
     activeFilters.forEach((set) => set.clear());
     lastFrequency.fill(0);
     drumChannels.fill(null);
+    trackVoices.forEach((list) => (list.length = 0));
+    trackLegato.fill(null);
     old.close().catch(() => {});
     getCtx();
     if (ctx.state === "suspended") ctx.resume();
@@ -127,6 +143,7 @@ function stopAllSounds() {
 function getCtx() {
     if (!ctx) {
         ctx = new AudioContext({ latencyHint: "interactive" }); // (the shortest delay the device can do, so a key sounds as soon as it is pressed)
+        loadOscWorklet(ctx); // (notes use the browser's own oscillators until this is ready)
 
         // master gain node (every note goes through this)
         master = ctx.createGain();
@@ -246,6 +263,160 @@ function envelopeOf(track) {
     };
 }
 
+// what the oscillator dials mean
+const unisonFrom = (v) => 1 + Math.round(v * 15); // 1 to 16 copies
+const pwFrom = (v) => 0.05 + v * 0.9; // the width of a square: 5% to 95% (the middle, 50%, is a plain square)
+const VOICE_MODES = ["POLY", "MONO", "LEGATO"];
+const voiceLimitFrom = (v) => 1 + Math.round(v * 15); // the most notes sounding at once on a track, 1 to 16
+
+// how loud each copy of a unison is (the same rule as in the worklet): the old three copies each had a third
+const unisonShare = (count) => (count <= 3 ? 1 / count : 1 / Math.sqrt(3 * count));
+
+// ---- the oscillator worklet ----
+// osc-worklet.js makes the waves itself (no aliasing, unison, pulse width, a sub wave and noise). The browser loads it when the audio starts,
+// which takes a moment: until it has, notes use the browser's own oscillators (three copies instead of up to sixteen, no pulse width).
+const OSC_WORKLET_URL = "osc-worklet.js";
+const FILTER_WORKLET_URL = "filter-worklet.js";
+
+// loads both worklets (the oscillator and the filter), and marks the audio context as ready for each as it loads
+function loadOscWorklet(context) {
+    if (!context.audioWorklet) return Promise.resolve([false, false]);
+    const load = (url, flag) =>
+        context.audioWorklet
+            .addModule(url)
+            .then(() => {
+                context[flag] = true;
+                return true;
+            })
+            .catch(() => false);
+    return Promise.all([load(OSC_WORKLET_URL, "oscReady"), load(FILTER_WORKLET_URL, "filterReady")]);
+}
+
+// one layer of a note made by the worklet, with the parts of an OscillatorNode the note uses (frequency, detune, start, stop, ended)
+class WorkletOsc {
+    constructor(context, options) {
+        this.node = new AudioWorkletNode(context, "synth-osc", {
+            numberOfInputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+            processorOptions: options,
+        });
+        this.frequency = this.node.parameters.get("frequency");
+        this.detune = this.node.parameters.get("detune");
+        this.pw = this.node.parameters.get("pw");
+        this.sub = this.node.parameters.get("sub");
+        this.noise = this.node.parameters.get("noise");
+        this.listeners = [];
+        this.node.port.onmessage = (e) => {
+            if (e.data !== "ended") return;
+            this.node.disconnect();
+            this.listeners.forEach((fn) => fn());
+        };
+    }
+    connect(target) {
+        return this.node.connect(target);
+    }
+    start() {} // (it starts at the time it was made for)
+    stop(time) {
+        this.node.port.postMessage({ type: "stop", time });
+    }
+    addEventListener(type, fn) {
+        if (type === "ended") this.listeners.push(fn);
+    }
+}
+
+// the filter of one note. It is made by the filter worklet, or (before that has loaded) by the browser's own filter. Either way it has the
+// parts the note uses: where sound goes in (input), the cutoff (frequency, in Hz, which the fade moves) and detune (in cents, which the CUT
+// dial's signal, the mouse and the key tracking add to), the resonance, and a way to plug the track's control signals in and take them out
+class NoteFilter {
+    constructor(context, settings, keyCents, stopTime) {
+        this.context = context;
+        this.worklet = context.filterReady === true;
+        const dB = resonanceFromSlider(settings.resonance);
+        if (this.worklet) {
+            this.node = new AudioWorkletNode(context, "synth-filter", {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                outputChannelCount: [2],
+                channelCount: 2,
+                channelCountMode: "explicit",
+                processorOptions: { model: filterModelFrom(settings.fmodel), mode: filterModeFrom(settings.ftype), stopTime },
+            });
+            const params = this.node.parameters;
+            this.frequency = params.get("frequency");
+            this.detune = params.get("detune");
+            this.resonance = params.get("resonance");
+            this.drive = params.get("drive");
+            this.drive.value = settings.fdrive;
+            this.bandpass = false;
+            this.node.port.onmessage = () => {}; // (it says "ended" when the note is over; nothing needs to know)
+        } else {
+            this.node = context.createBiquadFilter();
+            this.node.type = filterTypeFrom(settings.ftype);
+            this.frequency = this.node.frequency;
+            this.detune = this.node.detune;
+            this.resonance = this.node.Q;
+            this.bandpass = this.node.type === "bandpass";
+            this.resonance.value = this.bandpass ? 0.7 + dB : 0; // (the others have the CUT and RES dials' signal plugged in)
+        }
+        this.input = this.node;
+        this.frequency.value = FILTER_BASE;
+        this.detune.value = keyCents;
+    }
+    connect(target) {
+        return this.node.connect(target);
+    }
+    // the track's signals that follow the CUT and RES dials
+    plug(cutSignal, resSignal) {
+        cutSignal.connect(this.detune);
+        if (this.worklet || !this.bandpass) resSignal.connect(this.resonance);
+    }
+    unplug(cutSignal, resSignal) {
+        cutSignal.disconnect(this.detune);
+        if (this.worklet || !this.bandpass) resSignal.disconnect(this.resonance);
+    }
+    // the note is over at this time (a bit after it has faded): the filter stops then, even if it is ringing
+    stop(time) {
+        if (this.worklet) this.node.port.postMessage({ type: "stop", time });
+    }
+    // the dials changed while the note is sounding
+    configure(settings) {
+        if (this.worklet) {
+            this.node.port.postMessage({ type: "config", model: filterModelFrom(settings.fmodel), mode: filterModeFrom(settings.ftype) });
+            this.drive.setTargetAtTime(settings.fdrive, this.context.currentTime, 0.02);
+        } else {
+            this.node.type = filterTypeFrom(settings.ftype);
+        }
+    }
+}
+
+// the voices sounding on each track, to keep to the most notes at once (VOICES) and for MONO: { start, end, steal(time) }
+const trackVoices = Array.from({ length: MAX_TRACKS }, () => []);
+// LEGATO: the one voice a track's held keys share, and the keys that are held (the last one pressed is the one that sounds): { stack, free(),
+// glideTo(frequency, time), realRelease(time), expression, xy }
+const trackLegato = Array.from({ length: MAX_TRACKS }, () => null);
+
+// a key pressed while another is held in LEGATO: the voice that is sounding slides to the new note, no new voice starts. Gives the handle for
+// the new key (or null if there is no voice to join)
+function joinLegato(track, frequency, when, noteNumber) {
+    const leg = trackLegato[track];
+    if (!leg || !leg.free()) return null;
+    const entry = { frequency };
+    leg.stack.push(entry);
+    leg.glideTo(frequency, when);
+    if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: when, track } }));
+    return { expression: leg.expression, xy: leg.xy, release: (time) => legatoRelease(leg, entry, time) };
+}
+
+// a legato key is let go: the voice only fades when no key is left, and if it was the last one pressed the voice slides back to the one before it
+function legatoRelease(leg, entry, time = ctx.currentTime) {
+    const i = leg.stack.indexOf(entry);
+    if (i < 0) return;
+    leg.stack.splice(i, 1);
+    if (leg.stack.length === 0) leg.realRelease(time);
+    else if (i === leg.stack.length) leg.glideTo(leg.stack[leg.stack.length - 1].frequency, time);
+}
+
 // plays one note (when is the audio clock time to start it, it defaults to right now,
 // and track is which track it's for: that track's sound, filter and fade are used).
 // A note is held for gate seconds and then let go, and fades out. With hold set it's held until you let go instead:
@@ -280,6 +451,11 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const glideTime = glideSeconds(settings.glide);
     const slidingFrom = glideTime > 0 && lastFrequency[track] > 0 ? lastFrequency[track] : tuned;
     lastFrequency[track] = tuned;
+    const modeName = VOICE_MODES[placeOf(settings.mode, VOICE_MODES.length)];
+    if (hold && modeName === "LEGATO") {
+        const joined = joinLegato(track, frequency, when, noteNumber);
+        if (joined) return joined;
+    }
 
     // gain node (this shapes the volume of the whole note, all its layers together)
     const gain = ctx.createGain();
@@ -287,16 +463,10 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
 
     // the note's own filter: its type is the FILTER TYPE, its cutoff and resonance follow the CUT and RES dials (through
     // the control signals the track has), and FENV opens it with the fade. Then the track's bus, and the rest of the chain
-    const filter = ctx.createBiquadFilter();
-    filter.type = filterTypeFrom(settings.ftype);
-    filter.frequency.value = FILTER_BASE;
-    filterCut.connect(filter.detune);
-    if (filter.type === "bandpass") {
-        filter.Q.value = 0.7 + resonanceFromSlider(settings.resonance);
-    } else {
-        filter.Q.value = 0;
-        filterRes.connect(filter.Q);
-    }
+    // (KEY makes the cutoff follow the note: all the way up, it moves as far as the note is from middle C)
+    const filterTail = 0.4; // (how long after the note has faded the filter is left to ring out)
+    const filter = new NoteFilter(ctx, settings, settings.ktrack * 1200 * Math.log2(tuned / 261.6256), hold ? undefined : when + gate + env.release + 0.05 + filterTail);
+    filter.plug(filterCut, filterRes);
     activeFilters[track].add(filter);
     // a note that's held (a key) also goes through a volume and a pan of its own, which the mouse can move (see setExpression)
     let level = null;
@@ -305,11 +475,11 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         level = ctx.createGain();
         notePan = ctx.createStereoPanner();
         gain.connect(level);
-        level.connect(filter);
+        level.connect(filter.input);
         filter.connect(notePan);
         notePan.connect(trackBus[track]);
     } else {
-        gain.connect(filter);
+        gain.connect(filter.input);
         filter.connect(trackBus[track]);
     }
     const extras = []; // the signals made later by setExpression (they stop when the note does)
@@ -319,6 +489,8 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const now = when;
     const param = gain.gain;
     const held = hold ? Infinity : gate;
+    const knownEnd = hold ? Infinity : now + gate + env.release + 0.05; // (when a note that is not held is all over)
+    const voice = { start: now, end: knownEnd, steal: null };
     scheduleEnvelope(param, now, env, held, peak);
     const octs = fenvOctaves(settings.fenv);
     if (octs > 0) scheduleFilterEnvelope(filter.frequency, now, env, held, octs);
@@ -331,26 +503,63 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         }
         oscillators.forEach((osc) => osc.stop(end)); // stop just after it's gone quiet
         extras.forEach((source) => source.stop(end));
+        filter.stop(end + filterTail);
         faded = true;
+        voice.end = end;
     }
 
-    // the voices: one for each layer of the sound, or three of each, spread apart, if DETUNE is up
+    // another note needs this one's place (too many at once, or MONO): it is taken down quickly from that moment (not with a click)
+    voice.steal = (at) => {
+        const t = Math.max(at, now);
+        if (voice.end <= t) return;
+        if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(t);
+        else param.cancelScheduledValues(t);
+        param.setTargetAtTime(0, t, 0.006);
+        oscillators.forEach((osc) => osc.stop(t + 0.06));
+        extras.forEach((source) => source.stop(t + 0.06));
+        filter.stop(t + 0.06 + filterTail);
+        faded = true;
+        voice.end = t + 0.06;
+    };
+
+    // the voices: one for each layer of the sound. UNI makes each of them a stack of copies, spread apart in pitch by DETUNE and across the
+    // speakers by SPREAD. Before the oscillator worklet has loaded, each copy is one of the browser's own oscillators instead
     const spread = detuneCents(settings.detune);
-    const offsets = spread > 0.5 ? [-spread, 0, spread] : [0];
+    const copies = unisonFrom(settings.uni);
+    const useWorklet = ctx.oscReady === true;
+    const offsets = copies > 1 ? Array.from({ length: copies }, (_, i) => ((i / (copies - 1)) * 2 - 1) * spread) : [0];
     const oscillators = [];
+    const layerPitches = []; // how far each oscillator is tuned from the note (the layer's semitones), for sliding them
     let alive = 0;
-    layers.forEach((layer) => {
-        offsets.forEach((offset) => {
-            const osc = ctx.createOscillator();
-            osc.type = layer.type;
+    layers.forEach((layer, layerIndex) => {
+        (useWorklet ? [0] : offsets).forEach((offset) => {
             const layerPitch = 2 ** (layer.semitones / 12);
+            let osc;
+            if (useWorklet) {
+                osc = new WorkletOsc(ctx, {
+                    wave: layer.type,
+                    uni: copies,
+                    uniDetune: spread,
+                    spread: settings.spread,
+                    startTime: now,
+                    stopTime: knownEnd,
+                    seed: noteNumber * 31 + layerIndex * 7,
+                });
+                osc.pw.value = pwFrom(settings.pw);
+                osc.sub.value = settings.sub;
+                osc.noise.value = settings.noise;
+                osc.detune.value = layer.cents;
+            } else {
+                osc = ctx.createOscillator();
+                osc.type = layer.type;
+                osc.detune.value = layer.cents + offset;
+            }
             osc.frequency.setValueAtTime(slidingFrom * layerPitch, now);
             if (slidingFrom !== tuned) osc.frequency.exponentialRampToValueAtTime(tuned * layerPitch, now + glideTime);
-            osc.detune.value = layer.cents + offset;
 
-            // each voice gets an equal share of the volume
+            // each layer gets an equal share of the volume (the copies in it share it out themselves)
             const share = ctx.createGain();
-            share.gain.value = 1 / (layers.length * offsets.length);
+            share.gain.value = useWorklet ? 1 / layers.length : unisonShare(copies) / layers.length;
             osc.connect(share);
             share.connect(gain);
 
@@ -362,6 +571,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
 
             osc.start(now);
             oscillators.push(osc);
+            layerPitches.push(layerPitch);
             alive++;
 
             // once it's done, unplug the wheels from it, and when the last one is done, the filter's controls
@@ -371,13 +581,24 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
                 trackVibrato.disconnect(osc.detune);
                 alive--;
                 if (alive === 0) {
-                    filterCut.disconnect(filter.detune);
-                    if (filter.type !== "bandpass") filterRes.disconnect(filter.Q);
+                    filter.unplug(filterCut, filterRes);
                     activeFilters[track].delete(filter);
+                    const at = trackVoices[track].indexOf(voice);
+                    if (at >= 0) trackVoices[track].splice(at, 1);
                 }
             });
         });
     });
+
+    // the most notes at once: if this one makes too many (or the mode is MONO and one is already sounding), the oldest ones are taken down
+    {
+        const voices = trackVoices[track];
+        for (let i = voices.length - 1; i >= 0; i--) if (voices[i].end <= now) voices.splice(i, 1); // (the ones that are over)
+        const limit = VOICE_MODES[placeOf(settings.mode, VOICE_MODES.length)] === "POLY" ? voiceLimitFrom(settings.voices) : 1;
+        const sounding = voices.filter((v) => v.start <= now && v.end > now).sort((a, b) => a.start - b.start);
+        for (let i = 0; i < sounding.length - limit + 1; i++) sounding[i].steal(now);
+        voices.push(voice);
+    }
 
     // tell the rest of the page a note is going to start, and when (leds.js flashes the LED over its key at that moment)
     if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: now, track } }));
@@ -426,7 +647,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     }
 
     let released = false;
-    return {
+    const handle = {
         expression: setExpression,
         // what the mouse has done to the note right now (for checking)
         xy: () => ({
@@ -452,6 +673,36 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
             fadeOut(seconds);
         },
     };
+
+    // LEGATO: the keys held on this track share this one voice (see joinLegato)
+    if (modeName === "LEGATO") {
+        const entry = { frequency };
+        const realRelease = handle.release;
+        const leg = {
+            stack: [entry],
+            free: () => !released && !faded,
+            glideTo(newFrequency, at) {
+                if (faded) return;
+                const target = newFrequency * 2 ** ((octFrom(settings.oct) * 12 + semiFrom(settings.semi)) / 12);
+                const seconds = Math.max(glideTime, 0.03); // (legato slides a little even with GLIDE all the way down)
+                const t = Math.max(at, ctx.currentTime);
+                oscillators.forEach((osc, i) => {
+                    const p = osc.frequency;
+                    const from = p.value;
+                    p.cancelScheduledValues(t);
+                    p.setValueAtTime(from, t);
+                    p.exponentialRampToValueAtTime(target * layerPitches[i], t + seconds);
+                });
+                lastFrequency[track] = target;
+            },
+            realRelease,
+            expression: setExpression,
+            xy: handle.xy,
+        };
+        trackLegato[track] = leg;
+        handle.release = (time) => legatoRelease(leg, entry, time);
+    }
+    return handle;
 }
 
 // ---- chords and the arpeggiator ----
@@ -1481,6 +1732,66 @@ function drawGraphLabel(g, text, h) {
 }
 
 // filter graph: pitch goes left to right (low to high), loudness goes bottom to top
+// the Q a drum's filter (the browser's own) is given for the RES dial, in dB: the band pass, notch and peak take it as a width and not in dB
+function drumFilterQ(type, dB) {
+    if (type === "bandpass") return 0.7 + dB;
+    if (type === "notch" || type === "peaking") return 1 + dB;
+    return dB;
+}
+
+// how loud a synth track's filter lets each pitch through (the maths of filter-worklet.js, for the picture). model is 0 SVF 12, 1 SVF 24 or
+// 2 LADDER, mode is 0 low pass, 1 high pass, 2 band pass, 3 notch, 4 peak, fc is the cutoff in Hz and resDb the resonance. Fills out (one
+// number for each pitch in GRAPH_FREQS, as a multiple of the sound that goes in)
+function filterResponse(model, mode, fc, resDb, out) {
+    const rate = 48000;
+    const g = Math.tan((Math.PI * Math.min(fc, rate * 0.49)) / rate);
+    const q = mode === 2 ? 0.7 + resDb : 10 ** (resDb / 20);
+    let k1 = 1 / q;
+    let k2 = k1;
+    if (model === 1) {
+        if (mode < 2) {
+            k1 = 1 / 0.5412;
+            k2 = 1 / (1.3066 * q);
+        } else {
+            k1 = 1 / Math.sqrt(q);
+            k2 = k1;
+        }
+    }
+    const ladderK = (resDb / 12) * 4;
+    for (let i = 0; i < GRAPH_FREQS.length; i++) {
+        const w = Math.tan((Math.PI * Math.min(GRAPH_FREQS[i], rate * 0.499)) / rate) / g; // (the pitch as a multiple of the cutoff, as the filter sees it)
+        let mag;
+        if (model === 2) {
+            // one pole stage is 1 / (1 + jw): four of them in a loop with k coming back
+            const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+            const stage = [1 / (1 + w * w), -w / (1 + w * w)];
+            const one = [1 - stage[0], -stage[1]];
+            const g2 = mul(stage, stage);
+            const g4 = mul(g2, g2);
+            const o2 = mul(one, one);
+            const o4 = mul(o2, o2);
+            const d = [1 + ladderK * g4[0], ladderK * g4[1]];
+            const dd = d[0] * d[0] + d[1] * d[1];
+            const div = (a) => [(a[0] * d[0] + a[1] * d[1]) / dd, (a[1] * d[0] - a[0] * d[1]) / dd];
+            const low = div(g4);
+            const high = div(o4);
+            const bandRaw = mul(g2, o2);
+            const band = div([4 * bandRaw[0], 4 * bandRaw[1]]);
+            const pick = mode === 0 ? low : mode === 1 ? high : mode === 2 ? band : mode === 3 ? [low[0] + high[0], low[1] + high[1]] : [low[0] - high[0], low[1] - high[1]];
+            mag = Math.hypot(pick[0], pick[1]);
+        } else {
+            mag = 1;
+            for (let stage = 0; stage < (model === 1 ? 2 : 1); stage++) {
+                const k = stage === 0 ? k1 : k2;
+                const denominator = Math.hypot(1 - w * w, k * w);
+                const numerator = mode === 0 ? 1 : mode === 1 ? w * w : mode === 2 ? k * w : mode === 3 ? Math.abs(1 - w * w) : 1 + w * w;
+                mag *= numerator / denominator;
+            }
+        }
+        out[i] = mag;
+    }
+}
+
 // the filter picture in the dials box (the FILTER tab) can be dragged: sideways sets the cutoff and up and down sets the resonance. Its
 // range of dB, at the top and the bottom
 const FILTER_VIEW_TOP = 15;
@@ -1494,11 +1805,18 @@ function drawFilterGraph(canvas = filterGraph, editor = false, filterEditor = fa
     const cutoffHz = cutoffFromSlider(shown.cutoff);
     const resonance = resonanceFromSlider(shown.resonance);
 
-    const filterType = filterTypeFrom(shown.ftype);
-    graphFilter.type = filterType;
-    graphFilter.frequency.value = cutoffHz;
-    graphFilter.Q.value = filterType === "bandpass" ? 0.7 + resonance : resonance;
-    graphFilter.getFrequencyResponse(GRAPH_FREQS, graphMags, graphPhases);
+    if (liveTrack !== DRUM_TRACK) {
+        // a synth track's filter is the worklet's: the curve is worked out from its maths
+        filterResponse(filterModelFrom(shown.fmodel), filterModeFrom(shown.ftype), cutoffHz, resonance, graphMags);
+    } else {
+        // a drum's is the browser's own filter
+        const filterType = filterTypeFrom(shown.ftype);
+        graphFilter.type = filterType;
+        graphFilter.frequency.value = cutoffHz;
+        graphFilter.Q.value = drumFilterQ(filterType, resonance);
+        graphFilter.gain.value = 6;
+        graphFilter.getFrequencyResponse(GRAPH_FREQS, graphMags, graphPhases);
+    }
     // and the EQ bands add to it (their answers multiply)
     const bandPoints = [];
     const bandValues = [];

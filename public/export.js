@@ -27,11 +27,13 @@ async function renderSong() {
         filters: activeFilters.map((set) => new Set(set)),
         last: lastFrequency.slice(),
         drums: drumChannels.slice(),
+        voices: trackVoices.map((list) => list.slice()),
     };
     const perBeat = 60 / bpm;
     const length = Math.ceil((BARS * BEATS * perBeat + EXPORT_TAIL) * live.ctx.sampleRate);
     const offline = new OfflineAudioContext(2, length, live.ctx.sampleRate);
 
+    await loadOscWorklet(offline); // (the oscillators of the song are made by the worklet, as they are when it is played)
     try {
         renderingOffline = true; // (no lights flash and nothing is sent out while it works)
         ctx = offline;
@@ -43,6 +45,7 @@ async function renderSong() {
         activeFilters.forEach((set) => set.clear());
         lastFrequency.fill(0);
         drumChannels.fill(null); // (each drum makes its chain, in the offline context, the first time it's hit)
+        trackVoices.forEach((list) => (list.length = 0));
         buildTrackChains();
 
         // the pitch wheel and mod wheel, as they are now (getCtx makes these for the live context)
@@ -58,7 +61,18 @@ async function renderSong() {
 
         // every note of the song, bar after bar, exactly as playing it does (the muted tracks, the loops and the swing too)
         beatSec = perBeat;
-        for (let n = 0; n < BARS * BEATS; n++) playBeatOf(Math.floor(n / BEATS), n % BEATS, 0.02 + n * perBeat, -1);
+        // (the notes of each beat are made just before it plays, with the render paused for a moment, not all at the start: a note that is
+        // waiting for its turn still costs something every moment the file is being worked out, and a long song has thousands)
+        const beats = BARS * BEATS;
+        const playBeat = (n) => playBeatOf(Math.floor(n / BEATS), n % BEATS, 0.02 + n * perBeat, -1);
+        playBeat(0);
+        for (let n = 1; n < beats; n++) {
+            const pause = Math.floor(((0.02 + n * perBeat - 0.05) * offline.sampleRate) / 128) * 128; // (a bit before the beat, on a whole block of sound)
+            offline.suspend(pause / offline.sampleRate).then(() => {
+                playBeat(n);
+                offline.resume();
+            });
+        }
         return await offline.startRendering();
     } finally {
         ctx = live.ctx;
@@ -77,6 +91,7 @@ async function renderSong() {
         });
         lastFrequency.splice(0, lastFrequency.length, ...live.last);
         drumChannels.splice(0, drumChannels.length, ...live.drums);
+        trackVoices.forEach((list, i) => list.splice(0, list.length, ...live.voices[i]));
         renderingOffline = false;
     }
 }

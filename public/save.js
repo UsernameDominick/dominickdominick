@@ -50,6 +50,7 @@ function songSnapshot() {
         tempo: bpm,
         volume: songVolume,
         barCount: BARS, // (how many bars long it is. The tracks are as many as there are in the list)
+        filterTypes: 5, // (a song from before the filter had five types has 0, 0.5 and 1 for low pass, high pass and band pass: see cleanSong)
         tracks,
         drums: {
             kit: drumKit.slice(),
@@ -94,12 +95,18 @@ function cleanSong(raw) {
     // how long it is and how many tracks it has (a song from before there was a choice has 8 bars and 5 tracks)
     const barCount = Number.isInteger(raw.barCount) ? Math.min(MAX_BARS, Math.max(4, raw.barCount)) : 8;
     const trackCount = tracks.length ? Math.min(MAX_TRACKS, Math.max(MIN_TRACKS, tracks.length)) : 5;
+    const oldFilterTypes = raw.filterTypes !== 5;
     const clean = { tempo: Math.min(BPM_MAX, Math.max(BPM_MIN, tempo)), volume: unit(raw.volume, 0.5), barCount, tracks: [] };
 
     for (let t = 0; t < trackCount; t++) {
         const r = tracks[t] && typeof tracks[t] === "object" ? tracks[t] : {};
         const settings = usualSettings(t);
         for (const key in settings) settings[key] = unit(r.settings && r.settings[key], settings[key]);
+        // (a song from before UNI and SPREAD had three copies when DETUNE was up, all in the middle of the speakers)
+        const saved = r.settings || {};
+        if (typeof saved.uni !== "number") settings.uni = settings.detune > 0.0125 ? 2 / 15 : 0;
+        if (typeof saved.spread !== "number") settings.spread = 0;
+        if (oldFilterTypes) settings.ftype = legacyFilterType(settings.ftype);
         const sound = r.settings && r.settings.sound;
         settings.sound = Number.isInteger(sound) && sound >= 0 && sound < SOUNDS.length ? sound : 0;
         const length = [];
@@ -145,6 +152,7 @@ function cleanSong(raw) {
                 const fromTrack = key === "edecay" ? shared.decay : key === "pan" || key === "dly" || key === "rev" || key === "pitch" || key === "decay" ? undefined : shared[key];
                 fx[key] = unit(typeof saved[key] === "number" ? saved[key] : fromTrack, fx[key]);
             }
+            if (oldFilterTypes) fx.ftype = legacyFilterType(fx.ftype);
             return fx;
         }),
         muted: flags(drums.muted, DRUM_COUNT),

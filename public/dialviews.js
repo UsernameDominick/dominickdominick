@@ -66,6 +66,52 @@ function drawSoundView(canvas) {
     canvas.setAttribute("aria-label", "Picture of the sound " + sound.name + ": the shape of its wave.");
 }
 
+// ---- OSC ----
+// the wave on top (with the pulse width and the sub wave added) and, under it, the copies of the unison as dots: from left to right is where
+// each one is in the speakers (SPREAD) and from low to high is how far it is tuned from the note (DETUNE)
+function drawOscView(canvas) {
+    const { g, w, h, accent } = viewSetup(canvas, 6, 4);
+    const settings = trackSettings[liveTrack];
+    const sound = SOUNDS[settings.sound];
+    const pw = pwFrom(settings.pw);
+    const waveTop = EDITOR_PAD;
+    const waveHeight = (h - EDITOR_PAD * 2) * 0.58;
+    const count = 240;
+    const cycles = 3;
+    const wave = Array.from({ length: count + 1 }, (_, i) => {
+        const t = (i / count) * cycles;
+        let sum = sound.layers.reduce((total, layer) => {
+            const phase = (t * 2 ** (layer.semitones / 12 + layer.cents / 1200)) % 1;
+            // (a square is a pulse of this width with nothing added to it, as the worklet makes it)
+            return total + (layer.type === "square" ? WAVES.sawtooth(phase) - WAVES.sawtooth((phase + pw) % 1) : WAVES[layer.type](phase));
+        }, 0) / sound.layers.length;
+        if (settings.sub > 0) sum += settings.sub * 0.5 * (((t / 2) % 1) < 0.5 ? 1 : -1);
+        return sum;
+    });
+    const peak = Math.max(...wave.map(Math.abs), 0.001);
+    const points = wave.map((v, i) => ({ x: (i / count) * w, y: waveTop + waveHeight / 2 - (v / peak) * (waveHeight / 2) }));
+    drawLine(g, points, waveTop + waveHeight, accent, w);
+
+    // the copies of the unison
+    const copies = unisonFrom(settings.uni);
+    const spread = settings.spread;
+    const detune = detuneCents(settings.detune);
+    const top = waveTop + waveHeight + 22;
+    const bottom = h - 12;
+    const order = copies % 7 === 0 ? 1 : 7;
+    g.fillStyle = withAlpha(accent, 0.35);
+    g.fillRect(12, Math.round((top + bottom) / 2), w - 24, 1);
+    for (let i = 0; i < copies; i++) {
+        const pitch = copies === 1 ? 0 : (i / (copies - 1)) * 2 - 1; // -1 (lowest) to 1 (highest)
+        const place = copies === 1 ? 0 : (((i * order) % copies) / (copies - 1)) * 2 - 1;
+        const x = w / 2 + place * spread * (w / 2 - 24);
+        const y = (top + bottom) / 2 - pitch * Math.min(1, detune / 40) * ((bottom - top) / 2);
+        viewDot(g, x, y, 6, i === 0 || i === copies - 1 ? GRAPH_TEXT : accent, accent);
+    }
+    viewText(g, copies === 1 ? sound.name : sound.name + "  x" + copies, 8, waveTop + waveHeight + 16);
+    canvas.setAttribute("aria-label", "Picture of the oscillator: " + sound.name + ", " + copies + (copies === 1 ? " copy" : " copies") + " in the unison, " + Math.round(pw * 100) + " percent pulse width.");
+}
+
 // ---- FILTER ----
 function drawFilterView(canvas) {
     drawFilterGraph(canvas, false, true);
@@ -239,7 +285,7 @@ function drawPlayView(canvas) {
 }
 
 // draws the picture of the tab that is showing (the others are hidden, and have no size to draw into), and the colour of the bar
-const DIAL_VIEW_DRAWERS = { sound: drawSoundView, filter: drawFilterView, fx: drawFxView, mod: drawModView, play: drawPlayView };
+const DIAL_VIEW_DRAWERS = { sound: drawSoundView, osc: drawOscView, filter: drawFilterView, fx: drawFxView, mod: drawModView, play: drawPlayView };
 
 function drawDialViews() {
     if (typeof dialBar === "undefined" || !dialBar) return;

@@ -24,27 +24,27 @@ let renamingPreset = null; // the name of the preset that's being renamed in the
 //   decay   0 is 20ms, 0.3 is 90ms, 0.5 is 250ms, 0.7 is 680ms, 1 is 3s
 //   release 0 is 50ms, 0.1 is 0.35s, 0.25 is 0.8s, 0.5 is 1.5s, 1 is 3s
 //   cutoff  0.3 is 400Hz, 0.5 is 1100Hz, 0.7 is 3200Hz, 1 is 16000Hz
-//   oct     0.25 is an octave down, 0.75 an octave up. ftype 0 is low pass, 0.5 high pass, 1 band pass
+//   oct     0.25 is an octave down, 0.75 an octave up. ftype 0 is low pass, 0.25 high pass, 0.5 band pass, 0.75 notch, 1 peak; fmodel 0 is SVF 12, 0.5 SVF 24, 1 the ladder
 //   dtime   0 is a 16th, 0.25 an 8th, 0.5 a dotted 8th, 0.75 a quarter, 1 a half
 const FACTORY_PRESETS = [
     // bass
     { group: "BASS", name: "Sub Bass", sound: 5, cutoff: 0.45, attack: 0.05, decay: 0.45, sustain: 0.8, release: 0.12, drive: 0.1 },
     { group: "BASS", name: "Acid Bass", sound: 0, oct: 0.25, cutoff: 0.22, resonance: 0.7, fenv: 0.55, attack: 0, decay: 0.3, sustain: 0.3, release: 0.08, glide: 0.15, drive: 0.25 },
     { group: "BASS", name: "Wobble Bass", sound: 1, oct: 0.25, cutoff: 0.4, resonance: 0.45, drive: 0.3, tdep: 0.6, trate: 0.55, attack: 0.02, sustain: 0.9, release: 0.1 },
-    { group: "BASS", name: "Reese Bass", sound: 0, oct: 0.25, detune: 0.6, cutoff: 0.35, resonance: 0.2, drive: 0.3, tdep: 0.15, trate: 0.1, attack: 0.05, sustain: 0.9, release: 0.12 },
+    { group: "BASS", name: "Reese Bass", sound: 0, oct: 0.25, detune: 0.6, uni: 4 / 15, spread: 0.7, cutoff: 0.35, resonance: 0.2, drive: 0.3, tdep: 0.15, trate: 0.1, attack: 0.05, sustain: 0.9, release: 0.12 },
     { group: "BASS", name: "Pluck Bass", sound: 0, oct: 0.25, cutoff: 0.3, resonance: 0.3, fenv: 0.45, attack: 0, decay: 0.25, sustain: 0.15, release: 0.1 },
     // leads
-    { group: "LEAD", name: "Super Lead", sound: 4, detune: 0.3, glide: 0.12, cutoff: 0.85, attack: 0.08, decay: 0.5, sustain: 0.75, release: 0.2, vdep: 0.25, vrate: 0.45, dly: 0.25, dtime: 0.5, dfb: 0.35, rev: 0.2 },
+    { group: "LEAD", name: "Super Lead", sound: 4, detune: 0.3, uni: 6 / 15, spread: 0.8, glide: 0.12, cutoff: 0.85, attack: 0.08, decay: 0.5, sustain: 0.75, release: 0.2, vdep: 0.25, vrate: 0.45, dly: 0.25, dtime: 0.5, dfb: 0.35, rev: 0.2 },
     { group: "LEAD", name: "Square Lead", sound: 1, cutoff: 0.8, glide: 0.1, drive: 0.1, vdep: 0.2, vrate: 0.5, attack: 0.03, sustain: 0.8, release: 0.15, dly: 0.2, dtime: 0.75, dfb: 0.3 },
     { group: "LEAD", name: "Sine Whistle", sound: 2, vdep: 0.35, vrate: 0.5, glide: 0.2, attack: 0.35, sustain: 0.9, release: 0.3, rev: 0.3 },
-    { group: "LEAD", name: "Hoover", sound: 4, detune: 0.8, glide: 0.4, drive: 0.5, cutoff: 0.7, resonance: 0.3, vdep: 0.3, vrate: 0.6, attack: 0.05, sustain: 0.8, release: 0.15, rev: 0.15 },
+    { group: "LEAD", name: "Hoover", sound: 4, detune: 0.8, uni: 6 / 15, spread: 0.9, glide: 0.4, drive: 0.5, cutoff: 0.7, resonance: 0.3, vdep: 0.3, vrate: 0.6, attack: 0.05, sustain: 0.8, release: 0.15, rev: 0.15 },
     { group: "LEAD", name: "Chiptune", sound: 1, oct: 0.75, vdep: 0.12, vrate: 0.55, attack: 0, decay: 0.1, sustain: 0.6, release: 0.05 },
     // pads
-    { group: "PAD", name: "Warm Pad", sound: 4, detune: 0.4, cutoff: 0.55, resonance: 0.1, attack: 0.75, decay: 0.6, sustain: 0.8, release: 0.6, vdep: 0.1, vrate: 0.2, rev: 0.6 },
-    { group: "PAD", name: "Glass Pad", sound: 3, detune: 0.5, cutoff: 0.8, attack: 0.7, sustain: 0.9, release: 0.75, tdep: 0.15, trate: 0.2, dly: 0.3, dtime: 0.75, dfb: 0.5, rev: 0.75 },
-    { group: "PAD", name: "Hollow Choir", sound: 7, detune: 0.2, cutoff: 0.5, attack: 0.65, sustain: 0.8, release: 0.6, vdep: 0.15, vrate: 0.35, rev: 0.55 },
-    { group: "PAD", name: "Dream Strings", sound: 0, detune: 0.45, cutoff: 0.5, attack: 0.7, sustain: 0.85, release: 0.6, tdep: 0.2, trate: 0.35, rev: 0.5 },
-    { group: "PAD", name: "Ambient Drone", sound: 4, detune: 0.6, cutoff: 0.5, attack: 1, sustain: 1, release: 1, vdep: 0.15, vrate: 0.1, tdep: 0.2, trate: 0.1, dly: 0.4, dtime: 1, dfb: 0.5, rev: 1 },
+    { group: "PAD", name: "Warm Pad", sound: 4, detune: 0.4, uni: 4 / 15, spread: 0.8, cutoff: 0.55, resonance: 0.1, attack: 0.75, decay: 0.6, sustain: 0.8, release: 0.6, vdep: 0.1, vrate: 0.2, rev: 0.6 },
+    { group: "PAD", name: "Glass Pad", sound: 3, detune: 0.5, uni: 3 / 15, spread: 1, cutoff: 0.8, attack: 0.7, sustain: 0.9, release: 0.75, tdep: 0.15, trate: 0.2, dly: 0.3, dtime: 0.75, dfb: 0.5, rev: 0.75 },
+    { group: "PAD", name: "Hollow Choir", sound: 7, detune: 0.2, uni: 2 / 15, spread: 0.6, cutoff: 0.5, attack: 0.65, sustain: 0.8, release: 0.6, vdep: 0.15, vrate: 0.35, rev: 0.55 },
+    { group: "PAD", name: "Dream Strings", sound: 0, detune: 0.45, uni: 5 / 15, spread: 1, cutoff: 0.5, attack: 0.7, sustain: 0.85, release: 0.6, tdep: 0.2, trate: 0.35, rev: 0.5 },
+    { group: "PAD", name: "Ambient Drone", sound: 4, detune: 0.6, uni: 6 / 15, spread: 1, cutoff: 0.5, attack: 1, sustain: 1, release: 1, vdep: 0.15, vrate: 0.1, tdep: 0.2, trate: 0.1, dly: 0.4, dtime: 1, dfb: 0.5, rev: 1 },
     // keys and plucks
     { group: "KEYS", name: "Organ", sound: 6, cutoff: 0.9, attack: 0.05, decay: 0.2, sustain: 1, release: 0.08, tdep: 0.25, trate: 0.45, rev: 0.25 },
     { group: "KEYS", name: "Electric Piano", sound: 3, cutoff: 0.7, fenv: 0.2, drive: 0.05, attack: 0.02, decay: 0.55, sustain: 0.3, release: 0.35, tdep: 0.25, trate: 0.3, rev: 0.2 },
@@ -53,7 +53,7 @@ const FACTORY_PRESETS = [
     { group: "KEYS", name: "Bell", sound: 6, oct: 0.75, attack: 0, decay: 0.8, sustain: 0.1, release: 0.7, dly: 0.25, dtime: 0.5, dfb: 0.45, rev: 0.6 },
     // effects
     { group: "FX", name: "Dub Stab", sound: 1, cutoff: 0.6, attack: 0, decay: 0.25, sustain: 0.2, release: 0.2, dly: 0.7, dtime: 0.75, dfb: 0.65, rev: 0.35 },
-    { group: "FX", name: "Telephone", sound: 1, ftype: 1, cutoff: 0.6, resonance: 0.6, drive: 0.7, attack: 0.01, sustain: 0.9, release: 0.05 },
+    { group: "FX", name: "Telephone", sound: 1, ftype: 0.5, cutoff: 0.6, resonance: 0.6, drive: 0.7, attack: 0.01, sustain: 0.9, release: 0.05 },
 ];
 
 // a built-in preset with every dial filled in (what it doesn't change is how a track starts)
@@ -107,6 +107,14 @@ function cleanPresetSettings(raw, t) {
         const v = raw[key];
         clean[key] = typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : clean[key];
     }
+    // (a preset saved before the oscillator dials: the new ones start as they do on a new track, and it had three copies if DETUNE was up)
+    ["uni", "spread", "pw", "sub", "noise", "mode", "voices", "fmodel", "fdrive", "ktrack"].forEach((key) => {
+        if (typeof raw[key] !== "number") clean[key] = FX_DEFAULTS[key];
+    });
+    // (and its filter type, from before there were five, is moved to where it is now)
+    if (typeof raw.fmodel !== "number") clean.ftype = legacyFilterType(typeof raw.ftype === "number" ? raw.ftype : 0);
+    if (typeof raw.uni !== "number") clean.uni = clean.detune > 0.0125 ? 2 / 15 : 0;
+    if (typeof raw.spread !== "number") clean.spread = 0;
     const sound = raw.sound;
     clean.sound = Number.isInteger(sound) && sound >= 0 && sound < SOUNDS.length ? sound : 0;
     return clean;
