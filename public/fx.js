@@ -527,6 +527,93 @@ function buildDialPanel() {
         dialPanel.appendChild(groups[tab.id]);
     });
 
+    function addCurveEditor(tab, label) {
+        const panel = mk("div", "curve-editor");
+        panel.setAttribute("role", "group");
+        panel.setAttribute("aria-label", label);
+        const canvas = document.createElement("canvas");
+        canvas.setAttribute("role", "img");
+        panel.appendChild(canvas);
+        groups[tab].appendChild(panel);
+        return canvas;
+    }
+
+    const eqEditor = addCurveEditor("eq", "Equalizer graph. Drag a numbered band to change its frequency and gain.");
+    const envEditor = addCurveEditor("env", "Envelope graph. Drag A, D, S, or R to adjust attack, decay, sustain, or release.");
+    registerEqEditorGraph(eqEditor);
+    registerEnvEditorGraph(envEditor);
+
+    function setDialValue(id, value) {
+        const input = document.getElementById(id);
+        input.value = String(Math.min(1, Math.max(0, value)));
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    let draggedEqBand = null;
+    const editEqAt = (e) => {
+        const rect = eqEditor.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        const y = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top) / rect.height));
+        setDialValue("dial-e" + draggedEqBand + "f", x);
+        setDialValue("dial-e" + draggedEqBand + "g", y);
+    };
+    eqEditor.addEventListener("pointerdown", (e) => {
+        const rect = eqEditor.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        draggedEqBand = [1, 2, 3].reduce((closest, band) =>
+            Math.abs(getSetting("e" + band + "f") - x) < Math.abs(getSetting("e" + closest + "f") - x) ? band : closest, 1);
+        e.preventDefault();
+        eqEditor.setPointerCapture(e.pointerId);
+        editEqAt(e);
+    });
+    eqEditor.addEventListener("pointermove", (e) => {
+        if (draggedEqBand !== null) editEqAt(e);
+    });
+    const stopEqEdit = () => (draggedEqBand = null);
+    eqEditor.addEventListener("pointerup", stopEqEdit);
+    eqEditor.addEventListener("pointercancel", stopEqEdit);
+
+    let draggedEnvStage = null;
+    const envHandles = () => {
+        const attack = getSetting("attack");
+        const decay = getSetting("envdecay");
+        const sustain = getSetting("sustain");
+        const release = getSetting("release");
+        return [
+            { stage: "attack", x: 0.05 + attack * 0.18, y: 0 },
+            { stage: "decay", x: 0.3 + decay * 0.18, y: 1 - sustain },
+            { stage: "sustain", x: 0.62, y: 1 - sustain },
+            { stage: "release", x: 0.76 + release * 0.18, y: 1 },
+        ];
+    };
+    const editEnvAt = (e) => {
+        const rect = envEditor.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+        if (draggedEnvStage === "attack") setDialValue("attackSlider", (x - 0.05) / 0.18);
+        if (draggedEnvStage === "decay") setDialValue("decaySlider", (x - 0.3) / 0.18);
+        if (draggedEnvStage === "sustain") setDialValue("sustainSlider", 1 - y);
+        if (draggedEnvStage === "release") setDialValue("releaseSlider", (x - 0.76) / 0.18);
+    };
+    envEditor.addEventListener("pointerdown", (e) => {
+        const rect = envEditor.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        draggedEnvStage = envHandles().reduce((closest, handle) => {
+            const distance = Math.hypot((handle.x - x) * rect.width, (handle.y - y) * rect.height);
+            return distance < closest.distance ? { stage: handle.stage, distance } : closest;
+        }, { stage: "attack", distance: Infinity }).stage;
+        e.preventDefault();
+        envEditor.setPointerCapture(e.pointerId);
+        editEnvAt(e);
+    });
+    envEditor.addEventListener("pointermove", (e) => {
+        if (draggedEnvStage !== null) editEnvAt(e);
+    });
+    const stopEnvEdit = () => (draggedEnvStage = null);
+    envEditor.addEventListener("pointerup", stopEnvEdit);
+    envEditor.addEventListener("pointercancel", stopEnvEdit);
+
     DIALS.forEach((spec) => {
         const box = mk("div", "dial");
         box.dataset.default = spec.def;
@@ -567,6 +654,7 @@ function buildDialPanel() {
         const picked = tabButtons[DIAL_TABS.findIndex((tab) => tab.id === id)];
         if (picked.offsetTop < tabs.scrollTop) tabs.scrollTop = picked.offsetTop;
         else if (picked.offsetTop + picked.offsetHeight > tabs.scrollTop + tabs.clientHeight) tabs.scrollTop = picked.offsetTop + picked.offsetHeight - tabs.clientHeight;
+        if (id === "eq" || id === "env") drawGraphs();
     }
     selectDialTab = showDialTab;
     showDialTab(dialTab);

@@ -1,6 +1,7 @@
 // MIDI: play the synth and the drums with a real MIDI keyboard, and send what plays out to MIDI gear. The
 // MIDI button in the top box opens the options: which INPUT to listen to, which CHANNEL, an OCTAVE shift,
-// and an OUTPUT to send to. The browser asks for permission the first time you open it (Chrome and Edge do
+// a VELOCITY CURVE (how hard you have to hit a key to get a loud note), what PRESSURE does and an OUTPUT to send to. The sustain pedal
+// (controller 64) holds the notes after the keys are let go, and pressure (aftertouch) moves the notes you're holding. The browser asks for permission the first time you open it (Chrome and Edge do
 // MIDI, Safari doesn't). This needs synth.js, drums.js, panels.js and leds.js loaded first.
 
 const midiButton = document.getElementById("midiButton");
@@ -11,6 +12,12 @@ registerPanel("midi", midiButton, midiPopover, closeMidi, askForMidi);
 
 const MIDI_CHANNELS = ["ALL"].concat(Array.from({ length: 16 }, (_, i) => String(i + 1)));
 const MIDI_OCTAVES = [-2, -1, 0, 1, 2];
+// how the force a key is hit with (0 to 1) becomes how loud the note is: SOFT makes a light touch louder, HARD needs a firm hit
+const VELOCITY_CURVES = [
+    { name: "SOFT", power: 0.6 },
+    { name: "NORMAL", power: 1 },
+    { name: "HARD", power: 1.6 },
+];
 
 // where we are with the browser: "idle" (haven't asked yet), "asking" (waiting for you to say yes),
 // "ready", "denied" (you said no) or "unsupported" (this browser has no MIDI)
@@ -22,6 +29,7 @@ let inputName = null; // the device we listen to, or null for none
 let outputName = null; // the device we send to, or null for none
 let midiChannel = 0; // 0 listens to every channel, 1 to 16 listens to just that one
 let midiOctave = 0; // moves every note you play up or down by this many octaves
+let midiCurve = 1; // the velocity curve: a place in VELOCITY_CURVES
 
 try {
     const saved = JSON.parse(localStorage.getItem("midiSettings"));
@@ -29,13 +37,14 @@ try {
     if (saved && typeof saved.output === "string") outputName = saved.output;
     if (saved && saved.channel >= 0 && saved.channel <= 16) midiChannel = saved.channel;
     if (saved && MIDI_OCTAVES.includes(saved.octave)) midiOctave = saved.octave;
+    if (saved && Number.isInteger(saved.curve) && saved.curve >= 0 && saved.curve < VELOCITY_CURVES.length) midiCurve = saved.curve;
 } catch {}
 
 function saveMidiSettings() {
     try {
         localStorage.setItem(
             "midiSettings",
-            JSON.stringify({ input: inputName, output: outputName, channel: midiChannel, octave: midiOctave })
+            JSON.stringify({ input: inputName, output: outputName, channel: midiChannel, octave: midiOctave, curve: midiCurve })
         );
     } catch {}
 }
@@ -90,6 +99,12 @@ const markOctave = makeChoices(
     }
 );
 
+const markCurve = makeChoices([byId("popCurveChoices"), byId("curveChoices")], VELOCITY_CURVES.map((curve) => curve.name), (i) => {
+    midiCurve = i;
+    saveMidiSettings();
+    markCurve(midiCurve);
+});
+
 // what the mouse does to a note you hold when you move it sideways (X) and up and down (Y): see synth.js
 const markX = makeChoices([byId("popXChoices"), byId("xChoices")], XY_TARGETS, (i) => {
     xyMod.x = i;
@@ -100,6 +115,13 @@ const markY = makeChoices([byId("popYChoices"), byId("yChoices")], XY_TARGETS, (
     xyMod.y = i;
     saveXyMod();
     markY(xyMod.y);
+});
+
+// what pressing harder on a key you hold does (aftertouch)
+const markP = makeChoices([byId("popPChoices"), byId("pChoices")], XY_TARGETS, (i) => {
+    xyMod.p = i;
+    saveXyMod();
+    markP(xyMod.p);
 });
 
 // works out which devices we're using, listens to the input, and rewrites everything that shows MIDI
@@ -131,6 +153,9 @@ function refreshMidi() {
     markOctave(MIDI_OCTAVES.indexOf(midiOctave));
     markX(xyMod.x);
     markY(xyMod.y);
+    markP(xyMod.p);
+    markCurve(midiCurve);
+    if (!currentInput) letGoOfPedalNotes(); // (an unplugged keyboard can't let the pedal up)
     updateMidiButton();
 }
 
@@ -177,6 +202,25 @@ function inputNote(rawNote) {
 }
 
 const heldMidi = new Map(); // the keys held down on the MIDI keyboard: its note number -> the note's { release }
+let pedalDown = false; // the sustain pedal
+const pedalNotes = []; // the notes whose keys were let go while the pedal was down: they sound until it comes up, then fade
+
+// lets go of the notes the pedal was holding, and takes the pedal up
+function letGoOfPedalNotes() {
+    pedalDown = false;
+    if (!ctx) return;
+    pedalNotes.splice(0).forEach((handle) => handle.release(ctx.currentTime));
+}
+
+// lets go of everything (all notes off)
+function letGoOfAllMidi() {
+    heldMidi.forEach((handle, key) => {
+        handle.release(ctx.currentTime);
+        endExpression("midi" + key);
+    });
+    heldMidi.clear();
+    letGoOfPedalNotes();
+}
 
 function onMidiMessage(e) {
     const [status, data1, data2] = e.data;
@@ -189,14 +233,38 @@ function onMidiMessage(e) {
         // the song can record it
         const note = inputNote(data1);
         const now = ctx.currentTime;
-        if (heldMidi.has(data1)) heldMidi.get(data1).release(now); // the same key again, let go of the old one
-        // (the force you hit the key with, data2, is the note's velocity, and it's recorded with the note)
-        heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, data2 / 127));
-        document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now, velocity: data2 / 127 } }));
+        if (heldMidi.has(data1)) {
+            // the same key again: the old note is let go (or, with the pedal down, left to fade when the pedal comes up)
+            if (pedalDown) pedalNotes.push(heldMidi.get(data1));
+            else heldMidi.get(data1).release(now);
+            endExpression("midi" + data1);
+        }
+        // (the force you hit the key with, data2, shaped by the velocity curve, is the note's velocity, and it's recorded with the note)
+        const velocity = (data2 / 127) ** VELOCITY_CURVES[midiCurve].power;
+        heldMidi.set(data1, playNote(noteToFrequency(note), now, liveTrack, true, DEFAULT_GATE, velocity));
+        startPressure("midi" + data1, heldMidi.get(data1)); // (pressing harder on the key moves the note, see synth.js)
+        document.dispatchEvent(new CustomEvent("noteplayed", { detail: { note, time: now, velocity } }));
     } else if (type === 0x80 || type === 0x90) {
-        // a note off (or a note on with no force, which also means off): let go of that key's note
-        if (heldMidi.has(data1)) heldMidi.get(data1).release(ctx.currentTime);
+        // a note off (or a note on with no force, which also means off): let go of that key's note, unless the pedal is holding it
+        if (heldMidi.has(data1)) {
+            if (pedalDown) pedalNotes.push(heldMidi.get(data1));
+            else heldMidi.get(data1).release(ctx.currentTime);
+            endExpression("midi" + data1);
+        }
         heldMidi.delete(data1);
+    } else if (type === 0xd0) {
+        // channel pressure (aftertouch): how hard the keys that are held are being pressed, together
+        heldMidi.forEach((handle, key) => setPressure("midi" + key, data1 / 127));
+    } else if (type === 0xa0) {
+        // pressure on one key
+        setPressure("midi" + data1, data2 / 127);
+    } else if (type === 0xb0 && data1 === 64) {
+        // controller 64 is the sustain pedal (down from 64 up)
+        if (data2 >= 64) pedalDown = true;
+        else letGoOfPedalNotes();
+    } else if (type === 0xb0 && (data1 === 123 || data1 === 120)) {
+        // all notes off
+        letGoOfAllMidi();
     } else if (type === 0xe0) {
         // pitch bend: the wheel on the keyboard moves the pitch wheel (8192 is the middle)
         pitchWheel.value = Math.max(-1, Math.min(1, (((data2 << 7) | data1) - 8192) / 8192));

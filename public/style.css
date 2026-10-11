@@ -137,6 +137,13 @@ output {
     display: flex;
     gap: var(--gap);
     padding: 0 var(--gap); /* the right padding is the space before the first key */
+    align-items: flex-start;
+    margin-top: 24px;
+}
+
+.wheels .wheel {
+    height: 136px;
+    margin: 0;
 }
 
 .wheel {
@@ -1158,6 +1165,38 @@ output {
     cursor: pointer;
 }
 
+.track-rename-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-tight);
+}
+
+.track-rename-form[hidden] {
+    display: none;
+}
+
+.track-rename-form input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    padding: 0 var(--gap);
+    border: 1px solid #777;
+    border-radius: 4px;
+    background: #262626;
+    color: white;
+    font: inherit;
+}
+
+.track-rename-actions {
+    display: flex;
+    gap: var(--gap-tight);
+}
+
+.track-rename-actions .track-menu-action {
+    flex: 1;
+}
+
 .track-color-choices {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -1271,9 +1310,28 @@ output {
 }
 
 /* the empty space where the drum track has no lane arrow, so its M, S and L line up with the other tracks' */
-.head-spacer {
+.drum-track-volume {
     flex: none;
-    width: 24px;
+    width: 32px;
+    height: 30px;
+    min-height: 0;
+    gap: 0;
+}
+
+.drum-track-volume .dial-face,
+.drum-track-volume .dial-input {
+    width: 30px;
+    height: 30px;
+}
+
+.drum-track-volume label,
+.drum-track-volume output {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 .params-arrow:active {
@@ -2071,6 +2129,28 @@ body {
     flex: none;
     align-items: center;
     gap: calc(2 * var(--gap));
+}
+
+.curve-editor {
+    position: relative;
+    flex: none;
+    width: 220px;
+    height: 120px;
+    align-self: center;
+    border-radius: var(--radius);
+    background: #17130f;
+    box-shadow: inset 0 3px 0 var(--accent, var(--amber));
+    overflow: hidden;
+}
+
+.curve-editor canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: crosshair;
 }
 
 /* the piano: ivory keys, dark keys (they still reach the top and the bottom of the box) */

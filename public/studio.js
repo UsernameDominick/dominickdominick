@@ -119,6 +119,20 @@ trackMenu.hidden = true;
 const renameTrackButton = make("button", "track-menu-action", "RENAME TRACK");
 renameTrackButton.type = "button";
 renameTrackButton.setAttribute("role", "menuitem");
+const renameForm = make("form", "track-rename-form");
+renameForm.hidden = true;
+const renameInput = document.createElement("input");
+renameInput.type = "text";
+renameInput.maxLength = 24;
+renameInput.required = true;
+renameInput.setAttribute("aria-label", "Track name");
+const renameActions = make("div", "track-rename-actions");
+const saveTrackName = make("button", "track-menu-action", "SAVE");
+saveTrackName.type = "submit";
+const cancelTrackRename = make("button", "track-menu-action", "CANCEL");
+cancelTrackRename.type = "button";
+renameActions.append(saveTrackName, cancelTrackRename);
+renameForm.append(renameInput, renameActions);
 const colorChoices = make("div", "track-color-choices");
 colorChoices.setAttribute("role", "group");
 colorChoices.setAttribute("aria-label", "Track color");
@@ -132,7 +146,7 @@ TRACK_PALETTE.forEach(({ name, color }) => {
     choice.addEventListener("click", () => setTrackColor(menuTrack, color));
     colorChoices.appendChild(choice);
 });
-trackMenu.append(renameTrackButton, colorChoices);
+trackMenu.append(renameTrackButton, renameForm, colorChoices);
 document.body.appendChild(trackMenu);
 let menuTrack = 0;
 
@@ -140,6 +154,8 @@ function openTrackMenu(e, t) {
     e.preventDefault();
     selectBlock(t, selBar);
     menuTrack = t;
+    renameForm.hidden = true;
+    renameTrackButton.hidden = false;
     trackMenu.hidden = false;
     colorChoices.querySelectorAll(".track-color-choice").forEach((choice) => {
         choice.setAttribute("aria-checked", String(choice.dataset.color === trackColors[t]));
@@ -169,15 +185,28 @@ function setTrackColor(t, color) {
 }
 
 renameTrackButton.addEventListener("click", () => {
-    const answer = window.prompt("Track name", trackName(menuTrack));
-    if (answer === null) return closeTrackMenu();
-    const name = answer.trim().slice(0, 24);
+    renameInput.value = trackName(menuTrack);
+    renameForm.hidden = false;
+    renameTrackButton.hidden = true;
+    renameInput.focus();
+    renameInput.select();
+});
+
+renameForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = renameInput.value.trim().slice(0, 24);
     if (name) {
         renameTrack(menuTrack, name);
         trackHeads[menuTrack].name.textContent = name;
         showSound();
     }
     closeTrackMenu();
+});
+
+cancelTrackRename.addEventListener("click", () => {
+    renameForm.hidden = true;
+    renameTrackButton.hidden = false;
+    renameTrackButton.focus();
 });
 
 document.addEventListener("pointerdown", (e) => {
@@ -240,6 +269,38 @@ function make(tag, className, text) {
     el.className = className;
     if (text) el.textContent = text;
     return el;
+}
+
+function makeDrumTrackVolumeDial() {
+    const box = make("div", "dial drum-track-volume");
+    box.dataset.default = "1";
+    const label = make("label", "", "DRUM");
+    const face = make("div", "dial-face");
+    const input = document.createElement("input");
+    input.type = "range";
+    input.className = "dial-input";
+    input.min = "0";
+    input.max = "1";
+    input.step = "0.01";
+    input.value = String(drumTrackVolumeAt());
+    input.setAttribute("aria-label", "Volume of the whole drum track");
+    const output = document.createElement("output");
+    output.setAttribute("aria-hidden", "true");
+    box.append(label, face, input, output);
+    buildDial(box);
+    setUpDialDrag(box, input);
+    const showVolume = () => {
+        const value = Number(input.value);
+        setDrumTrackVolume(value);
+        updateDial(box, value);
+        const text = Math.round(value * 100) + "%";
+        output.textContent = text;
+        input.setAttribute("aria-valuetext", text);
+        box.title = "Drum track volume: " + text;
+    };
+    input.addEventListener("input", showVolume);
+    showVolume();
+    return box;
 }
 
 // where the blocks start in a track: starts[bar] is the bar of the block that covers that bar
@@ -442,7 +503,6 @@ function buildSong() {
             head.style.setProperty("--track-color", trackColors[t]);
         const name = make("button", "track-name", trackName(t)); // the first track is always drums
         name.addEventListener("click", () => selectBlock(t, selBar));
-            name.addEventListener("contextmenu", (e) => openTrackMenu(e, t));
         const mute = make("button", "mute", "M");
         mute.setAttribute("aria-pressed", "false");
         mute.setAttribute("aria-label", "Mute track " + (t + 1));
@@ -461,7 +521,8 @@ function buildSong() {
         settings.addEventListener("click", () => toggleParamLane(t, null, settings));
         // (the drum track has no lane of its own: each drum has one, on its own row, so every drum is edited on its own.
         // An empty space is left where the arrow would be, so its M, S and L line up with the other tracks')
-        head.append(name, mute, solo, loop, t === DRUM_TRACK ? make("span", "head-spacer") : settings);
+        head.append(name, mute, solo, loop, t === DRUM_TRACK ? makeDrumTrackVolumeDial() : settings);
+        head.addEventListener("contextmenu", (e) => openTrackMenu(e, t));
         songEl.appendChild(head);
         trackHeads.push({ head, name, mute, solo, loop, settings });
 

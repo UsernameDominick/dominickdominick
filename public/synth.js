@@ -87,7 +87,7 @@ let modDepth; // the vibrato signal (LFO), scaled by the mod wheel
 // create the context and master gain the first time, only after a click
 function getCtx() {
     if (!ctx) {
-        ctx = new AudioContext();
+        ctx = new AudioContext({ latencyHint: "interactive" }); // (the shortest delay the device can do, so a key sounds as soon as it is pressed)
 
         // master gain node (every note goes through this)
         master = ctx.createGain();
@@ -865,16 +865,18 @@ function releaseKey(id) {
 //   BRIGHT      opens and closes the filter (2 octaves each way), for that note only
 //   VOLUME      makes it louder (up to twice) and quieter (down to half)
 // It's measured from where the pointer was when the note started, and 240 pixels is all the way. It only moves the note you're
-// holding (it isn't recorded). A held note on the drum track or an arpeggio isn't moved.
+// holding (it isn't recorded). A held note on the drum track or an arpeggio isn't moved. A MIDI keyboard that sends pressure
+// (aftertouch, from pressing harder on a key you are holding) moves the notes it is holding too, and what that does is chosen in the
+// MIDI popup as well (PRESSURE): it goes from nothing to all the way, so for PITCH it bends up, for PAN it moves right, and so on.
 const XY_TARGETS = ["OFF", "PITCH", "VIBRATO", "PAN", "BRIGHT", "VOLUME"];
 const XY_RANGE_PX = 240; // how far the mouse goes for all the way
 const XY_PITCH_CENTS = 200;
 const XY_BRIGHT_CENTS = 2400;
 const XY_VIBRATO_CENTS = 60;
-const xyMod = { x: 1, y: 4 }; // what X and Y do: places in XY_TARGETS (pitch and brightness to start with). They're remembered
+const xyMod = { x: 1, y: 4, p: 2 }; // what X, Y and pressure do: places in XY_TARGETS (pitch, brightness and vibrato to start with). They're remembered
 try {
     const savedXy = JSON.parse(localStorage.getItem("xyMod"));
-    for (const axis of ["x", "y"]) if (savedXy && Number.isInteger(savedXy[axis]) && savedXy[axis] >= 0 && savedXy[axis] < XY_TARGETS.length) xyMod[axis] = savedXy[axis];
+    for (const axis of ["x", "y", "p"]) if (savedXy && Number.isInteger(savedXy[axis]) && savedXy[axis] >= 0 && savedXy[axis] < XY_TARGETS.length) xyMod[axis] = savedXy[axis];
 } catch {}
 
 function saveXyMod() {
@@ -884,17 +886,18 @@ function saveXyMod() {
 }
 
 const pointerAt = new Map(); // where each pointer (the mouse, or a finger) last was (by its pointerId): { x, y }
-const expressive = new Map(); // the notes held right now that can be moved: pointer id -> { handle, origin, dx, dy }
+const expressive = new Map(); // the notes held right now that can be moved: pointer id -> { handle, origin, dx, dy, press }
 
 document.addEventListener("pointerdown", (e) => pointerAt.set(e.pointerId, { x: e.clientX, y: e.clientY }), true);
 ["pointerup", "pointercancel"].forEach((type) => document.addEventListener(type, (e) => pointerAt.delete(e.pointerId), true));
 
-// what the pointer being this far (dx and dy in px, from where the note started) does to the note: the values setExpression takes
-function expressionValues(dx, dy) {
+// what the pointer being this far (dx and dy in px, from where the note started) and the key being pressed this hard (press, 0 to 1)
+// do to the note: the values setExpression takes
+function expressionValues(dx, dy, press = 0) {
     const range = XY_RANGE_PX * uiScale; // (the page may be scaled up to fill a big screen)
-    const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range))]; // (up is more)
+    const axes = [Math.max(-1, Math.min(1, dx / range)), Math.max(-1, Math.min(1, -dy / range)), press]; // (up is more)
     const v = { pitch: 0, bright: 0, vib: 0, pan: 0, vol: 1 };
-    [xyMod.x, xyMod.y].forEach((target, i) => {
+    [xyMod.x, xyMod.y, xyMod.p].forEach((target, i) => {
         const a = axes[i];
         const name = XY_TARGETS[target];
         if (name === "PITCH") v.pitch += a * XY_PITCH_CENTS;
@@ -907,14 +910,28 @@ function expressionValues(dx, dy) {
 }
 
 function moveHeldNote(held) {
-    held.handle.expression(expressionValues(held.dx, held.dy));
+    held.handle.expression(expressionValues(held.dx, held.dy, held.press));
 }
 
 // a note has started and is being held by a pointer: from now moving that pointer moves the note
 function startExpression(id, handle) {
     const origin = pointerAt.get(id);
     if (!origin || !handle || !handle.expression) return;
-    expressive.set(id, { handle, origin: { ...origin }, dx: 0, dy: 0 });
+    expressive.set(id, { handle, origin: { ...origin }, dx: 0, dy: 0, press: 0 });
+}
+
+// a note from a MIDI keyboard that is being held: pressure moves it (the mouse doesn't, it has no pointer)
+function startPressure(id, handle) {
+    if (!handle || !handle.expression) return;
+    expressive.set(id, { handle, origin: { x: 0, y: 0 }, dx: 0, dy: 0, press: 0 });
+}
+
+// how hard a held note is being pressed (0 to 1)
+function setPressure(id, press) {
+    const held = expressive.get(id);
+    if (!held) return;
+    held.press = press;
+    moveHeldNote(held);
 }
 
 function endExpression(id) {
@@ -1275,6 +1292,18 @@ modWheel.addEventListener("input", () => {
 // they redraw whenever CUT, RES, ATK, DEC, SUS or REL changes, and they don't move on their own
 const filterGraph = document.getElementById("filterGraph");
 const fadeGraph = document.getElementById("fadeGraph");
+let eqEditorGraph = null;
+let envEditorGraph = null;
+
+function registerEqEditorGraph(canvas) {
+    eqEditorGraph = canvas;
+    drawFilterGraph(canvas, true);
+}
+
+function registerEnvEditorGraph(canvas) {
+    envEditorGraph = canvas;
+    drawFadeGraph(canvas, true);
+}
 
 // a filter that is never plugged into any sound, it's only here so we can ask it
 // "how loud would each frequency come out?" and draw the answer (an offline context makes no sound)
@@ -1342,8 +1371,8 @@ function drawGraphLabel(g, text, h) {
 }
 
 // filter graph: pitch goes left to right (low to high), loudness goes bottom to top
-function drawFilterGraph() {
-    const { g, w, h } = prepGraph(filterGraph);
+function drawFilterGraph(canvas = filterGraph, editor = false) {
+    const { g, w, h } = prepGraph(canvas);
 
     // the graphs show the selected sound
     const shown = selectedSettings();
@@ -1357,25 +1386,29 @@ function drawFilterGraph() {
     graphFilter.getFrequencyResponse(GRAPH_FREQS, graphMags, graphPhases);
     // and the EQ bands add to it (their answers multiply)
     const bandPoints = [];
+    const bandValues = [];
     graphBands.forEach((band, i) => {
         const n = i + 1;
         band.frequency.value = eqFreq(shown["e" + n + "f"]);
         band.gain.value = eqGain(shown["e" + n + "g"]);
         band.Q.value = eqQ(shown["e" + n + "q"]);
+        bandValues.push({ frequency: band.frequency.value, gain: band.gain.value });
         band.getFrequencyResponse(GRAPH_FREQS, graphBandMags, graphPhases);
         for (let k = 0; k < graphMags.length; k++) graphMags[k] *= graphBandMags[k];
         if (Math.abs(band.gain.value) >= 0.05) bandPoints.push(band.frequency.value);
     });
 
     // turns a loudness in dB into a height on the graph
+    const dbTop = editor ? 18 : GRAPH_DB_TOP;
+    const dbBottom = editor ? -18 : GRAPH_DB_BOTTOM;
     const yFor = (db) => {
-        const clamped = Math.min(GRAPH_DB_TOP, Math.max(GRAPH_DB_BOTTOM, db));
-        return GRAPH_PAD + ((GRAPH_DB_TOP - clamped) / (GRAPH_DB_TOP - GRAPH_DB_BOTTOM)) * (h - GRAPH_PAD * 2);
+        const clamped = Math.min(dbTop, Math.max(dbBottom, db));
+        return GRAPH_PAD + ((dbTop - clamped) / (dbTop - dbBottom)) * (h - GRAPH_PAD * 2);
     };
 
     // the colour of the graph is the selected track's, and the top edge of the panel is too
     const accent = graphAccent();
-    filterGraph.parentElement.style.setProperty("--accent", accent);
+    canvas.parentElement.style.setProperty("--accent", accent);
 
     // the grid: a line at 100Hz, 1kHz and 10kHz (the x is the pitch, in even musical steps), and a stronger line at 0dB, where the
     // sound is neither boosted nor cut
@@ -1412,13 +1445,33 @@ function drawFilterGraph() {
         g.strokeStyle = "#17130f";
         g.stroke();
     });
+    if (editor) {
+        bandValues.forEach(({ frequency, gain }, i) => {
+            const x = (Math.log(frequency / 20) / Math.log(1000)) * w;
+            const y = yFor(gain);
+            g.beginPath();
+            g.arc(x, y, 9, 0, Math.PI * 2);
+            g.fillStyle = GRAPH_TEXT;
+            g.fill();
+            g.lineWidth = 2;
+            g.strokeStyle = "#17130f";
+            g.stroke();
+            g.fillStyle = "#17130f";
+            g.font = "bold 12px Karla, sans-serif";
+            g.textAlign = "center";
+            g.textBaseline = "middle";
+            g.fillText(String(i + 1), x, y);
+        });
+    }
     const whose = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" ? drumEnvelope().label : trackName(liveTrack);
-    drawGraphLabel(g, "FILTER " + whose, h); // the label says whose filter this is
+    drawGraphLabel(g, editor ? "EQ" : "FILTER " + whose, h);
 
-    filterGraph.setAttribute(
+    canvas.setAttribute(
         "aria-label",
-        "Filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
-            Math.round(resonance) + " decibels there" + (bandPoints.length ? ", and " + bandPoints.length + " EQ band" + (bandPoints.length > 1 ? "s" : "") + " changing the sound" : "")
+        editor
+            ? "Interactive EQ graph for " + whose + ". Drag numbered bands to change frequency and gain."
+            : "Filter graph for " + whose + ": cuts off at " + formatCutoff(cutoffHz) + " hertz, boosted " +
+                Math.round(resonance) + " decibels there" + (bandPoints.length ? ", and " + bandPoints.length + " EQ band" + (bandPoints.length > 1 ? "s" : "") + " changing the sound" : "")
     );
 }
 
@@ -1427,18 +1480,64 @@ function drawFilterGraph() {
 // sustain level (DEC and SUS), stays there while it's held, then fades out (REL). The time scale stretches to fit all
 // of it, and the faint lines mark where each part ends (the last one is where the note is let go).
 // On the drum track it's the fade of the drum on the key you last played (drums.js works it out)
-function drawFadeGraph() {
-    const { g, w, h } = prepGraph(fadeGraph);
+function drawFadeGraph(canvas = fadeGraph, editor = false) {
+    const { g, w, h } = prepGraph(canvas);
 
     // (the graphs can be drawn before the later scripts have loaded, when the fonts arrive, so it checks they're there)
-    const drum = liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" && typeof drumFxAt === "function" ? drumEnvelope() : null;
+    const drum = !editor && liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" && typeof drumFxAt === "function" ? drumEnvelope() : null;
     const yFor = (loudness) => GRAPH_PAD + (1 - loudness) * (h - GRAPH_PAD * 2); // loudness is 0 to 1
     const accent = graphAccent();
-    fadeGraph.parentElement.style.setProperty("--accent", accent);
+    canvas.parentElement.style.setProperty("--accent", accent);
     drawGrid(g, w, h, 6, 4, accent);
 
     let points, name, words;
-    if (drum) {
+    if (editor) {
+        const settings = liveTrack === DRUM_TRACK ? drumFxAt(selectedDrumNote) : trackSettings[liveTrack];
+        const env = liveTrack === DRUM_TRACK ? drumShapeEnv(settings) : envelopeOf(liveTrack);
+        const decayValue = liveTrack === DRUM_TRACK ? settings.edecay : settings.decay;
+        const attackX = 0.05 + settings.attack * 0.18;
+        const decayX = 0.3 + decayValue * 0.18;
+        const sustainX = 0.62;
+        const releaseX = 0.76 + settings.release * 0.18;
+        const floor = 0.001;
+        name = "ENV";
+        words = "Drag A, D, S, or R to change attack, decay, sustain, or release.";
+        g.fillStyle = withAlpha(accent, 0.35);
+        [attackX, decayX, sustainX].forEach((x) => g.fillRect(Math.round(x * w), 0, 1, h));
+        points = [
+            { x: 0, y: yFor(0) },
+            { x: attackX * w, y: yFor(1) },
+        ];
+        for (let i = 1; i <= 40; i++) {
+            points.push({ x: attackX * w + (decayX - attackX) * w * (i / 40), y: yFor(env.sustain ** (i / 40)) });
+        }
+        points.push({ x: sustainX * w, y: yFor(env.sustain) });
+        for (let i = 1; i <= 40; i++) {
+            const level = env.sustain * (floor / env.sustain) ** (i / 40);
+            points.push({ x: sustainX * w + (releaseX - sustainX) * w * (i / 40), y: yFor(level) });
+        }
+        points.push({ x: w, y: yFor(0) });
+        const handles = [
+            { label: "A", x: attackX * w, y: yFor(1) },
+            { label: "D", x: decayX * w, y: yFor(env.sustain) },
+            { label: "S", x: sustainX * w, y: yFor(env.sustain) },
+            { label: "R", x: releaseX * w, y: yFor(0) },
+        ];
+        handles.forEach(({ label, x, y }) => {
+            g.beginPath();
+            g.arc(x, y, 9, 0, Math.PI * 2);
+            g.fillStyle = GRAPH_TEXT;
+            g.fill();
+            g.lineWidth = 2;
+            g.strokeStyle = "#17130f";
+            g.stroke();
+            g.fillStyle = "#17130f";
+            g.font = "bold 12px Karla, sans-serif";
+            g.textAlign = "center";
+            g.textBaseline = "middle";
+            g.fillText(label, x, y);
+        });
+    } else if (drum) {
         // the drum's own fade (it rises over attack and has gone quiet at end) multiplied by the shape the dials give it
         const env = drumShapeEnv(drumFxAt(selectedDrumNote));
         const end = Math.max(drum.decay, drum.attack + 0.01);
@@ -1501,12 +1600,14 @@ function drawFadeGraph() {
     drawLine(g, points, h, accent, w);
     drawGraphLabel(g, name, h);
 
-    fadeGraph.setAttribute("aria-label", "Fade graph: " + words);
+    canvas.setAttribute("aria-label", (editor ? "Interactive envelope graph: " : "Fade graph: ") + words);
 }
 
 function drawGraphs() {
     drawFilterGraph();
     drawFadeGraph();
+    if (eqEditorGraph) drawFilterGraph(eqEditorGraph, true);
+    if (envEditorGraph) drawFadeGraph(envEditorGraph, true);
 }
 
 drawGraphs();

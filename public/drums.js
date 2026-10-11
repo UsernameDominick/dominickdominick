@@ -173,6 +173,7 @@ function saveDrumKit() {
 // each drum has its own volume (what the VOL dial sets while that drum is the selected one), 0 to 1. They start at
 // 0.5, which is how loud the drums were before. They're remembered too
 const drumVolumes = DRUM_NOTES.map(() => 0.5);
+let drumTrackVolume = 1;
 try {
     const savedVolumes = JSON.parse(localStorage.getItem("drumVolumes"));
     if (Array.isArray(savedVolumes) && savedVolumes.length === drumVolumes.length) {
@@ -181,6 +182,21 @@ try {
         });
     }
 } catch {}
+try {
+    const savedTrackVolume = Number(localStorage.getItem("drumTrackVolume"));
+    if (Number.isFinite(savedTrackVolume) && savedTrackVolume >= 0 && savedTrackVolume <= 1) drumTrackVolume = savedTrackVolume;
+} catch {}
+
+function setDrumTrackVolume(value) {
+    drumTrackVolume = Math.min(1, Math.max(0, value));
+    try {
+        localStorage.setItem("drumTrackVolume", String(drumTrackVolume));
+    } catch {}
+}
+
+function drumTrackVolumeAt() {
+    return drumTrackVolume;
+}
 
 function drumVolumeAt(note) {
     return drumVolumes[drumSlot(note)];
@@ -391,7 +407,7 @@ function playDrumSound(soundIndex, when = ctx.currentTime, volume = 0.5, release
 
 // plays whatever drum a key is set to
 function playDrumNote(note, when = ctx.currentTime, velocity = 1, releaseScale = 1) {
-    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note) * velocity, releaseScale, drumSlot(note));
+    playDrumSound(drumSoundAt(note), when, drumVolumeAt(note) * drumTrackVolumeAt() * velocity, releaseScale, drumSlot(note));
 }
 
 // a drum with its PITCH and DECAY dials turned: the pitches are multiplied and the lengths are multiplied
