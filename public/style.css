@@ -2994,3 +2994,43 @@ kbd {
     width: 240px;
     margin-right: 6px;
 }
+
+/* ================ the knobs, like the ones on an analog synth ================
+   Printed marks round a cream skirt, a black cap with the value on it in cream, and a red line that points (synth.js draws it) */
+.tick {
+    fill: none;
+    stroke: #7d766a;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+}
+
+.tick.major {
+    stroke-width: 3.4;
+}
+
+.tick.lit {
+    fill: none;
+    stroke: var(--hardware);
+}
+
+.knob-face {
+    fill: url(#knobCap);
+    stroke: #0d0c0b;
+    stroke-width: 1.5;
+}
+
+.knob-shine {
+    fill-opacity: 0.12;
+}
+
+.pointer {
+    fill: none;
+    stroke: var(--red);
+    stroke-width: 5;
+    stroke-linecap: round;
+}
+
+.dial output,
+.dial.slider output {
+    color: var(--ink);
+}

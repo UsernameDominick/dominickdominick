@@ -1066,8 +1066,8 @@ document.querySelectorAll(".key").forEach((key) => {
 // the (hidden) range input in each dial, so the keyboard and screen readers work. The dial drawing and
 // the dragging are on top of it.
 
-const DIAL_TICKS = 15; // dots round a dial
-const DIAL_TRAIL = 8; // dots in the streak behind the dot while you turn a dial
+const DIAL_TICKS = 11; // marks printed round a dial (every fifth one is longer)
+const DIAL_TRAIL = 0; // (the streak of dots behind the dot is not drawn on the synth knob)
 const DIAL_SWEEP = 270; // how far round a dial turns, in degrees (from 7:30 round to 4:30)
 const DIAL_DRAG = 160; // how many pixels you drag to turn a dial all the way
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -1079,8 +1079,8 @@ function svgElement(name, attributes) {
     return element;
 }
 
-// draws the ring of dots and the knob in a dial's face (the drawing is 96 by 96 and gets scaled to fit): a soft round knob,
-// with a dot on it that shows where it's pointing
+// draws the knob in a dial's face (the drawing is 96 by 96 and gets scaled to fit), like the knob on an analog synth: marks printed
+// round it, a cream skirt, a black cap with the value written on it, and a red line that shows where it's pointing
 function buildDial(box) {
     const svg = svgElement("svg", { viewBox: "0 0 96 96", class: "dial-svg", "aria-hidden": "true" });
 
@@ -1088,30 +1088,26 @@ function buildDial(box) {
     for (let i = 0; i < DIAL_TICKS; i++) {
         const fraction = i / (DIAL_TICKS - 1);
         const angle = ((-DIAL_SWEEP / 2 + fraction * DIAL_SWEEP) * Math.PI) / 180;
-        const dot = svgElement("circle", { cx: 48 + Math.sin(angle) * 43, cy: 48 - Math.cos(angle) * 43, r: 2.6, class: "tick" });
-        dot.style.setProperty("--t", (fraction * 100).toFixed(1) + "%"); // how far round the ring it is (the lit dots go from pale to deep)
-        svg.appendChild(dot);
-        box.dialTicks.push(dot);
+        const inner = i % 5 === 0 ? 38 : 40;
+        const mark = svgElement("line", {
+            x1: (48 + Math.sin(angle) * inner).toFixed(2), y1: (48 - Math.cos(angle) * inner).toFixed(2),
+            x2: (48 + Math.sin(angle) * 45).toFixed(2), y2: (48 - Math.cos(angle) * 45).toFixed(2),
+            class: i % 5 === 0 ? "tick major" : "tick",
+        });
+        svg.appendChild(mark);
+        box.dialTicks.push(mark);
     }
 
-    // the knob: its shadow, its rim, its face and a little shine on the top (all plain shapes, so it stays sharp at any size)
+    // the knob: its shadow, the cream skirt, the black cap and a faint shine on the cap (all plain shapes, so it stays sharp at any size)
     svg.appendChild(svgElement("circle", { cx: 48, cy: 52, r: 38, fill: "url(#knobShadow)" }));
-    svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 31, class: "knob" }));
+    svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 35, class: "knob" }));
     svg.appendChild(svgElement("circle", { cx: 48, cy: 48, r: 27, class: "knob-face" }));
-    svg.appendChild(svgElement("ellipse", { cx: 42, cy: 36, rx: 15, ry: 8, class: "knob-shine", transform: "rotate(-24 42 36)" }));
+    svg.appendChild(svgElement("ellipse", { cx: 41, cy: 38, rx: 13, ry: 6, class: "knob-shine", transform: "rotate(-24 41 38)" }));
 
-    // the trail: dots that follow the dot round the knob a little behind it, each one smaller and fainter, so a moving dot
-    // leaves a streak (see stepTrail)
     box.dialTrail = [];
     box.trailAngles = [];
-    for (let i = 0; i < DIAL_TRAIL; i++) {
-        const trail = svgElement("circle", { cx: 48, cy: 25, r: 3.6 - i * 0.4, class: "pointer-trail", "fill-opacity": 0 });
-        svg.appendChild(trail);
-        box.dialTrail.push(trail);
-        box.trailAngles.push(0);
-    }
 
-    box.dialPointer = svgElement("circle", { cx: 48, cy: 25, r: 4, class: "pointer" }); // the dot, pointing up
+    box.dialPointer = svgElement("line", { x1: 48, y1: 24, x2: 48, y2: 13, class: "pointer" }); // the red line, pointing up
     svg.appendChild(box.dialPointer);
 
     box.querySelector(".dial-face").appendChild(svg);
