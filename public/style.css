@@ -3578,3 +3578,13 @@ kbd {
     outline: 2px solid var(--amber);
     outline-offset: 1px;
 }
+
+/* the sampler's pictures are a little narrower, so the FADE plate fits beside the PLAY plate */
+.dial-group[data-tab="sample"] .curve-editor {
+    width: 440px;
+}
+
+.plate-buttons.row .plate-button {
+    min-width: 0;
+    padding: 0 10px;
+}

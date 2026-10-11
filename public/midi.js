@@ -105,6 +105,13 @@ const markCurve = makeChoices([byId("popCurveChoices"), byId("curveChoices")], V
     markCurve(midiCurve);
 });
 
+// PERFORMANCE: how many notes may sound at once, on all the tracks together (every note has a cost, and the oldest are taken down when they cost too much).
+// SAVER also holds a unison to four copies. It is for a computer that crackles; making the song into a file has no limits (synth.js, PERFORMANCE_LEVELS)
+const markPerformance = makeChoices([byId("popPerformanceChoices"), byId("performanceChoices")], PERFORMANCE_LEVELS.map((level) => level.name), (i) => {
+    setPerformance(i);
+    markPerformance(i);
+});
+
 // SOUND ENGINE: NEW uses the worklets (unison, the ladder, the matrix...), SAFE only the browser's own parts, for a computer that crackles
 const ENGINE_CHOICES = ["NEW", "SAFE"];
 const markEngine = makeChoices([byId("popEngineChoices"), byId("engineChoices")], ENGINE_CHOICES, (i) => {
@@ -163,6 +170,7 @@ function refreshMidi() {
     markP(xyMod.p);
     markCurve(midiCurve);
     markEngine(safeEngine ? 1 : 0);
+    markPerformance(performanceLevel);
     if (!currentInput) letGoOfPedalNotes(); // (an unplugged keyboard can't let the pedal up)
     updateMidiButton();
 }

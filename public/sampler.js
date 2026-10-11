@@ -24,7 +24,9 @@ const sampleShift = (v) => Math.round((v - 0.5) * 24); // semitones the sample i
 const sampleBase = (v) => 36 + Math.round(v * 48); // the key of the first chop
 const sampleBeats = (v) => BEAT_CHOICES[placeOf(v, BEAT_CHOICES.length)];
 const noteLabel = (note) => NOTE_NAMES[((note % 12) + 12) % 12] + (Math.floor(note / 12) - 1);
-const SAMPLER_KEYS = new Set(["smode", "srev", "sstart", "send", "sroot", "sfine", "sbase", "ssens", "sshift", "sbeats"]);
+const sampleFade = (v) => v * v; // the fades at the start and the end of a sample, in seconds (0 to 1)
+const fadeText = (v) => (sampleFade(v) < 0.0005 ? "0" : sampleFade(v) < 0.1 ? (sampleFade(v) * 1000).toFixed(sampleFade(v) < 0.01 ? 1 : 0) + "ms" : sampleFade(v).toFixed(2) + "s");
+const SAMPLER_KEYS = new Set(["smode", "srev", "sstart", "send", "sroot", "sfine", "sbase", "ssens", "sshift", "sbeats", "sfadein", "sfadeout", "sgate"]);
 
 // is this track's sound the sampler?
 function isSampler(track) {
@@ -884,16 +886,17 @@ function samplerVoice(track, noteNumber, frequency) {
         if (at < 0 || at >= view.chops.length) return null;
         const [a, b] = view.chops[at];
         if (b - a < 0.002) return null;
-        return { buffer: view.buffer, offset: a, duration: b - a, loop: false, rootHz: frequency }; // (the chop's own speed: the track's OCT and SEMI are all that move it)
+        return { buffer: view.buffer, offset: a, duration: b - a, loop: false, rootHz: frequency, fadeIn: sampleFade(s.sfadein), fadeOut: sampleFade(s.sfadeout), oneShot: s.sgate >= 0.5 }; // (the chop's own speed: the track's OCT and SEMI are all that move it)
     }
     let lo = view.duration * s.sstart;
     let hi = view.duration * s.send;
     if (view.reverse) [lo, hi] = [view.duration - hi, view.duration - lo];
     if (hi - lo < 0.005) hi = Math.min(view.duration, lo + 0.005);
     const rootHz = 440 * 2 ** ((sampleRoot(s.sroot) + sampleFine(s.sfine) / 100 - 69) / 12);
+    // (a loop goes round for as long as the key is held, so it has no end to fade and cannot be a one shot)
     return mode === 2
-        ? { buffer: view.buffer, offset: lo, duration: undefined, loop: true, loopStart: lo, loopEnd: hi, rootHz }
-        : { buffer: view.buffer, offset: lo, duration: hi - lo, loop: false, rootHz };
+        ? { buffer: view.buffer, offset: lo, duration: undefined, loop: true, loopStart: lo, loopEnd: hi, rootHz, fadeIn: sampleFade(s.sfadein), fadeOut: 0, oneShot: false }
+        : { buffer: view.buffer, offset: lo, duration: hi - lo, loop: false, rootHz, fadeIn: sampleFade(s.sfadein), fadeOut: sampleFade(s.sfadeout), oneShot: s.sgate >= 0.5 };
 }
 
 // a sample as a sound source, made like an oscillator: it has a frequency (the pitch it plays at, a signal in Hz that moves the speed), a detune,
@@ -915,6 +918,9 @@ class SampleSource {
         scale.gain.value = 1 / voice.rootHz;
         this.pitch.connect(scale);
         scale.connect(this.source.playbackRate);
+        // the sample's own fades, at its start and at its end (they are not the track's envelope: they only stop clicks, or soften a start)
+        this.fade = context.createGain();
+        this.source.connect(this.fade);
         this.frequency = this.pitch.offset;
         this.detune = this.source.detune;
         this.source.addEventListener("ended", () => {
@@ -923,14 +929,26 @@ class SampleSource {
             } catch {}
             this.pitch.disconnect();
             scale.disconnect();
+            this.fade.disconnect();
         });
     }
 
     connect(node) {
-        this.source.connect(node);
+        this.fade.connect(node);
     }
 
     start(when) {
+        const v = this.voice;
+        const rate = Math.max(0.05, v.rate || 1); // (how fast it plays: the length of a fade, and of the sample, is in what is heard)
+        const gain = this.fade.gain;
+        gain.setValueAtTime(v.fadeIn > 0 ? 0 : 1, when);
+        if (v.fadeIn > 0) gain.linearRampToValueAtTime(1, when + v.fadeIn);
+        if (!v.loop && v.duration !== undefined && v.fadeOut > 0) {
+            const end = when + v.duration / rate;
+            const from = Math.max(when + v.fadeIn, end - v.fadeOut);
+            gain.setValueAtTime(1, from);
+            gain.linearRampToValueAtTime(0, end);
+        }
         this.pitch.start(when);
         if (this.voice.duration !== undefined) this.source.start(when, this.voice.offset, this.voice.duration);
         else this.source.start(when, this.voice.offset);

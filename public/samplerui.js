@@ -5,6 +5,9 @@
 //           AUTO cuts it at the hits (SENS is how small a hit counts) or into 4, 8 or 16 equal parts; BASE is the key of the first chop
 //   TUNE    what was found (the note, the key, the tempo) and ROOT and FINE (the note the sound is at), then KEY MATCH (moves it into the key of the
 //           song) and TEMPO MATCH (makes it fit the song's tempo): SHIFT and BEATS are the dials they set, and can be set by hand
+//   VIEW    both pictures zoom: the wheel zooms where the pointer is (Shift and the wheel, or the strip along the bottom when it is zoomed, move
+//           along), and + - FIT by the pictures do the same without a wheel. A sample's own fades (IN, OUT) and GATE (a key's letting go fades it
+//           out, or the sound plays on to its end) are on the SAMPLE tab: the fades are drawn on the waveform
 // This needs fx.js (which builds the tabs, plates and dials) and dialviews.js (the pictures) loaded first.
 
 const SAMPLE_INK = "#17130f";
@@ -31,22 +34,48 @@ function setDialTo(id, value) {
 }
 
 // ---- the waveform ----
-// the loudest and quietest of the sound in each column of pixels, kept for as long as the view and the width are the same
+// how much of the sound the picture shows: from and to, as fractions of the whole (0 to 1 is all of it). Kept for the sound on the track
+function zoomOf(st) {
+    return st.zoom || (st.zoom = { from: 0, to: 1 });
+}
+
+// shows from to to (kept inside the sound and no closer than a few hundred samples)
+function setZoom(st, from, to) {
+    const n = st.view ? st.view.forward.channels[0].length : 1;
+    const least = Math.min(1, 400 / Math.max(1, n));
+    const span = Math.min(1, Math.max(least, to - from));
+    const start = Math.min(1 - span, Math.max(0, from));
+    st.zoom = { from: start, to: start + span };
+    st.peaks = null;
+    refreshSamplerUi(liveTrack);
+}
+
+// zoomed in or out (factor 0.5 shows half as much) round a place in the picture (0 to 1 across it)
+function zoomBy(st, factor, across = 0.5) {
+    const z = zoomOf(st);
+    const span = z.to - z.from;
+    const centre = z.from + across * span;
+    const next = Math.min(1, span * factor);
+    setZoom(st, centre - across * next, centre - across * next + next);
+}
+
+// the loudest and quietest of the sound in each column of pixels (of the part that is showing), kept for as long as the view and the width are the same
 function wavePeaks(st, view, columns) {
-    const key = view.key + "|" + columns + "|" + view.duration;
+    const z = zoomOf(st);
+    const key = view.key + "|" + columns + "|" + view.duration + "|" + z.from + "|" + z.to;
     if (st.peaks && st.peaks.key === key) return st.peaks;
     const channels = view.forward.channels;
     const n = channels[0].length;
     const lows = new Float32Array(columns);
     const highs = new Float32Array(columns);
     for (let x = 0; x < columns; x++) {
-        const from = Math.floor((x / columns) * n);
-        const to = Math.max(from + 1, Math.floor(((x + 1) / columns) * n));
+        const from = Math.floor((z.from + (x / columns) * (z.to - z.from)) * n);
+        const to = Math.max(from + 1, Math.floor((z.from + ((x + 1) / columns) * (z.to - z.from)) * n));
         const stride = Math.max(1, Math.floor((to - from) / 64)); // (a column of a long sound is looked at in pieces, not at every sample)
         let lo = 0;
         let hi = 0;
         for (const ch of channels) {
-            for (let i = from; i < to; i += stride) {
+            for (let i = from; i < to && i < n; i += stride) {
                 const v = ch[i];
                 if (v < lo) lo = v;
                 if (v > hi) hi = v;
@@ -60,7 +89,7 @@ function wavePeaks(st, view, columns) {
 }
 
 const WAVE_TOP = 26; // room for the words above the wave
-const WAVE_BOTTOM = 6;
+const WAVE_BOTTOM = 14; // (and room for the strip that shows where you are, when it is zoomed)
 
 // the picture on the SAMPLE and CHOP tabs (and a small one on the SOUND tab). kind is "sample", "chop" or "mini"
 function drawSamplePicture(canvas, kind) {
@@ -97,21 +126,43 @@ function drawSamplePicture(canvas, kind) {
         const bottom = centre + peaks.highs[x] * amp;
         g.fillRect(x, Math.floor(top), 1, Math.max(1, Math.ceil(bottom - top)));
     }
-    const xFor = (seconds) => (seconds / view.duration) * w;
+    const z = zoomOf(st);
+    const fx = (fraction) => ((fraction - z.from) / (z.to - z.from)) * w; // where a place in the sound (0 to 1) is across the picture
+    const xFor = (seconds) => fx(seconds / view.duration);
 
     if (kind !== "mini") {
         // START and END: the part outside is dimmed (a chop plays pieces of the whole sound, so there it is not)
         if (kind === "sample" && mode !== 1) {
-            const a = s.sstart * w;
-            const b = s.send * w;
+            const a = fx(s.sstart);
+            const b = fx(s.send);
+            const top = WAVE_TOP - 4;
+            const tall = h - WAVE_TOP + 4 - 8;
             g.fillStyle = "rgba(10, 8, 6, 0.62)";
-            g.fillRect(0, WAVE_TOP - 4, a, h - WAVE_TOP + 4);
-            g.fillRect(b, WAVE_TOP - 4, w - b, h - WAVE_TOP + 4);
+            g.fillRect(0, top, Math.min(w, Math.max(0, a)), tall);
+            g.fillRect(Math.max(0, Math.min(w, b)), top, w - Math.max(0, Math.min(w, b)), tall);
             g.fillStyle = withAlpha(GRAPH_TEXT, 0.95);
-            g.fillRect(Math.round(a) - 1, WAVE_TOP - 4, 3, h - WAVE_TOP + 4);
-            g.fillRect(Math.round(b) - 2, WAVE_TOP - 4, 3, h - WAVE_TOP + 4);
-            viewText(g, "START", Math.min(w - 60, a + 6), WAVE_TOP + 14, "left", 0.9);
-            viewText(g, "END", Math.max(40, b - 6), h - 12, "right", 0.9);
+            if (a >= -2 && a <= w + 2) g.fillRect(Math.round(a) - 1, top, 3, tall);
+            if (b >= -2 && b <= w + 2) g.fillRect(Math.round(b) - 2, top, 3, tall);
+            if (a >= 0 && a <= w) viewText(g, "START", Math.min(w - 60, a + 6), WAVE_TOP + 14, "left", 0.9);
+            if (b >= 0 && b <= w) viewText(g, "END", Math.max(40, b - 6), h - WAVE_BOTTOM - 4, "right", 0.9);
+            // the sample's own fades, drawn as the ramps they are: in at the start, and out at the end (a loop goes round, so it has none)
+            const per = (seconds) => (seconds / view.duration / (z.to - z.from)) * w;
+            g.strokeStyle = withAlpha(GRAPH_TEXT, 0.9);
+            g.lineWidth = 2;
+            const fadeIn = sampleFade(s.sfadein);
+            if (fadeIn > 0 && a < w) {
+                g.beginPath();
+                g.moveTo(a, h - WAVE_BOTTOM);
+                g.lineTo(a + per(fadeIn), WAVE_TOP);
+                g.stroke();
+            }
+            const fadeOut = sampleFade(s.sfadeout);
+            if (mode === 0 && fadeOut > 0 && b > 0) {
+                g.beginPath();
+                g.moveTo(b - per(fadeOut), WAVE_TOP);
+                g.lineTo(b, h - WAVE_BOTTOM);
+                g.stroke();
+            }
         }
         // the chops: a line where each starts, with its number (the key it is on counts up from BASE)
         if (kind === "chop" || mode === 1) {
@@ -120,14 +171,23 @@ function drawSamplePicture(canvas, kind) {
             view.chops.forEach((chop, i) => {
                 const forward = st.chops[i] * view.ratio;
                 const x = Math.round(xFor(forward));
+                if (x < -3 || x > w + 3) return; // (zoomed in: not in the picture)
                 g.fillStyle = bright ? withAlpha(GRAPH_TEXT, i === 0 ? 0.55 : 0.95) : withAlpha(GRAPH_TEXT, 0.4);
-                g.fillRect(x, WAVE_TOP - 4, i === 0 ? 2 : 3, h - WAVE_TOP + 4);
-                if (bright && x - lastLabel >= 24) {
+                g.fillRect(x, WAVE_TOP - 4, i === 0 ? 2 : 3, h - WAVE_TOP + 4 - 8);
+                if (bright && x - lastLabel >= 24 && x >= 0) {
                     viewText(g, String(i + 1), x + 5, WAVE_TOP + 14, "left", 0.95);
                     lastLabel = x;
                 }
             });
         }
+    }
+
+    // zoomed in: a strip along the bottom shows which part of the whole sound this is (drag it to move along)
+    if (kind !== "mini" && z.to - z.from < 0.9999) {
+        g.fillStyle = "rgba(255, 243, 220, 0.14)";
+        g.fillRect(0, h - 9, w, 6);
+        g.fillStyle = withAlpha(GRAPH_TEXT, 0.9);
+        g.fillRect(Math.round(z.from * w), h - 9, Math.max(6, Math.round((z.to - z.from) * w)), 6);
     }
 
     // the words above
@@ -137,7 +197,8 @@ function drawSamplePicture(canvas, kind) {
     } else {
         const stretched = view.ratio !== 1 || view.semis !== 0;
         viewText(g, st.name + "   " + seconds.toFixed(2) + " s" + (stretched ? "   MATCHED" : ""), 8, 20);
-        const right = kind === "chop" ? (st.chops.length + " CHOPS ON " + noteLabel(sampleBase(s.sbase)) + " UP") : SAMPLE_MODES[mode];
+        const zoomText = z.to - z.from < 0.9999 ? "   ZOOM x" + (1 / (z.to - z.from) < 10 ? (1 / (z.to - z.from)).toFixed(1) : Math.round(1 / (z.to - z.from))) : "";
+        const right = (kind === "chop" ? st.chops.length + " CHOPS ON " + noteLabel(sampleBase(s.sbase)) + " UP" : SAMPLE_MODES[mode]) + zoomText;
         viewText(g, right, w - 8, 20, "right");
     }
     if (st.working !== null) {
@@ -205,8 +266,10 @@ function timeAt(canvas, e) {
     const view = st && samplerView(liveTrack);
     if (!view) return null;
     const rect = canvas.getBoundingClientRect();
+    const z = zoomOf(st);
     const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    return { fraction: x, original: (x * view.duration) / view.ratio, view };
+    const fraction = z.from + x * (z.to - z.from); // (the place in the whole sound, not in what is showing)
+    return { fraction, across: x, original: (fraction * view.duration) / view.ratio, view };
 }
 
 // where a time is, snapped to the nearest place the wave crosses zero (so a chop does not start with a click)
@@ -231,6 +294,67 @@ function auditionChop(index) {
     playNote(noteToFrequency(sampleBase(trackSettings[liveTrack].sbase) + index), ctx.currentTime, liveTrack);
 }
 
+// ---- moving along and zooming ----
+// (the strip along the bottom of a zoomed picture is dragged to move along, the wheel zooms where the pointer is, Shift and the wheel move along)
+let panning = null; // the canvas being dragged along, if any
+
+function onStrip(canvas, e) {
+    const st = samplerState[liveTrack];
+    if (!st || !st.data) return false;
+    const z = zoomOf(st);
+    if (z.to - z.from > 0.9999) return false;
+    const rect = canvas.getBoundingClientRect();
+    return e.clientY - rect.top > rect.height - 16;
+}
+
+function panTo(canvas, e) {
+    const st = samplerState[liveTrack];
+    const rect = canvas.getBoundingClientRect();
+    const z = zoomOf(st);
+    const span = z.to - z.from;
+    const centre = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    setZoom(st, centre - span / 2, centre + span / 2);
+}
+
+[dialViews.sample, dialViews.chop].forEach((canvas) => {
+    // (these come before the ones below, so a press on the strip is not a press on the wave)
+    canvas.addEventListener("pointerdown", (e) => {
+        if (!onStrip(canvas, e)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        panning = canvas;
+        canvas.setPointerCapture(e.pointerId);
+        panTo(canvas, e);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+        if (panning !== canvas) return;
+        e.stopImmediatePropagation();
+        panTo(canvas, e);
+    });
+    const done = () => (panning = null);
+    canvas.addEventListener("pointerup", done);
+    canvas.addEventListener("pointercancel", done);
+    canvas.addEventListener(
+        "wheel",
+        (e) => {
+            const st = samplerState[liveTrack];
+            if (!st || !st.data) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const z = zoomOf(st);
+            const span = z.to - z.from;
+            const across = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+            if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                const move = ((e.deltaX || e.deltaY) / rect.width) * span;
+                setZoom(st, z.from + move, z.to + move);
+            } else {
+                zoomBy(st, Math.exp(e.deltaY * 0.0016), across);
+            }
+        },
+        { passive: false }
+    );
+});
+
 (function setUpWaveDrags() {
     // SAMPLE: the START and END handles
     const sampleCanvas = dialViews.sample;
@@ -241,7 +365,8 @@ function auditionChop(index) {
         const s = trackSettings[liveTrack];
         if (sampleMode(s) === 1) return; // (a chop plays pieces of the whole sound: its markers are on the CHOP tab)
         const rect = sampleCanvas.getBoundingClientRect();
-        const distance = (value) => Math.abs(value - at.fraction) * rect.width;
+        const z = zoomOf(samplerState[liveTrack]);
+        const distance = (value) => (Math.abs(value - at.fraction) / (z.to - z.from)) * rect.width;
         handle = distance(s.sstart) <= distance(s.send) ? "sstart" : "send";
         e.preventDefault();
         sampleCanvas.setPointerCapture(e.pointerId);
@@ -272,7 +397,8 @@ function auditionChop(index) {
         let best = -1;
         let bestDistance = 9;
         st.chops.forEach((start, i) => {
-            const distance = Math.abs(((start * view.ratio) / view.duration) * rect.width - (e.clientX - rect.left));
+            const z = zoomOf(st);
+            const distance = Math.abs((((start * view.ratio) / view.duration - z.from) / (z.to - z.from)) * rect.width - (e.clientX - rect.left));
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = i;
@@ -347,6 +473,26 @@ sampleFileInput.addEventListener("change", () => {
 });
 
 let sampleButtons = {};
+sampleButtons.zoom = [];
+
+// the three buttons that zoom in, zoom out and show it all (the wheel does the same, but a phone has none)
+function zoomButtons() {
+    const row = mk("div", "plate-buttons row");
+    const make3 = (label, aria, run) => {
+        const button = plateButton(label, aria, () => {
+            const st = samplerState[liveTrack];
+            if (st && st.data) run(st);
+        });
+        sampleButtons.zoom.push(button);
+        return button;
+    };
+    row.append(
+        make3("+", "Zoom in on the waveform", (st) => zoomBy(st, 0.5)),
+        make3("-", "Zoom out on the waveform", (st) => zoomBy(st, 2)),
+        make3("FIT", "Show all of the waveform", (st) => setZoom(st, 0, 1))
+    );
+    return row;
+}
 
 (function buildSamplerButtons() {
     const source = plateRow("SOURCE");
@@ -360,8 +506,14 @@ let sampleButtons = {};
     pair.append(sampleButtons.load, sampleButtons.record);
     sampleButtons.readout = mk("div", "sample-readout");
     sampleButtons.readout2 = mk("div", "sample-readout dim");
-    column.append(pair, sampleButtons.readout, sampleButtons.readout2);
+    column.append(pair, sampleButtons.readout, sampleButtons.readout2, zoomButtons());
     source.appendChild(column);
+
+    plateRow("VIEW").appendChild((() => {
+        const view = mk("div", "plate-buttons");
+        view.append(zoomButtons(), mk("div", "sample-readout dim", "WHEEL ZOOMS"));
+        return view;
+    })());
 
     const auto = plateRow("AUTO");
     const grid = mk("div", "plate-buttons grid");
@@ -454,7 +606,7 @@ function refreshSamplerUi(track, quiet) {
         sampleButtons.key.setAttribute("aria-pressed", String(sampleShift(s.sshift) !== 0));
         sampleButtons.tempo.setAttribute("aria-pressed", String(sampleBeats(s.sbeats) > 0));
         const noSound = !st || !st.data;
-        [sampleButtons.hits, sampleButtons.clear, sampleButtons.analyse, sampleButtons.key, sampleButtons.tempo].forEach((button) => (button.disabled = noSound));
+        [sampleButtons.hits, sampleButtons.clear, sampleButtons.analyse, sampleButtons.key, sampleButtons.tempo, ...sampleButtons.zoom].forEach((button) => (button.disabled = noSound));
         sampleButtons.load.disabled = recording;
         sampleButtons.record.disabled = !navigator.mediaDevices || typeof MediaRecorder === "undefined";
     }

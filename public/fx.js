@@ -667,6 +667,9 @@ const DIALS = [
     settingDial("sample", "REV", "srev", "Reverse: plays the sound backwards", "synth", 0, (v) => (v >= 0.5 ? "ON" : "OFF")),
     settingDial("sample", "START", "sstart", "Start: where the sound starts, or where a loop starts", "synth", 0, (v) => sampleTimeText(v)),
     settingDial("sample", "END", "send", "End: where the sound ends, or where a loop goes back to the start", "synth", 1, (v) => sampleTimeText(v)),
+    settingDial("sample", "IN", "sfadein", "Fade in: how long the sound takes to come up at its start, which softens a hard start", "synth", 0, (v) => fadeText(v)),
+    settingDial("sample", "OUT", "sfadeout", "Fade out: how long the sound takes to go down at its end, which stops a click where a chop or the sound stops", "synth", 0.07, (v) => fadeText(v)),
+    settingDial("sample", "GATE", "sgate", "Gate: letting go of a key fades the sound out. One shot: the sound plays to its end whatever the key does (not for a loop)", "synth", 0, (v) => (v >= 0.5 ? "ONE SHOT" : "GATE")),
     settingDial("chop", "SENS", "ssens", "Sensitivity: how small a rise in the sound counts as a hit when it is chopped at its hits", "synth", 0.5, pct),
     settingDial("chop", "BASE", "sbase", "Base key: the key of the first chop, and each key above it plays the next", "synth", 0.25, (v) => noteLabel(sampleBase(v))),
     settingDial("tune", "ROOT", "sroot", "Root: the note the sound is at. Playing that key plays it as it is", "synth", 0.5, (v) => noteLabel(sampleRoot(v))),
@@ -714,6 +717,7 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-dping") dial.step = 1;
     if (dial.id === "dial-smode") dial.step = 0.5;
     if (dial.id === "dial-srev") dial.step = 1;
+    if (dial.id === "dial-sgate") dial.step = 1;
     if (dial.id === "dial-sroot") dial.step = 1 / 72;
     if (dial.id === "dial-sbase") dial.step = 1 / 48;
     if (dial.id === "dial-sshift") dial.step = 1 / 24;
@@ -734,7 +738,7 @@ const SLIDER_MARKS = {
     "dial-chord": CHORDS.length, "dial-arp": ARP_MODES.length, "dial-arate": ARP_RATES.length, "dial-roll": ROLL_RATES.length,
     "dial-l1w": LFO_SHAPES.length, "dial-l2w": LFO_SHAPES.length, "dial-l3w": LFO_SHAPES.length,
     "dial-l1m": LFO_MODES.length, "dial-l2m": LFO_MODES.length, "dial-l3m": LFO_MODES.length,
-    "dial-ftype": 5, "dial-fmodel": 3, "dial-dping": 2, "dial-rsize": 3, "dial-smode": 3, "dial-srev": 2, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
+    "dial-ftype": 5, "dial-fmodel": 3, "dial-dping": 2, "dial-rsize": 3, "dial-smode": 3, "dial-srev": 2, "dial-sgate": 2, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3, "dial-mode": VOICE_MODES.length,
 };
 DIALS.forEach((dial) => {
     if (SLIDER_MARKS[dial.id]) dial.slider = SLIDER_MARKS[dial.id];
@@ -820,8 +824,8 @@ function buildDialPanel() {
     const PLATE_LAYOUT = {
         sound: [["LEVEL", ["VOL", "PAN"]], ["TUNING", ["OCT", "SEMI", "GLIDE", "PITCH", "DECAY"]], ["DIRT", ["DRIVE"]]],
         osc: [["UNISON", ["UNI", "DETUNE", "SPREAD"]], ["WAVE", ["PW", "SUB", "NOISE"]]],
-        sample: [["SOURCE", []], ["PLAY", ["STYLE", "REV", "START", "END"]]],
-        chop: [["AUTO", ["SENS"]], ["KEYS", ["BASE"]]],
+        sample: [["SOURCE", []], ["PLAY", ["STYLE", "REV", "START", "END"]], ["FADE", ["IN", "OUT", "GATE"]]],
+        chop: [["AUTO", ["SENS"]], ["KEYS", ["BASE"]], ["VIEW", []]],
         tune: [["TUNE", ["ROOT", "FINE"]], ["MATCH", ["SHIFT", "BEATS"]]],
         filter: [["FILTER", ["MODEL", "TYPE", "CUT", "RES", "F DRIVE", "KEY"]], ["FILTER ENV", ["FENV"]]],
         eq: [1, 2, 3].map((n) => ["BAND " + n, ["FREQ " + n, "GAIN " + n, "Q " + n]]),

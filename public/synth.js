@@ -87,7 +87,8 @@ const roomPreSeconds = (v) => v * 0.1; // up to 100ms
 // the sampler (the SAMPLE, CHOP and TUNE tabs, sampler.js): SMODE is how the keys play the sound (pitch, chop or loop), SREV plays it backwards, SSTART and
 // SEND are the part of it that plays, SROOT and SFINE the note it is at, SBASE the key of the first chop, SSENS how small a hit counts when chopping,
 // SSHIFT how many semitones it is moved by (key match) and SBEATS how many beats long it is (tempo match, 0 is off)
-Object.assign(FX_DEFAULTS, { smode: 0, srev: 0, sstart: 0, send: 1, sroot: 0.5, sfine: 0.5, sbase: 0.25, ssens: 0.5, sshift: 0.5, sbeats: 0 });
+// SFADEIN and SFADEOUT are the fades at the start and the end of the sample, and SGATE is GATE (letting go of a key fades it out) or ONE SHOT (it plays to its end)
+Object.assign(FX_DEFAULTS, { smode: 0, srev: 0, sstart: 0, send: 1, sroot: 0.5, sfine: 0.5, sbase: 0.25, ssens: 0.5, sshift: 0.5, sbeats: 0, sfadein: 0, sfadeout: 0.07, sgate: 0 });
 const RACK_MIXES = ["chmix", "phmix", "flmix", "crmix", "cpmix"];
 const rackRateHz = (v) => 0.1 * 100 ** v; // 0.1Hz up to 10Hz
 const crushBits = (v) => 2 + Math.round(v * 14); // 2 to 16 bits
@@ -353,6 +354,27 @@ function setSafeEngine(on) {
     } catch {}
 }
 
+// PERFORMANCE: how much of the computer the notes may take. Every sounding note has a cost (each oscillator, copy of a unison, and worklet filter or
+// modulation it needs), and when the notes together cost more than the BUDGET the oldest ones are taken down (quickly, without a click), on any track.
+// SAVER also holds a unison to four copies. FULL has room for a lot. The song is made into a file with no limits, whatever this is. It is remembered
+const PERFORMANCE_LEVELS = [
+    { name: "SAVER", budget: 32, unison: 4 },
+    { name: "BALANCED", budget: 96, unison: 16 },
+    { name: "FULL", budget: 256, unison: 16 },
+];
+let performanceLevel = 1;
+try {
+    const saved = localStorage.getItem("performance");
+    if (saved === "0" || saved === "1" || saved === "2") performanceLevel = Number(saved);
+} catch {}
+
+function setPerformance(level) {
+    performanceLevel = level;
+    try {
+        localStorage.setItem("performance", String(level));
+    } catch {}
+}
+
 const OSC_WORKLET_URL = "osc-worklet.js";
 const FILTER_WORKLET_URL = "filter-worklet.js";
 const MOD_WORKLET_URL = "mod-worklet.js";
@@ -597,6 +619,10 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const glideTime = glideSeconds(settings.glide);
     const slidingFrom = glideTime > 0 && lastFrequency[track] > 0 ? lastFrequency[track] : tuned;
     lastFrequency[track] = tuned;
+    if (sampled) sampled.rate = slidingFrom / sampled.rootHz; // (how fast the sample plays: it is what makes its length and its fades last)
+    // a one shot sample plays to its end whatever the key does, so it is known when the note is over
+    const oneShot = sampled !== null && sampled.oneShot === true && !sampled.loop;
+    const shotEnd = oneShot ? when + sampled.duration / Math.max(0.05, sampled.rate) + 0.05 : 0;
     const modeName = VOICE_MODES[placeOf(settings.mode, VOICE_MODES.length)];
     if (hold && modeName === "LEGATO") {
         const joined = joinLegato(track, frequency, when, noteNumber);
@@ -620,7 +646,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     // the control signals the track has), and FENV opens it with the fade. Then the track's bus, and the rest of the chain
     // (KEY makes the cutoff follow the note: all the way up, it moves as far as the note is from middle C)
     const filterTail = 0.4; // (how long after the note has faded the filter is left to ring out)
-    const filter = new NoteFilter(ctx, settings, settings.ktrack * 1200 * Math.log2(tuned / 261.6256), hold ? undefined : when + gate + env.release + 0.05 + filterTail);
+    const filter = new NoteFilter(ctx, settings, settings.ktrack * 1200 * Math.log2(tuned / 261.6256), oneShot ? shotEnd + filterTail : hold ? undefined : when + gate + env.release + 0.05 + filterTail);
     filter.plug(filterCut, filterRes);
     activeFilters[track].add(filter);
     // a note that's held (a key) also goes through a volume and a pan of its own, which the mouse can move (see setExpression)
@@ -649,7 +675,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     const now = when;
     const param = gain.gain;
     const held = hold ? Infinity : gate;
-    const knownEnd = hold ? Infinity : now + gate + env.release + 0.05; // (when a note that is not held is all over)
+    const knownEnd = oneShot ? shotEnd : hold ? Infinity : now + gate + env.release + 0.05; // (when a note that is not held is all over)
     const voice = { start: now, end: knownEnd, steal: null };
     scheduleEnvelope(param, now, env, held, peak);
     const octs = fenvOctaves(settings.fenv);
@@ -690,8 +716,8 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     if (routes.length) {
         modNode = new NoteMod(ctx, {
             startTime: when,
-            stopTime: hold ? undefined : when + gate + env.release + 0.05 + filterTail,
-            releaseTime: hold ? undefined : when + gate,
+            stopTime: oneShot ? shotEnd + filterTail : hold ? undefined : when + gate + env.release + 0.05 + filterTail,
+            releaseTime: oneShot ? undefined : hold ? undefined : when + gate,
             velocity,
             key: Math.max(-1, Math.min(1, (noteNumber - 60) / 48)),
             seed: noteNumber * 13 + track,
@@ -721,7 +747,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
     // the voices: one for each layer of the sound. UNI makes each of them a stack of copies, spread apart in pitch by DETUNE and across the
     // speakers by SPREAD. Before the oscillator worklet has loaded, each copy is one of the browser's own oscillators instead
     const spread = detuneCents(settings.detune);
-    const copies = sampler ? 1 : unisonFrom(settings.uni);
+    const copies = sampler ? 1 : Math.min(unisonFrom(settings.uni), renderingOffline ? 16 : PERFORMANCE_LEVELS[performanceLevel].unison);
     // The browser's own oscillators make the plain waves as cleanly (and as loudly) as the worklet, and take a fraction of the computer, so the
     // worklet is only used when it is needed: unison, a pulse width, a sub wave, noise, or the matrix moving the pulse width or the sub
     const needsWorklet =
@@ -813,13 +839,26 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         const sounding = voices.filter((v) => v.start <= now && v.end > now).sort((a, b) => a.start - b.start);
         for (let i = 0; i < sounding.length - limit + 1; i++) sounding[i].steal(now);
         voices.push(voice);
+        // the budget: what this note costs (each oscillator or copy of a unison, a worklet filter, the modulation), and if every track's notes
+        // together cost more than the budget, the oldest are taken down (a file being made has no budget)
+        voice.cost = (useWorklet ? copies * layers.length : oscillators.length) + (filter.worklet ? 3 : 0) + (modNode ? 1 : 0);
+        if (!renderingOffline) {
+            const budget = PERFORMANCE_LEVELS[performanceLevel].budget;
+            const others = trackVoices.flat().filter((v) => v !== voice && v.start <= now && v.end > now).sort((a, b) => a.start - b.start);
+            let total = voice.cost + others.reduce((sum, v) => sum + (v.cost || 1), 0);
+            for (const v of others) {
+                if (total <= budget) break;
+                v.steal(now);
+                total -= v.cost || 1;
+            }
+        }
     }
 
     // tell the rest of the page a note is going to start, and when (leds.js flashes the LED over its key at that moment)
     if (!renderingOffline) document.dispatchEvent(new CustomEvent("notescheduled", { detail: { note: noteNumber, time: now, track } }));
 
     if (!hold) {
-        fadeOut(gate);
+        if (!oneShot) fadeOut(gate); // (a one shot is left to play to its end)
         return;
     }
     // moves a held note while you hold it (see the mouse section below): pitch is in cents, bright is the filter moved in cents
@@ -877,6 +916,7 @@ function playVoice(frequency, when = ctx.currentTime, track = 0, hold = false, g
         release(time = ctx.currentTime) {
             if (released) return;
             released = true;
+            if (oneShot) return; // (letting go of the key does not stop a one shot)
             const seconds = Math.max(0, time - now);
             if (modNode) modNode.release(now + seconds); // (the envelopes in the matrix let go too)
             // stop the attack and decay where they've got to (cancelAndHoldAtTime keeps the value at that moment)
