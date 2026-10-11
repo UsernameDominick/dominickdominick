@@ -84,6 +84,46 @@ let mod = 0; // mod wheel position, 0 to 1
 let bendNode; // one constant signal that every note's pitch listens to
 let modDepth; // the vibrato signal (LFO), scaled by the mod wheel
 
+// a limiter: it turns down anything that would go over the top, so many tracks, rolls and EQ boosts at once don't clip. Under the
+// ceiling it does nothing. It gives back the node to plug into, and it goes on to the speakers (the context's destination) by itself
+function makeLimiter(context) {
+    const limiter = context.createDynamicsCompressor();
+    limiter.threshold.value = -2;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    // (the browser makes up the loudness a limiter takes off by turning everything up a little, about 1dB, so that is turned back down)
+    const trim = context.createGain();
+    trim.gain.value = 0.88;
+    limiter.connect(trim);
+    trim.connect(context.destination);
+    return limiter;
+}
+
+// STOP ALL: cuts every sound at once, the keys that are held, rolls, arpeggios, the notes that are still fading out, the echoes and the
+// room, and stops the song. The sound engine is made again from the settings (the same way the song is made into a file, export.js)
+function stopAllSounds() {
+    if (renderingOffline || !ctx) return;
+    if (typeof stopStepRecording === "function") stopStepRecording();
+    if (typeof stopTransport === "function" && running) stopTransport();
+    try {
+        releaseAllKeys();
+        if (typeof letGoOfAllMidi === "function") letGoOfAllMidi();
+    } catch {}
+    expressive.clear();
+    const old = ctx;
+    ctx = null; // (getCtx makes a new one)
+    chainLists.forEach((list) => (list.length = 0));
+    activeFilters.forEach((set) => set.clear());
+    lastFrequency.fill(0);
+    drumChannels.fill(null);
+    old.close().catch(() => {});
+    getCtx();
+    if (ctx.state === "suspended") ctx.resume();
+}
+document.getElementById("stopAll").addEventListener("click", stopAllSounds);
+
 // create the context and master gain the first time, only after a click
 function getCtx() {
     if (!ctx) {
@@ -92,7 +132,8 @@ function getCtx() {
         // master gain node (every note goes through this)
         master = ctx.createGain();
         master.gain.value = songVolume * 2;
-        master.connect(ctx.destination); // speakers
+        // (the limiter keeps the loudest moments from clipping, then the speakers)
+        master.connect(makeLimiter(ctx));
 
         // what every track's sound goes through (fx.js builds it: the filters, drive, tremolo, pan, volume, echo and room)
         buildTrackChains();
@@ -1079,6 +1120,7 @@ function buildDial(box) {
 
 // turns the knob's pointer to match the value (0 to 1), and lights the ticks up to it
 function updateDial(box, value) {
+    if (box.sliderThumb) return updateSlider(box, value);
     const angle = -DIAL_SWEEP / 2 + value * DIAL_SWEEP;
     box.dialPointer.setAttribute("transform", "rotate(" + angle + " 48 48)");
     box.dialTicks.forEach((tick, i) => tick.classList.toggle("lit", i / (DIAL_TICKS - 1) <= value + 0.0001));
@@ -1174,6 +1216,76 @@ function setUpDialDrag(box, slider) {
     // the arrow keys turn it, with the streak
     slider.addEventListener("keydown", () => (box.turning = true));
     slider.addEventListener("keyup", () => (box.turning = false));
+}
+
+// ---- sliders ----
+// The dials that choose from a short list (a chord, an arpeggio order, a speed) or sit left and right of a middle (pan) are sliders
+// instead of knobs: a cream thumb on a track, with a mark for each choice and the choice written under it. It works like a knob in
+// every other way: it is the same hidden range input, you can drag it, click on it, turn it with the arrow keys and double-click to
+// put it back.
+const SLIDER_PAD = 11; // the room at each end of the track, in px (a bit more than half the thumb)
+
+function buildSlider(box, marks) {
+    const face = box.querySelector(".dial-face");
+    face.classList.add("slider-face");
+    face.appendChild(Object.assign(document.createElement("span"), { className: "slider-track" }));
+    const ticks = document.createElement("span");
+    ticks.className = "slider-ticks";
+    box.sliderTicks = [];
+    for (let i = 0; i < marks; i++) {
+        const tick = document.createElement("span");
+        tick.className = "slider-tick";
+        ticks.appendChild(tick);
+        box.sliderTicks.push(tick);
+    }
+    face.appendChild(ticks);
+    box.sliderThumb = document.createElement("span");
+    box.sliderThumb.className = "slider-thumb";
+    face.appendChild(box.sliderThumb);
+}
+
+// puts the thumb where the value (0 to 1) is, and lights the marks up to it
+function updateSlider(box, value) {
+    box.style.setProperty("--v", value);
+    const last = box.sliderTicks.length - 1;
+    box.sliderTicks.forEach((tick, i) => tick.classList.toggle("lit", i / last <= value + 0.0001));
+}
+
+function setUpSliderDrag(box, slider) {
+    const face = box.querySelector(".dial-face");
+    let dragging = false;
+    let lastDown = { time: 0, x: 0, y: 0 }; // (to spot a double tap, a phone doesn't send a dblclick)
+
+    function setValue(value) {
+        slider.value = Math.min(1, Math.max(0, value)).toFixed(2);
+        slider.dispatchEvent(new Event("input"));
+    }
+    function setFromPointer(e) {
+        const rect = face.getBoundingClientRect();
+        const scale = rect.width / face.offsetWidth; // (the page may be scaled up)
+        setValue((e.clientX - rect.left - SLIDER_PAD * scale) / (rect.width - 2 * SLIDER_PAD * scale));
+    }
+
+    face.addEventListener("pointerdown", (e) => {
+        const now = performance.now();
+        const again = now - lastDown.time < 350 && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) < 12;
+        lastDown = again ? { time: 0, x: 0, y: 0 } : { time: now, x: e.clientX, y: e.clientY };
+        dragging = true;
+        face.setPointerCapture(e.pointerId);
+        slider.focus({ preventScroll: true });
+        e.preventDefault();
+        if (again) setValue(Number(box.dataset.default));
+        else setFromPointer(e);
+    });
+    face.addEventListener("pointermove", (e) => {
+        if (dragging) setFromPointer(e);
+    });
+    const stop = () => (dragging = false);
+    face.addEventListener("pointerup", stop);
+    face.addEventListener("pointercancel", stop);
+    face.addEventListener("dblclick", () => setValue(Number(box.dataset.default)));
+    const name = box.querySelector("label");
+    if (name) name.addEventListener("dblclick", () => setValue(Number(box.dataset.default)));
 }
 
 document.querySelectorAll(".dial").forEach((box) => {
@@ -1325,6 +1437,7 @@ const GRAPH_DB_TOP = 20; // the top of the filter graph, in dB
 const GRAPH_DB_BOTTOM = -30; // the bottom of the filter graph, in dB
 const GRAPH_SECONDS = 3.2; // how much time the fade graph covers (a bit more than the longest release)
 const GRAPH_PAD = 4; // space above and below the line so it isn't cut off
+const EDITOR_PAD = 16; // the same in the editors in the dials box, which have round handles on the line
 
 // gets a canvas ready to draw on (sharp on high resolution screens) and clears it
 function prepGraph(canvas) {
@@ -1365,6 +1478,8 @@ function drawLine(g, points, h, color, w) {
 
 // the name of the graph, bottom left
 function drawGraphLabel(g, text, h) {
+    g.textAlign = "left"; // (the handles of the editors write their letters in the middle)
+    g.textBaseline = "alphabetic";
     g.font = "bold 16px Karla, sans-serif";
     g.fillStyle = GRAPH_TEXT;
     g.fillText(text, 8, h - 8);
@@ -1401,9 +1516,10 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
     // turns a loudness in dB into a height on the graph
     const dbTop = editor ? 18 : GRAPH_DB_TOP;
     const dbBottom = editor ? -18 : GRAPH_DB_BOTTOM;
+    const pad = editor ? EDITOR_PAD : GRAPH_PAD; // (an editor has room for its handles at the top and the bottom)
     const yFor = (db) => {
         const clamped = Math.min(dbTop, Math.max(dbBottom, db));
-        return GRAPH_PAD + ((dbTop - clamped) / (dbTop - dbBottom)) * (h - GRAPH_PAD * 2);
+        return pad + ((dbTop - clamped) / (dbTop - dbBottom)) * (h - pad * 2);
     };
 
     // the colour of the graph is the selected track's, and the top edge of the panel is too
@@ -1434,7 +1550,7 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
     g.strokeStyle = "#17130f";
     g.stroke();
     // a square on the line at each EQ band that is doing something
-    bandPoints.forEach((hz) => {
+    (editor ? [] : bandPoints).forEach((hz) => { // (the editor has its own numbered handles)
         const x = (Math.log(hz / 20) / Math.log(1000)) * w;
         const at = points.reduce((best, p) => (Math.abs(p.x - x) < Math.abs(best.x - x) ? p : best), points[0]);
         g.beginPath();
@@ -1450,14 +1566,14 @@ function drawFilterGraph(canvas = filterGraph, editor = false) {
             const x = (Math.log(frequency / 20) / Math.log(1000)) * w;
             const y = yFor(gain);
             g.beginPath();
-            g.arc(x, y, 9, 0, Math.PI * 2);
+            g.arc(x, y, 12, 0, Math.PI * 2);
             g.fillStyle = GRAPH_TEXT;
             g.fill();
             g.lineWidth = 2;
             g.strokeStyle = "#17130f";
             g.stroke();
             g.fillStyle = "#17130f";
-            g.font = "bold 12px Karla, sans-serif";
+            g.font = "bold 16px Karla, sans-serif";
             g.textAlign = "center";
             g.textBaseline = "middle";
             g.fillText(String(i + 1), x, y);
@@ -1485,7 +1601,8 @@ function drawFadeGraph(canvas = fadeGraph, editor = false) {
 
     // (the graphs can be drawn before the later scripts have loaded, when the fonts arrive, so it checks they're there)
     const drum = !editor && liveTrack === DRUM_TRACK && typeof drumEnvelope === "function" && typeof drumFxAt === "function" ? drumEnvelope() : null;
-    const yFor = (loudness) => GRAPH_PAD + (1 - loudness) * (h - GRAPH_PAD * 2); // loudness is 0 to 1
+    const pad = editor ? EDITOR_PAD : GRAPH_PAD;
+    const yFor = (loudness) => pad + (1 - loudness) * (h - pad * 2); // loudness is 0 to 1
     const accent = graphAccent();
     canvas.parentElement.style.setProperty("--accent", accent);
     drawGrid(g, w, h, 6, 4, accent);
@@ -1525,14 +1642,14 @@ function drawFadeGraph(canvas = fadeGraph, editor = false) {
         ];
         handles.forEach(({ label, x, y }) => {
             g.beginPath();
-            g.arc(x, y, 9, 0, Math.PI * 2);
+            g.arc(x, y, 12, 0, Math.PI * 2);
             g.fillStyle = GRAPH_TEXT;
             g.fill();
             g.lineWidth = 2;
             g.strokeStyle = "#17130f";
             g.stroke();
             g.fillStyle = "#17130f";
-            g.font = "bold 12px Karla, sans-serif";
+            g.font = "bold 16px Karla, sans-serif";
             g.textAlign = "center";
             g.textBaseline = "middle";
             g.fillText(label, x, y);

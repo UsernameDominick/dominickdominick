@@ -494,6 +494,15 @@ DIALS.forEach((dial) => {
     if (dial.id === "dial-arate") dial.step = 1 / (ARP_RATES.length - 1);
     if (dial.id === "dial-roll") dial.step = 1 / (ROLL_RATES.length - 1);
 });
+// the dials that are sliders and not knobs (how many marks each has): the ones that choose from a short list, and PAN, which sits
+// left and right of a middle
+const SLIDER_MARKS = {
+    "dial-chord": CHORDS.length, "dial-arp": ARP_MODES.length, "dial-arate": ARP_RATES.length, "dial-roll": ROLL_RATES.length,
+    "dial-ftype": 3, "dial-dtime": DELAY_BEATS.length, "dial-oct": 5, "dial-pan": 3,
+};
+DIALS.forEach((dial) => {
+    if (SLIDER_MARKS[dial.id]) dial.slider = SLIDER_MARKS[dial.id];
+});
 
 const dialPanel = document.getElementById("dialPanel");
 const dialEntries = []; // { spec, box, input, strip } for every dial
@@ -524,6 +533,7 @@ function buildDialPanel() {
     const groups = {};
     DIAL_TABS.forEach((tab) => {
         groups[tab.id] = mk("div", "dial-group");
+        groups[tab.id].dataset.tab = tab.id;
         dialPanel.appendChild(groups[tab.id]);
     });
 
@@ -553,7 +563,8 @@ function buildDialPanel() {
     const editEqAt = (e) => {
         const rect = eqEditor.getBoundingClientRect();
         const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-        const y = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top) / rect.height));
+        const pad = (EDITOR_PAD * rect.height) / eqEditor.offsetHeight; // (the line and the handles keep this far from the top and bottom)
+        const y = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top - pad) / (rect.height - 2 * pad)));
         setDialValue("dial-e" + draggedEqBand + "f", x);
         setDialValue("dial-e" + draggedEqBand + "g", y);
     };
@@ -589,7 +600,8 @@ function buildDialPanel() {
     const editEnvAt = (e) => {
         const rect = envEditor.getBoundingClientRect();
         const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-        const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+        const pad = (EDITOR_PAD * rect.height) / envEditor.offsetHeight;
+        const y = Math.min(1, Math.max(0, (e.clientY - rect.top - pad) / (rect.height - 2 * pad)));
         if (draggedEnvStage === "attack") setDialValue("attackSlider", (x - 0.05) / 0.18);
         if (draggedEnvStage === "decay") setDialValue("decaySlider", (x - 0.3) / 0.18);
         if (draggedEnvStage === "sustain") setDialValue("sustainSlider", 1 - y);
@@ -598,9 +610,10 @@ function buildDialPanel() {
     envEditor.addEventListener("pointerdown", (e) => {
         const rect = envEditor.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
+        const pad = (EDITOR_PAD * rect.height) / envEditor.offsetHeight;
+        const y = (e.clientY - rect.top - pad) / (rect.height - 2 * pad);
         draggedEnvStage = envHandles().reduce((closest, handle) => {
-            const distance = Math.hypot((handle.x - x) * rect.width, (handle.y - y) * rect.height);
+            const distance = Math.hypot((handle.x - x) * rect.width, (handle.y - y) * (rect.height - 2 * pad));
             return distance < closest.distance ? { stage: handle.stage, distance } : closest;
         }, { stage: "attack", distance: Infinity }).stage;
         e.preventDefault();
@@ -635,8 +648,14 @@ function buildDialPanel() {
         output.textContent = spec.format(spec.def);
         box.append(label, face, input, output);
         groups[spec.group].appendChild(box);
-        buildDial(box);
-        setUpDialDrag(box, input);
+        if (spec.slider) {
+            box.classList.add("slider");
+            buildSlider(box, spec.slider);
+            setUpSliderDrag(box, input);
+        } else {
+            buildDial(box);
+            setUpDialDrag(box, input);
+        }
         const strip = setUpStrip(input, spec.format, spec.apply);
         dialEntries.push({ spec, box, input, strip });
     });

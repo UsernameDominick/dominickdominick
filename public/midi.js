@@ -205,9 +205,15 @@ const heldMidi = new Map(); // the keys held down on the MIDI keyboard: its note
 let pedalDown = false; // the sustain pedal
 const pedalNotes = []; // the notes whose keys were let go while the pedal was down: they sound until it comes up, then fade
 
+// the MIDI button's words are squashed flat while the pedal is down, and spring back when it comes up
+function showPedal() {
+    midiButton.classList.toggle("pedal-down", pedalDown);
+}
+
 // lets go of the notes the pedal was holding, and takes the pedal up
 function letGoOfPedalNotes() {
     pedalDown = false;
+    showPedal();
     if (!ctx) return;
     pedalNotes.splice(0).forEach((handle) => handle.release(ctx.currentTime));
 }
@@ -260,8 +266,12 @@ function onMidiMessage(e) {
         setPressure("midi" + data1, data2 / 127);
     } else if (type === 0xb0 && data1 === 64) {
         // controller 64 is the sustain pedal (down from 64 up)
-        if (data2 >= 64) pedalDown = true;
-        else letGoOfPedalNotes();
+        if (data2 >= 64) {
+            pedalDown = true;
+            showPedal();
+        } else {
+            letGoOfPedalNotes();
+        }
     } else if (type === 0xb0 && (data1 === 123 || data1 === 120)) {
         // all notes off
         letGoOfAllMidi();

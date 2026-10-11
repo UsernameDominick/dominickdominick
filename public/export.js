@@ -37,7 +37,7 @@ async function renderSong() {
         ctx = offline;
         master = offline.createGain();
         master.gain.value = songVolume * 2;
-        master.connect(offline.destination);
+        master.connect(makeLimiter(offline));
 
         chainLists.forEach((list) => (list.length = 0));
         activeFilters.forEach((set) => set.clear());

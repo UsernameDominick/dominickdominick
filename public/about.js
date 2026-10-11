@@ -3,3 +3,6 @@
 // closes it, the same way as the other popups (panels.js).
 
 registerPanel("info", document.getElementById("infoButton"), document.getElementById("infoPopover"), null, null, { popupOnly: true }); // a popup on a phone too
+
+// the gear above it opens the list of keyboard shortcuts, the same kind of popup
+registerPanel("shortcuts", document.getElementById("shortcutsButton"), document.getElementById("shortcutsPopover"), null, null, { popupOnly: true });

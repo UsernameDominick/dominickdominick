@@ -2719,3 +2719,173 @@ body {
 .settings-controls .choices.xy {
     grid-template-columns: repeat(3, auto);
 }
+
+/* ================ sliders instead of knobs ================
+   The dials that choose from a short list, and PAN, are a cream thumb on a dark track with a mark for each choice (synth.js). They
+   are laid out like the knobs (the name above, the same height), with the choice written under the track */
+.dial.slider {
+    --v: 0;
+}
+
+.slider-face {
+    position: relative;
+    cursor: ew-resize;
+}
+
+.slider-track {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 19px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--well);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.slider-ticks {
+    position: absolute;
+    left: 11px;
+    right: 11px;
+    top: 46px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.slider-tick {
+    width: 4px;
+    height: 8px;
+    margin: 0 -2px;
+    border-radius: 2px;
+    background: var(--dot-off);
+}
+
+.slider-tick.lit {
+    background: var(--dot-to);
+}
+
+.slider-thumb {
+    position: absolute;
+    top: 6px;
+    left: calc(11px + var(--v) * (100% - 22px));
+    width: 22px;
+    height: 34px;
+    margin-left: -11px;
+    box-sizing: border-box;
+    border-radius: 5px;
+    border: 1px solid rgba(48, 36, 18, 0.7);
+    background: linear-gradient(180deg, #fffaf0 0%, #f1e6cc 55%, #dcc895 100%);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.35);
+}
+
+.slider-thumb::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: var(--pointer-dot);
+}
+
+.dial.slider:focus-within .slider-thumb {
+    outline: 3px solid var(--red);
+    outline-offset: 1px;
+}
+
+.dial.slider output {
+    top: 94px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .slider-thumb {
+        transition: left 0.08s ease-out;
+    }
+}
+
+/* ================ the buttons in the top box ================ */
+.info-stack {
+    margin-left: auto; /* (pushed over to the right edge of the top box) */
+}
+
+.info-stack .info-button {
+    margin-left: 0;
+}
+
+.stop-all {
+    flex: none;
+    height: 38px;
+    padding: 0 14px;
+    letter-spacing: 0.08em;
+}
+
+.stop-all:active {
+    background: var(--red);
+    color: var(--ink);
+}
+
+/* the MIDI button while the sustain pedal is down: its words are squashed flat, and spring back when the pedal comes up */
+.settings-button .settings-text,
+.settings-button .settings-label {
+    transform-origin: 50% 55%;
+}
+
+.settings-button.pedal-down .settings-text,
+.settings-button.pedal-down .settings-label {
+    transform: scaleY(0.28);
+    color: #b32d12;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .settings-button .settings-text,
+    .settings-button .settings-label {
+        transition: transform 0.12s ease-out;
+    }
+}
+
+/* the keyboard shortcuts popup: the same cream writing as the about popup, the keys drawn as keys */
+.popover.shortcuts {
+    width: 740px;
+}
+
+.popover.shortcuts .popover-body {
+    max-height: calc(100vh / var(--ui-scale, 1) - 130px);
+}
+
+dl.keys {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 8px 16px;
+    margin: 0 0 8px;
+    align-items: baseline;
+}
+
+dl.keys dt {
+    margin: 0;
+    font-weight: bold;
+}
+
+dl.keys dd {
+    margin: 0;
+}
+
+kbd {
+    display: inline-block;
+    min-width: 24px;
+    padding: 1px 6px;
+    box-sizing: border-box;
+    border-radius: 4px;
+    background: var(--hardware);
+    color: var(--hardware-ink);
+    box-shadow: 0 2px 0 var(--hardware-dim);
+    font: inherit;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* the EQ tab has an editor and nine dials, so its dials sit a little closer together to fit the box */
+.dial-group[data-tab="eq"] {
+    gap: var(--gap);
+}

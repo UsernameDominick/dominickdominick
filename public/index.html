@@ -98,14 +98,27 @@
                 <input type="range" class="dial-input" id="songVolume" aria-label="Volume of the whole song" min="0" max="1" step="0.01" value="0.5">
                 <output for="songVolume" aria-hidden="true">50%</output>
             </div>
-            <!-- the i button: opens the popup about the page (about.js). It is pushed over to the right edge of the box -->
-            <button class="tool icon-button info-button" id="infoButton" aria-expanded="false" aria-label="About this music maker" title="About">
-                <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
-                    <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2"></circle>
-                    <path d="M12 11 V17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
-                    <circle cx="12" cy="7.2" r="1.7" fill="currentColor"></circle>
-                </svg>
-            </button>
+            <!-- STOP ALL: cuts every sound at once, held keys, rolls, fading notes and echoes, and stops the song (synth.js) -->
+            <button class="tool stop-all" id="stopAll" title="Stop all sounds" aria-label="Stop all sounds">STOP ALL</button>
+            <!-- two icon buttons, one on top of the other, pushed over to the right edge of the box: the gear opens the list of keyboard
+                 shortcuts and the i opens the popup about the page (about.js) -->
+            <div class="button-stack save-stack info-stack">
+                <button class="tool icon-button" id="shortcutsButton" aria-expanded="false" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
+                    <!-- a gear, drawn: a ring with eight teeth -->
+                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="9.6" fill="none" stroke="currentColor" stroke-width="3.4" stroke-dasharray="3.76 3.76"></circle>
+                        <circle cx="12" cy="12" r="6.6" fill="none" stroke="currentColor" stroke-width="2.2"></circle>
+                        <circle cx="12" cy="12" r="2.4" fill="currentColor"></circle>
+                    </svg>
+                </button>
+                <button class="tool icon-button info-button" id="infoButton" aria-expanded="false" aria-label="About this music maker" title="About">
+                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2.2"></circle>
+                        <path d="M12 11 V17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path>
+                        <circle cx="12" cy="7.2" r="1.7" fill="currentColor"></circle>
+                    </svg>
+                </button>
+            </div>
         </div>
         <div class="div2">
             <!-- the scope sits on a dark panel like the graphs -->
@@ -290,6 +303,64 @@
 
     <!-- what the page is, in words (the i button at the right of the top box opens this). It is in the page whether or not the popup is
          open, so search engines can read it -->
+    <!-- the keyboard shortcuts popup, opened by the gear in the top box (about.js) -->
+    <div class="popover shortcuts" id="shortcutsPopover" role="dialog" aria-labelledby="shortcutsTitle" hidden>
+        <div class="popover-body">
+            <div class="about">
+                <h1 id="shortcutsTitle">Keyboard shortcuts</h1>
+                <h2>Play</h2>
+                <dl class="keys">
+                    <dt><kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd></dt>
+                    <dd>The white keys of the piano, starting on C. <kbd>S</kbd> <kbd>D</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> are the black keys.</dd>
+                    <dt><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>I</kbd> <kbd>O</kbd> <kbd>P</kbd></dt>
+                    <dd>The next octave up. <kbd>2</kbd> <kbd>3</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> <kbd>9</kbd> <kbd>0</kbd> are its black keys.</dd>
+                    <dt><kbd>[</kbd> <kbd>]</kbd></dt>
+                    <dd>Move the keys down and up an octave.</dd>
+                    <dt>Drum track</dt>
+                    <dd>Z to M, A to J and Q to I play the drums, one key each.</dd>
+                    <dt>Hold a key and move the mouse</dt>
+                    <dd>On the piano on the screen, this bends the note. The MIDI button sets what it does.</dd>
+                </dl>
+                <h2>Song</h2>
+                <dl class="keys">
+                    <dt><kbd>Space</kbd></dt>
+                    <dd>Play and stop.</dd>
+                    <dt><kbd>Shift</kbd> <kbd>R</kbd></dt>
+                    <dd>Record. <kbd>Esc</kbd> stops step recording.</dd>
+                    <dt><kbd>Shift</kbd> <kbd>M</kbd> <kbd>S</kbd> <kbd>L</kbd></dt>
+                    <dd>Mute, solo and loop the selected track (one of them with Shift).</dd>
+                    <dt><kbd>Shift</kbd> <kbd>E</kbd></dt>
+                    <dd>Open the step sequencer for the selected block.</dd>
+                    <dt><kbd>Arrows</kbd></dt>
+                    <dd>Move to the block before, after, above or below.</dd>
+                </dl>
+                <h2>Edit</h2>
+                <dl class="keys">
+                    <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt>
+                    <dd>Undo. <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> or <kbd>Ctrl</kbd> <kbd>Y</kbd> redoes.</dd>
+                    <dt><kbd>Ctrl</kbd> <kbd>C</kbd> <kbd>V</kbd></dt>
+                    <dd>Copy the selected block and paste into another.</dd>
+                    <dt><kbd>Delete</kbd></dt>
+                    <dd>Clear the selected block.</dd>
+                    <dt><kbd>Ctrl</kbd> <kbd>S</kbd></dt>
+                    <dd>Save the song.</dd>
+                    <dt>Double-click a dial</dt>
+                    <dd>Puts it back to where it started.</dd>
+                </dl>
+                <h2>MIDI keyboard</h2>
+                <dl class="keys">
+                    <dt>Sustain pedal</dt>
+                    <dd>Holds the notes after you let go. The word on the MIDI button squashes flat while it is down.</dd>
+                    <dt>Wheels and pressure</dt>
+                    <dd>The pitch wheel and mod wheel work, and pressing harder on a held key can bend, brighten or wobble it (set in the MIDI popup).</dd>
+                    <dt><kbd>STOP ALL</kbd></dt>
+                    <dd>The button by the song volume cuts every sound at once.</dd>
+                </dl>
+            </div>
+        </div>
+        <span class="popover-arrow" aria-hidden="true"></span>
+    </div>
+
     <div class="popover info" id="infoPopover" role="dialog" aria-labelledby="aboutTitle" hidden>
         <div class="popover-body">
             <div class="about">
