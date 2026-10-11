@@ -352,12 +352,16 @@ function applyRack(t, instant = false) {
             rack.linked = true;
         }
     } else if (rack.linked && !rack.timer) {
+        const pan = trackPan[t]; // (these are kept now: if the song is made into a file before the timer goes off, the lists hold other nodes by then)
+        const volume = trackGains[t];
         const unlink = () => {
             rack.timer = 0;
             if (!rack.linked || rackOn(trackSettings[t])) return;
-            trackPan[t].disconnect(rack.node);
-            rack.node.disconnect();
-            trackPan[t].connect(trackGains[t]);
+            try {
+                pan.disconnect(rack.node);
+                rack.node.disconnect();
+                pan.connect(volume);
+            } catch {}
             rack.linked = false;
         };
         if (instant || renderingOffline) unlink();

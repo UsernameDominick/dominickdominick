@@ -26,6 +26,16 @@ let renamingPreset = null; // the name of the preset that's being renamed in the
 //   cutoff  0.3 is 400Hz, 0.5 is 1100Hz, 0.7 is 3200Hz, 1 is 16000Hz
 //   oct     0.25 is an octave down, 0.75 an octave up. ftype 0 is low pass, 0.25 high pass, 0.5 band pass, 0.75 notch, 1 peak; fmodel 0 is SVF 12, 0.5 SVF 24, 1 the ladder
 //   dtime   0 is a 16th, 0.25 an 8th, 0.5 a dotted 8th, 0.75 a quarter, 1 a half
+// (for the presets that use the modulation: mx sends a source to a destination by an amount from -1 to 1, in the numbers of the matrix. The sources are
+// 0 to 2 the LFOs, 3 and 4 the two extra envelopes, 5 how hard the key is hit, 6 the note, 7 the mod wheel, 8 pressure and 9 chance, and the
+// destinations 0 pitch, 1 cutoff, 2 resonance, 3 volume, 4 pan, 5 pulse width, 6 filter drive and 7 sub. An LFO's dials: lXw its shape (0 sine, 1/6 triangle,
+// 2/6 saw up, 3/6 saw down, 4/6 square, 5/6 steps, 1 smooth), lXm its mode (0 free, 0.5 each note, 1 in time with the song) and lXr its rate: free, 0.34 is
+// 0.5Hz, 0.45 1Hz, 0.55 2Hz, 0.66 4Hz, and in time with the song 2/7 is a bar, 4/7 a quarter, 5/7 an eighth and 6/7 a sixteenth. For the chord and the arpeggio,
+// chordDial, arpDial and arpRateDial give the dial for a name)
+const mx = (source, dest, amount) => ({ ["x" + source + "_" + dest]: 0.5 + amount / 2 });
+const chordDial = (name) => CHORDS.findIndex((c) => c.name === name) / (CHORDS.length - 1);
+const arpDial = (name) => ARP_MODES.indexOf(name) / (ARP_MODES.length - 1);
+const arpRateDial = (name) => ARP_RATES.findIndex((r) => r.name === name) / (ARP_RATES.length - 1);
 const FACTORY_PRESETS = [
     // bass
     { group: "BASS", name: "Sub Bass", sound: 5, cutoff: 0.45, attack: 0.05, decay: 0.45, sustain: 0.8, release: 0.12, drive: 0.1 },
@@ -54,6 +64,37 @@ const FACTORY_PRESETS = [
     // effects
     { group: "FX", name: "Dub Stab", sound: 1, cutoff: 0.6, attack: 0, decay: 0.25, sustain: 0.2, release: 0.2, dly: 0.7, dtime: 0.75, dfb: 0.65, rev: 0.35 },
     { group: "FX", name: "Telephone", sound: 1, ftype: 0.5, cutoff: 0.6, resonance: 0.6, drive: 0.7, attack: 0.01, sustain: 0.9, release: 0.05 },
+    // the newer engine: the ladder filter, the matrix, the rack, ping pong and the rooms
+    { group: "BASS", name: "Ladder Bass", sound: 0, oct: 0.25, fmodel: 1, cutoff: 0.28, resonance: 0.55, fdrive: 0.35, fenv: 0.5, ktrack: 0.3, drive: 0.1, attack: 0, decay: 0.3, sustain: 0.35, release: 0.1 },
+    { group: "BASS", name: "Mono Growl", sound: 1, oct: 0.25, mode: 0.5, glide: 0.1, fmodel: 0.5, cutoff: 0.28, resonance: 0.4, fdrive: 0.15, drive: 0.05, attack: 0.01, sustain: 0.9, release: 0.1, l1w: 1 / 6, l1m: 1, l1r: 5 / 7, ...mx(0, 1, 0.3) },
+    { group: "BASS", name: "Sub Pressure", sound: 5, cutoff: 0.5, sub: 0.25, attack: 0.02, decay: 0.4, sustain: 0.85, release: 0.1, cpmix: 0.6, cpthr: 0.45, cpratio: 0.35, cpatk: 0.4, cprel: 0.4 },
+    { group: "BASS", name: "Fat Unison Bass", sound: 0, oct: 0.25, uni: 5 / 15, detune: 0.35, spread: 0.3, fmodel: 0.5, cutoff: 0.35, resonance: 0.2, fdrive: 0.2, attack: 0.03, sustain: 0.9, release: 0.12, cpmix: 0.5, cpthr: 0.3, cpratio: 0.25 },
+    { group: "BASS", name: "Squelch", sound: 0, oct: 0.25, fmodel: 1, cutoff: 0.2, resonance: 0.75, fenv: 0.6, drive: 0.15, attack: 0, decay: 0.22, sustain: 0.2, release: 0.08, v3a: 0, v3d: 0.3, v3s: 0, v3r: 0.1, ...mx(4, 1, 0.3) },
+    { group: "LEAD", name: "Flange Lead", sound: 0, uni: 3 / 15, detune: 0.25, spread: 0.6, cutoff: 0.8, attack: 0.04, sustain: 0.8, release: 0.2, flmix: 0.5, flrate: 0.25, fldep: 0.6, flfb: 0.5, rev: 0.2 },
+    { group: "LEAD", name: "Pulse Lead", sound: 1, pw: 0.2, cutoff: 0.75, attack: 0.02, sustain: 0.85, release: 0.15, chmix: 0.35, l1w: 0, l1r: 0.45, ...mx(0, 5, 0.4), dly: 0.2, dtime: 0.5, dfb: 0.3 },
+    { group: "LEAD", name: "Legato Lead", sound: 0, mode: 1, glide: 0.15, cutoff: 0.7, vdep: 0.1, vrate: 0.5, attack: 0.04, sustain: 0.85, release: 0.2, dly: 0.2, dping: 1, dtime: 0.25, dfb: 0.3, rev: 0.25, ...mx(7, 0, 0.05) },
+    { group: "LEAD", name: "Crush Lead", sound: 1, oct: 0.75, cutoff: 0.9, attack: 0, sustain: 0.8, release: 0.1, crmix: 0.5, crbits: 0.3, crhold: 0.1 },
+    { group: "LEAD", name: "Detuned Stack", sound: 4, uni: 8 / 15, detune: 0.45, spread: 1, cutoff: 0.8, attack: 0.05, sustain: 0.8, release: 0.25, chmix: 0.3, chrate: 0.3, rev: 0.25 },
+    { group: "LEAD", name: "Screamer", sound: 0, mode: 0.5, glide: 0.12, fmodel: 1, cutoff: 0.55, resonance: 0.7, fdrive: 0.6, drive: 0.3, vdep: 0.2, vrate: 0.5, attack: 0.02, sustain: 0.85, release: 0.15 },
+    { group: "PAD", name: "Slow Sweep Pad", sound: 4, uni: 4 / 15, detune: 0.35, spread: 0.9, cutoff: 0.4, resonance: 0.15, attack: 0.7, sustain: 0.85, release: 0.6, l1w: 0, l1r: 0.25, ...mx(0, 1, 0.35), phmix: 0.4, phrate: 0.15, phdep: 0.6, rev: 0.6 },
+    { group: "PAD", name: "Chorus Strings", sound: 0, uni: 3 / 15, detune: 0.3, spread: 0.7, cutoff: 0.6, attack: 0.6, sustain: 0.85, release: 0.55, chmix: 0.6, chrate: 0.25, chdep: 0.6, rev: 0.5 },
+    { group: "PAD", name: "PWM Pad", sound: 1, pw: 0.35, cutoff: 0.55, attack: 0.65, sustain: 0.85, release: 0.6, l1w: 1 / 6, l1r: 0.3, ...mx(0, 5, 0.5), chmix: 0.4, rev: 0.5 },
+    { group: "PAD", name: "Evolving Drone", sound: 4, uni: 6 / 15, detune: 0.5, spread: 1, cutoff: 0.45, attack: 1, sustain: 1, release: 1, l1w: 0, l1r: 0.2, ...mx(0, 1, 0.25), l2w: 1 / 6, l2r: 0.3, ...mx(1, 4, 0.4), phmix: 0.5, dly: 0.4, dping: 1, dtime: 1, dfb: 0.5, rev: 1, rsize: 1 },
+    { group: "PAD", name: "Cathedral", sound: 6, attack: 0.5, sustain: 0.9, release: 0.7, rev: 1, rsize: 1, rdamp: 0.5, rpre: 0.3 },
+    { group: "KEYS", name: "Phaser Keys", sound: 3, cutoff: 0.75, attack: 0.02, decay: 0.55, sustain: 0.3, release: 0.4, phmix: 0.6, phrate: 0.22, phdep: 0.7, phfb: 0.5, rev: 0.25 },
+    { group: "KEYS", name: "Tine Piano", sound: 3, cutoff: 0.5, fenv: 0.25, attack: 0, decay: 0.5, sustain: 0.2, release: 0.35, chmix: 0.3, rev: 0.2, ...mx(5, 1, 0.3) },
+    { group: "KEYS", name: "Clav", sound: 1, pw: 0.3, cutoff: 0.5, resonance: 0.35, fenv: 0.45, drive: 0.1, attack: 0, decay: 0.22, sustain: 0.1, release: 0.1 },
+    { group: "KEYS", name: "Drive Keys", sound: 3, drive: 0.35, cutoff: 0.6, tdep: 0.3, trate: 0.4, attack: 0.01, decay: 0.5, sustain: 0.35, release: 0.3, rev: 0.25, ...mx(5, 1, 0.25) },
+    { group: "KEYS", name: "Glass Bells", sound: 6, oct: 0.75, attack: 0, decay: 0.8, sustain: 0.05, release: 0.7, dly: 0.3, dping: 1, dtime: 0.5, dfb: 0.5, rev: 0.7, rsize: 1 },
+    { group: "ARP", name: "Arp Pluck", sound: 0, cutoff: 0.4, fenv: 0.5, attack: 0, decay: 0.25, sustain: 0.1, release: 0.12, chord: chordDial("MIN7"), arp: arpDial("UP"), arate: arpRateDial("1/16"), dly: 0.3, dping: 1, dtime: 0.25, dfb: 0.4, rev: 0.3 },
+    { group: "ARP", name: "Trance Arp", sound: 4, uni: 4 / 15, detune: 0.3, spread: 0.7, cutoff: 0.6, attack: 0, decay: 0.2, sustain: 0.2, release: 0.1, chord: chordDial("MIN"), arp: arpDial("UP DOWN"), arate: arpRateDial("1/16"), dly: 0.35, dtime: 0.5, dfb: 0.4, rev: 0.3 },
+    { group: "ARP", name: "Random Arp", sound: 1, pw: 0.3, cutoff: 0.65, attack: 0, decay: 0.15, sustain: 0.1, release: 0.1, chord: chordDial("7TH"), arp: arpDial("RANDOM"), arate: arpRateDial("1/16"), dly: 0.3, dping: 1, dtime: 0.25, dfb: 0.35, rev: 0.25 },
+    { group: "FX", name: "Alien Sweep", sound: 0, fmodel: 1, ftype: 0.5, cutoff: 0.5, resonance: 0.7, attack: 0.1, sustain: 0.9, release: 0.4, l1w: 5 / 6, l1r: 0.55, ...mx(0, 1, 0.5), flmix: 0.4, rev: 0.5 },
+    { group: "FX", name: "Noise Riser", sound: 4, noise: 0.6, cutoff: 0.3, resonance: 0.2, attack: 0.9, sustain: 1, release: 0.4, v2a: 0.85, v2d: 0.5, v2s: 1, v2r: 0.3, ...mx(3, 1, 0.5), rev: 0.4 },
+    { group: "FX", name: "Laser Zap", sound: 0, oct: 0.75, attack: 0, decay: 0.15, sustain: 0, release: 0.1, v2a: 0, v2d: 0.15, v2s: 0, v2r: 0.1, ...mx(3, 0, 0.8), dly: 0.2, dtime: 0.25, dfb: 0.3 },
+    { group: "FX", name: "Crusher Stab", sound: 1, cutoff: 0.8, attack: 0, decay: 0.25, sustain: 0.2, release: 0.1, crmix: 0.7, crbits: 0.2, crhold: 0.15 },
+    { group: "FX", name: "Ping Pong Dub", sound: 1, cutoff: 0.5, attack: 0, decay: 0.2, sustain: 0.15, release: 0.15, dly: 0.8, dping: 1, dtime: 0.5, dfb: 0.7, rev: 0.4 },
+    { group: "FX", name: "Tape Wobble", sound: 3, cutoff: 0.6, attack: 0.02, sustain: 0.85, release: 0.3, vdep: 0.2, vrate: 0.3, l3w: 1, l3r: 0.35, ...mx(2, 0, 0.03), tdep: 0.15, chmix: 0.3, rev: 0.3 },
 ];
 
 // a built-in preset with every dial filled in (what it doesn't change is how a track starts)
@@ -276,6 +317,7 @@ registerPanel("presets", presetButton, presetPopover, null, () => {
         : FACTORY_PRESETS.length + " built-in presets are in the sound picker too, in the groups that start with PRESET.";
     renamingPreset = null;
     showPresetList();
+    if (typeof openLab === "function") openLab(); // (the random and morph part of the popup, soundlab.js)
 }, { popupOnly: true }); // a popup on a phone too
 
 document.getElementById("presetSave").addEventListener("click", savePreset);

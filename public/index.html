@@ -156,6 +156,17 @@
                             <path d="M12 3 L14.8 9 L21 9.7 L16.4 14 L17.7 20.5 L12 17.3 L6.3 20.5 L7.6 14 L3 9.7 L9.2 9 Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"></path>
                         </svg>
                     </button>
+                    <!-- the dice: a new sound made from chance (Shift+click: only small changes). soundlab.js -->
+                    <button class="tool icon-button" id="randomButton" aria-label="Random sound. Shift and click for small changes" title="Random sound (Shift+click: small changes)">
+                        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+                            <rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="2.2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.7" fill="currentColor"></circle>
+                            <circle cx="15.5" cy="8.5" r="1.7" fill="currentColor"></circle>
+                            <circle cx="12" cy="12" r="1.7" fill="currentColor"></circle>
+                            <circle cx="8.5" cy="15.5" r="1.7" fill="currentColor"></circle>
+                            <circle cx="15.5" cy="15.5" r="1.7" fill="currentColor"></circle>
+                        </svg>
+                    </button>
                     <!-- play, stop and record, with drawn icons. STOP pressed twice quickly stops everything for good (studio.js) -->
                     <button class="tool transport" id="playButton" aria-label="Play" title="Play (Space)">
                         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d="M7 4.5 L19.5 12 L7 19.5 Z"></path></svg>
@@ -385,7 +396,7 @@
                 <li><strong>Record and loop.</strong> Up to ten tracks, one of them drums, and from four to thirty-two bars. Use the count-in and metronome, loop record, step record, quantize and swing.</li>
                 <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, your computer keyboard, a MIDI keyboard if you have one, and a step sequencer for every block. Any synth track can play chords or an arpeggio, and any drum can roll. Every sound has three EQ bands for cutting or boosting one part of it. Hold a note and move the mouse to bend it, sweep its filter and more (the MIDI button sets what the mouse does).</li>
                 <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
-                <li><strong>Shape the sound.</strong> Eight oscillator sounds that never alias, each with up to sixteen detuned copies spread across the speakers, a pulse width, a sub wave and noise, and more than twenty ready-made presets, then dials for the filter (three models, five types), envelope, three LFOs and two more envelopes that you send to anything in a matrix, a ping pong echo, three sizes of room, chorus, phaser, flanger, bit crusher and compressor, drive, vibrato and tremolo. Play poly, mono or legato. Save your own presets.</li>
+                <li><strong>Shape the sound.</strong> Eight oscillator sounds that never alias, each with up to sixteen detuned copies spread across the speakers, a pulse width, a sub wave and noise, and more than fifty ready-made presets, a dice for new sounds made from chance, and a morph from one sound into another, then dials for the filter (three models, five types), envelope, three LFOs and two more envelopes that you send to anything in a matrix, a ping pong echo, three sizes of room, chorus, phaser, flanger, bit crusher and compressor, drive, vibrato and tremolo. Play poly, mono or legato. Save your own presets.</li>
                 <li><strong>Sample your own sounds.</strong> Pick SAMPLER as a track's sound, load a sound file (or drop one on the dials box) or record with the microphone, and play it by pitch, in loops, or in chops: it can cut a sound at its hits, find the note or the key it is in, and move it into the key and the tempo of your song. The sounds stay in this browser. A saved song, a song file and a link keep where you chopped and what was found, but not the sound itself, so load the file again on another computer.</li>
                 <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
                 <li><strong>Keep your songs.</strong> Your latest work is kept for when you come back. Save songs by name, download a song file, export the song as a WAV audio file, or copy a link that opens it for someone else. Undo and redo as you go.</li>
@@ -537,6 +548,14 @@
                 <input class="text-input" type="text" id="presetName" maxlength="30" autocomplete="off" spellcheck="false">
                 <button class="tool save-now" id="presetSave">SAVE PRESET</button>
             </div>
+            <div id="labBox">
+                <div class="popover-title">RANDOM AND MORPH</div>
+                <button class="tool save-now" id="smallChanges">SMALL CHANGES</button>
+                <label class="field-label" for="morphTo">MORPH THIS SOUND INTO</label>
+                <select class="text-input" id="morphTo"></select>
+                <input class="morph-slider" type="range" id="morphSlider" min="0" max="1" step="0.01" value="0" aria-label="How far to morph into the other sound">
+                <p class="save-status" id="morphStatus" role="status"></p>
+            </div>
             <div class="popover-title">YOUR PRESETS</div>
             <div class="song-list" id="presetList"></div>
             <p class="save-status" id="presetStatus" role="status"></p>
@@ -613,6 +632,7 @@
     <script src="save.js"></script>
     <script src="export.js"></script>
     <script src="presets.js"></script>
+    <script src="soundlab.js"></script>
     <script src="starters.js"></script>
     <script src="about.js"></script>
 </body>

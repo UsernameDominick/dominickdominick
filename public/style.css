@@ -3389,3 +3389,16 @@ kbd {
     outline: 3px solid var(--amber);
     outline-offset: -3px;
 }
+
+/* ================ random and morph ================ */
+.morph-slider {
+    display: block;
+    width: 100%;
+    height: 28px;
+    margin: 4px 0;
+    accent-color: var(--red);
+}
+
+#randomButton:disabled {
+    opacity: 0.4;
+}

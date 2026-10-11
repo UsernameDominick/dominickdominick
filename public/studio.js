@@ -918,6 +918,7 @@ function showSound() {
     }
     showTrackSettings();
     refreshDrumRows();
+    if (typeof showLabButtons === "function") showLabButtons(); // (the dice by the star, soundlab.js)
 }
 
 // gives the selected track a new sound (or the selected drum key a new drum), and plays it so you can hear it
