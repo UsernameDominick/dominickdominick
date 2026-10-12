@@ -56,6 +56,7 @@
     <noscript>
         <p class="about-noscript">This music maker needs JavaScript. Turn it on for this page to play, record and save songs.</p>
     </noscript>
+    <div class="page-daw" id="dawPage">
     <main class="parent">
         <div class="div1">
             <!-- two icon buttons, one on top of the other, beside the scale and MIDI buttons (save.js): the top one is a
@@ -105,6 +106,11 @@
             </div>
             <!-- two icon buttons, one on top of the other, pushed over to the right edge of the box: the gear opens the list of keyboard
                  shortcuts and the i opens the popup about the page (about.js) -->
+            <!-- the two pages: the studio, and UNIQUESOUND (a grid of ways to make sounds), which the studio slides away to show -->
+            <div class="nav-tabs" role="group" aria-label="Pages">
+                <button class="nav-tab" type="button" data-page="daw" aria-pressed="true">STUDIO</button>
+                <button class="nav-tab" type="button" data-page="unique" aria-pressed="false">UNIQUESOUND</button>
+            </div>
             <div class="button-stack save-stack info-stack">
                 <button class="tool icon-button" id="shortcutsButton" aria-expanded="false" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
                     <!-- a gear, drawn: a ring with eight teeth -->
@@ -334,6 +340,25 @@
             </div>
         </div>
     </main>
+    </div>
+
+    <!-- the second page, UNIQUESOUND (uniquesound.js): the studio slides away to the left and this slides in from the right. Each card is a way to make
+         a sound with one of the tools -->
+    <section class="unique-page" id="uniquePage" aria-labelledby="uniqueTitle" hidden>
+        <div class="unique-bar">
+            <div class="unique-heading">
+                <h1 id="uniqueTitle" tabindex="-1">UNIQUESOUND</h1>
+                <p>Different, interesting ways to make a sound with each tool. Press TRY IT to put a sound on your track and hear it, or SHOW ME to be taken to the right place.</p>
+            </div>
+            <div class="nav-tabs" role="group" aria-label="Pages">
+                <button class="nav-tab" type="button" data-page="daw" aria-pressed="false">STUDIO</button>
+                <button class="nav-tab" type="button" data-page="unique" aria-pressed="true">UNIQUESOUND</button>
+            </div>
+        </div>
+        <div class="unique-filters" id="uniqueFilters" role="group" aria-label="Show the cards for one tool"></div>
+        <p class="unique-note" id="uniqueNote" role="status"></p>
+        <div class="unique-grid" id="uniqueGrid"></div>
+    </section>
 
     <!-- what the page is, in words (the i button at the right of the top box opens this). It is in the page whether or not the popup is
          open, so search engines can read it -->
@@ -401,6 +426,8 @@
                 <li><strong>Play it your way.</strong> An on-screen piano with the notes of a scale lit up above the keys, your computer keyboard, a MIDI keyboard if you have one, and a step sequencer for every block. Any synth track can play chords or an arpeggio, and any drum can roll. Every sound has three EQ bands for cutting or boosting one part of it. Hold a note and move the mouse to bend it, sweep its filter and more (the MIDI button sets what the mouse does).</li>
                 <li><strong>Drums made from scratch.</strong> A kit of 22 synthesized drums. Each one has its own volume, tuning, pan and effects, and a row of its own to edit.</li>
                 <li><strong>Shape the sound.</strong> Eight oscillator sounds that never alias, each with up to sixteen detuned copies spread across the speakers, a pulse width, a sub wave and noise, and more than fifty ready-made presets, a dice for new sounds made from chance, and a morph from one sound into another, then dials for the filter (three models, five types), envelope, three LFOs and two more envelopes that you send to anything in a matrix, a ping pong echo, three sizes of room, chorus, phaser, flanger, bit crusher and compressor, drive, vibrato and tremolo. Play poly, mono or legato. Save your own presets. A PERFORMANCE choice in the MIDI popup limits how many notes sound at once, for a computer that crackles.</li>
+                <li><strong>Draw automation.</strong> Under any synth track, open its lane (the arrow) and pick the AUTO tab: choose a dial and draw a line for it over the song, and the dial follows the line while the song plays and in the file it is made into.</li>
+                <li><strong>UniqueSound.</strong> The UNIQUESOUND tab at the top right slides the studio away to a page of cards: forty different ways to make a sound with each tool. Press TRY IT to put one on your track and hear it, or SHOW ME to be taken to the right place.</li>
                 <li><strong>Sample your own sounds.</strong> Pick SAMPLER as a track's sound, load a sound file (or drop one on the dials box) or record with the microphone, and play it by pitch, in loops, or in chops: it can cut a sound at its hits, find the note or the key it is in, and move it into the key and the tempo of your song. Zoom into the waveform to chop exactly, give the sound its own fades, and choose whether a key's letting go stops it or it plays to the end. The sounds stay in this browser. A saved song, a song file and a link keep where you chopped and what was found, but not the sound itself, so load the file again on another computer.</li>
                 <li><strong>Edit every note.</strong> Set the velocity, random velocity, random timing, chance and release of each note.</li>
                 <li><strong>Keep your songs.</strong> Your latest work is kept for when you come back. Save songs by name, download a song file, export the song as a WAV audio file, or copy a link that opens it for someone else. Undo and redo as you go.</li>
@@ -628,6 +655,7 @@
     <script src="fx.js"></script>
     <script src="dialviews.js"></script>
     <script src="samplerui.js"></script>
+    <script src="automation.js"></script>
     <script src="panels.js"></script>
     <script src="leds.js"></script>
     <script src="midi.js"></script>
@@ -639,6 +667,7 @@
     <script src="export.js"></script>
     <script src="presets.js"></script>
     <script src="soundlab.js"></script>
+    <script src="uniquesound.js"></script>
     <script src="starters.js"></script>
     <script src="about.js"></script>
 </body>

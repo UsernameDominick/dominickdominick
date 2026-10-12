@@ -70,13 +70,27 @@ async function renderSong() {
         const beats = BARS * BEATS;
         const playBeat = (n) => playBeatOf(Math.floor(n / BEATS), n % BEATS, 0.02 + n * perBeat, -1);
         playBeat(0);
-        for (let n = 1; n < beats; n++) {
-            const pause = Math.floor(((0.02 + n * perBeat - 0.05) * offline.sampleRate) / 128) * 128; // (a bit before the beat, on a whole block of sound)
-            offline.suspend(pause / offline.sampleRate).then(() => {
-                playBeat(n);
-                offline.resume();
-            });
+        // the things done while the render is paused for a moment, each at a whole block of sound: the notes of each beat (just before it), and, if a
+        // dial has a line, where its line has got to (every eighth of a beat). Two at the same block go in one pause
+        const jobs = new Map();
+        const at = (seconds, job) => {
+            const frame = Math.max(128, Math.floor((seconds * offline.sampleRate) / 128) * 128);
+            if (!jobs.has(frame)) jobs.set(frame, []);
+            jobs.get(frame).push(job);
+        };
+        for (let n = 1; n < beats; n++) at(0.02 + n * perBeat - 0.05, () => playBeat(n));
+        if (anyAutomation()) {
+            runAutomation(0);
+            for (let step = 1; step < beats * 8; step++) at(0.02 + (step / 8) * perBeat, () => runAutomation(step / 8));
         }
+        [...jobs.keys()]
+            .sort((a, b) => a - b)
+            .forEach((frame) =>
+                offline.suspend(frame / offline.sampleRate).then(() => {
+                    jobs.get(frame).forEach((job) => job());
+                    offline.resume();
+                })
+            );
         return await offline.startRendering();
     } finally {
         ctx = live.ctx;
@@ -98,6 +112,7 @@ async function renderSong() {
         drumChannels.splice(0, drumChannels.length, ...live.drums);
         trackVoices.forEach((list, i) => list.splice(0, list.length, ...live.voices[i]));
         renderingOffline = false;
+        endAutomation(); // (the dials the lines moved go back to where they were)
     }
 }
 

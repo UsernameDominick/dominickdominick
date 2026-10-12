@@ -38,7 +38,8 @@ function songSnapshot() {
         tracks.push({
             name: trackName(t),
             color: trackColors[t],
-            settings: { ...trackSettings[t] },
+            settings: settingsWithoutAutomation(t), // (the dials where you left them, not where a line has moved them to)
+            automation: automationOf(t),
             muted: muted[t],
             soloed: soloed[t],
             looped: looped[t],
@@ -134,6 +135,7 @@ function cleanSong(raw) {
             looped: r.looped === true,
             clipLen: length,
             bars,
+            automation: t === DRUM_TRACK ? {} : cleanAutomation(r.automation),
             sampler: settings.sound >= 0 && SOUNDS[settings.sound] && SOUNDS[settings.sound].sampler ? cleanSamplerMeta(r.sampler) : null,
         });
     }
@@ -217,6 +219,7 @@ function showSong(clean) {
     });
 
     showSamplers(clean.tracks.map((r) => r.sampler)); // (the sampler's sounds are found in the browser)
+    showAutomation(clean.tracks.map((r) => r.automation)); // (and the lines the dials follow)
 
     const d = clean.drums;
     d.kit.forEach((sound, i) => (drumKit[i] = sound));

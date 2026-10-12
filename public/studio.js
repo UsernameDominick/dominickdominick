@@ -1214,6 +1214,17 @@ function tick() {
         nextBeat++;
     }
     if (recordArmed && !recLoop && ctx.currentTime >= startTime + (countBeats + recBeats) * beatSec) stopTransport();
+    const at = songBeatNow();
+    if (at !== null) runAutomation(at); // (the dials that have a line follow it)
+}
+
+// where in the song it is now, in beats (the song goes round, and a recording is in the block that is being recorded), or null if it is not running
+function songBeatNow() {
+    if (!running) return null;
+    const beat = Math.max(0, (ctx.currentTime - startTime) / beatSec);
+    if (!recordArmed) return beat % (BARS * BEATS);
+    if (beat < countBeats) return null;
+    return recBar * BEATS + ((beat - countBeats) % recBeats);
 }
 
 async function startTransport(record) {
@@ -1242,6 +1253,7 @@ async function startTransport(record) {
 function stopTransport() {
     clearInterval(tickTimer);
     running = false;
+    endAutomation(); // (the dials go back to where they were)
     recordArmed = false;
     updateButtons();
     showNow(-1);
@@ -1714,21 +1726,47 @@ function buildParamLane(t, slot) {
     const readout = make("div", "param-readout", PARAM_KEYS[0].label);
     const lane = { t, slot, key: "velocity", head, readout, tabEls: [], cells: [], laneEl: make("div", "lane folded") };
 
-    PARAM_KEYS.forEach((setting) => {
-        const tab = make("button", "param-tab", setting.tab);
+    // (a track's lane has an AUTO tab too: a line drawn for a dial, automation.js. The drum rows have none)
+    const tabList = slot === null ? [...PARAM_KEYS, { key: "auto", tab: "AUTO", label: "AUTOMATION: DRAW A LINE FOR A DIAL" }] : PARAM_KEYS;
+    tabList.forEach((setting) => {
+        const tab = make("button", setting.key === "auto" ? "param-tab auto" : "param-tab", setting.tab);
         tab.title = setting.label;
         tab.setAttribute("aria-label", setting.label);
         tab.setAttribute("aria-pressed", String(setting.key === lane.key));
         tab.addEventListener("click", () => {
             lane.key = setting.key;
-            lane.tabEls.forEach((el, i) => el.setAttribute("aria-pressed", String(PARAM_KEYS[i].key === lane.key)));
+            lane.tabEls.forEach((el, i) => el.setAttribute("aria-pressed", String(tabList[i].key === lane.key)));
             readout.textContent = setting.label;
+            readout.hidden = setting.key === "auto";
+            if (lane.autoBox) lane.autoBox.hidden = setting.key !== "auto";
+            if (setting.key === "auto") fillAutoSelect(lane);
             for (let b = 0; b < BARS; b++) drawParamCell(lane, b);
         });
         lane.tabEls.push(tab);
         tabs.appendChild(tab);
     });
     head.append(tabs, readout);
+    if (slot === null) {
+        // the line's dial: a list to pick it from (the ones that have a line are marked *), and a button that takes the line away
+        lane.autoKey = "cutoff";
+        lane.autoBox = make("div", "auto-box");
+        lane.autoBox.hidden = true;
+        lane.autoSelect = document.createElement("select");
+        lane.autoSelect.className = "auto-select";
+        lane.autoSelect.setAttribute("aria-label", "Which dial the line moves");
+        lane.autoSelect.addEventListener("change", () => {
+            lane.autoKey = lane.autoSelect.value;
+            drawAutomationLane(lane);
+        });
+        const clear = make("button", "auto-clear", "CLEAR");
+        clear.setAttribute("aria-label", "Take away the line for this dial");
+        clear.addEventListener("click", () => {
+            delete automation[lane.t][lane.autoKey];
+            autoChanged(lane);
+        });
+        lane.autoBox.append(lane.autoSelect, clear);
+        head.appendChild(lane.autoBox);
+    }
     songEl.appendChild(head);
     songEl.appendChild(lane.laneEl);
 
@@ -1740,10 +1778,14 @@ function buildParamLane(t, slot) {
         el.appendChild(canvas);
         el.addEventListener("pointerdown", (e) => {
             e.preventDefault(); // (so dragging doesn't select things or scroll)
+            if (lane.key === "auto") return autoPointerDown(lane, e, el); // (a line for a dial: points, not bars)
             if (slot !== null) focusDrum(slot); // (a drum's lane: that drum is the selected one)
             paramDrag = { lane, x: e.clientX, y: e.clientY, edited: null };
             paintParam(lane, e.clientX, e.clientY, e.clientX, e.clientY, true);
         });
+        el.addEventListener("pointermove", autoPointerMove);
+        el.addEventListener("pointerup", autoPointerUp);
+        el.addEventListener("pointercancel", autoPointerUp);
         songEl.appendChild(el);
         lane.cells.push({ el, canvas });
     }
@@ -1771,6 +1813,7 @@ function laneNotes(lane, b) {
 
 // draws one box of a lane: a bar for each note, as tall as its setting
 function drawParamCell(lane, b) {
+    if (lane.key === "auto") return drawAutomationCell(lane, b);
     const { el, canvas } = lane.cells[b];
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;

@@ -562,7 +562,7 @@ const signed = (n) => (n > 0 ? "+" + n : String(n));
 
 // a dial for a setting that's kept in the selected sound (or the selected drum) and is applied by applyFx
 const settingDial = (group, label, key, aria, scope, def, format, defDrums = def) => ({
-    group, label, aria, scope, def, defDrums, format, id: "dial-" + key,
+    group, label, aria, scope, def, defDrums, format, key, id: "dial-" + key,
     get: () => getSetting(key),
     apply: (v) => setSetting(key, v),
 });
