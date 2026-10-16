@@ -1,11 +1,6 @@
-// Only a salted PBKDF2 hash of the password is stored here, never the password.
-// The check runs in the browser, so it is a front door, not real security.
+// The login page: the right password is remembered by the browser and leads to index.html.
 (function () {
-  var SALT = "2b95508f3e6efb73b1819a67cad935c6";
-  var ITERATIONS = 310000;
-  var HASH = "b1490d258d46f153137cb005b1b45d6960a8d050612db25e724e6fbca8062878";
-  var KEY = "gate";
-
+  var G = window.GATE;
   var form = document.getElementById("gate");
   var input = document.getElementById("pw");
   var msg = document.getElementById("msg");
@@ -27,19 +22,18 @@
     return crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"])
       .then(function (key) {
         return crypto.subtle.deriveBits(
-          { name: "PBKDF2", hash: "SHA-256", salt: unhex(SALT), iterations: ITERATIONS },
+          { name: "PBKDF2", hash: "SHA-256", salt: unhex(G.salt), iterations: G.iterations },
           key, 256);
       })
       .then(hex);
   }
 
-  function open() {
-    form.hidden = true;
-    document.title = "";
+  function enter() {
+    location.replace("/");
   }
 
   try {
-    if (localStorage.getItem(KEY) === HASH) open();
+    if (localStorage.getItem(G.key) === G.hash) enter();
   } catch (e) {}
 
   form.addEventListener("submit", function (e) {
@@ -50,9 +44,9 @@
       return;
     }
     derive(input.value).then(function (h) {
-      if (h === HASH) {
-        try { localStorage.setItem(KEY, HASH); } catch (e) {}
-        open();
+      if (h === G.hash) {
+        try { localStorage.setItem(G.key, G.hash); } catch (e) {}
+        enter();
       } else {
         msg.textContent = "Wrong password.";
         input.select();

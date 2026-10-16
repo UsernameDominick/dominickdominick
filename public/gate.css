@@ -20,10 +20,6 @@ body {
   width: min(320px, calc(100vw - 32px));
 }
 
-#gate[hidden] {
-  display: none;
-}
-
 input, button {
   font: inherit;
   padding: 10px 12px;

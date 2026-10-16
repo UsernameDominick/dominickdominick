@@ -6,7 +6,9 @@ A personal site on Cloudflare. **It is almost empty on purpose.** On 2026-10-09 
 
 | Path | What it is |
 |---|---|
-| `public/index.html`, `gate.css`, `gate.js` | The whole site: a password box, and a blank page once the right password is entered. `gate.js` holds only a salted PBKDF2 hash of the password (never the password), checked in the browser, so it is a front door and not real security. Everything in `public/` is served as is. |
+| `public/index.html` (+ `blank.css`, `check.js`) | The blank page. `check.js` runs first and sends anyone the browser has not seen enter the password to `login.html`. |
+| `public/login.html` (+ `gate.css`, `gate.js`) | The password page. The right password is remembered in `localStorage` and leads to `/` (`index.html`). |
+| `public/gate-config.js` | Holds only a salted PBKDF2 hash of the password (never the password), shared by both pages. The check runs in the browser, so it is a front door and not real security. Everything in `public/` is served as is. |
 | `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings. Cloudflare's build reads it, so keep it valid. |
 | `CLAUDE.md` | This file. |
 
