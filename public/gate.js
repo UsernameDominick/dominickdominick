@@ -39,7 +39,7 @@
   }
 
   try {
-    if (sessionStorage.getItem(KEY) === HASH) open();
+    if (localStorage.getItem(KEY) === HASH) open();
   } catch (e) {}
 
   form.addEventListener("submit", function (e) {
@@ -51,7 +51,7 @@
     }
     derive(input.value).then(function (h) {
       if (h === HASH) {
-        try { sessionStorage.setItem(KEY, HASH); } catch (e) {}
+        try { localStorage.setItem(KEY, HASH); } catch (e) {}
         open();
       } else {
         msg.textContent = "Wrong password.";
