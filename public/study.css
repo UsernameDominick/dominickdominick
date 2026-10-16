@@ -1,0 +1,100 @@
+/* Global */
+body, * {
+	box-sizing: border-box;
+	margin: 0px;
+	padding: 0px;
+	font-family: arial, sans-serif;
+	background-color: blueviolet;
+	outline: 2px solid rgba(53, 34, 43, 0.5);
+}
+
+.container {
+	/*height: auto;*/
+}
+
+/* Header */
+.header {
+	background-color: transparent;
+	position: sticky;
+	text-align: center;
+}
+
+.header h1 {
+	color: floralwhite;
+	letter-spacing: 50%;
+	padding-left: 0.5em;
+	text-shadow: 2px 0px 1px black;
+	display: inline-block;
+}
+
+/* Nav */
+
+.navContainer {
+	color: white;
+	text-align: center;
+}
+
+.nav {
+	word-spacing: 100%;
+}
+
+.navContainer li {
+	list-style: none;
+	display: inline-block;
+}
+
+/* Content */
+.videoContainer {
+	position: fixed;
+	z-index: -1;
+	animation: party 20s ease-in-out infinite alternate;
+}
+
+@keyframes party {
+	0%   { filter: hue-rotate(0deg)   grayscale(0)   invert(0); }
+	25%  { filter: hue-rotate(180deg) grayscale(0.2) invert(0); }
+	40%  { filter: hue-rotate(180deg) grayscale(0.5) invert(0); }
+	50%  { filter: hue-rotate(180deg) grayscale(1)   invert(0); }
+	100% { filter: hue-rotate(360deg) grayscale(0)   invert(1); }
+}
+
+.backgroundVideo {
+	object-fit: cover;
+	object-position: center;
+    width: 100vw;
+    height: 100vh;
+    object-fit: fill;
+}
+
+/* Flex Box */
+.flexContainer {
+	display: flex;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+}
+
+.flexContainer div {
+}
+
+.flexContainer div a {
+	text-decoration: none;
+}
+
+.flexContainer > :nth-child(2) {
+	text-align: center;
+}
+
+/* Grid Container */
+.gridContainer {
+	text-align: center;
+}
+
+.gridContainer div {
+	display: inline-grid;
+	
+}
+
+
+
+
+
