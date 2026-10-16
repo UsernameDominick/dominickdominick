@@ -6,7 +6,7 @@ A personal site on Cloudflare. **It is almost empty on purpose.** On 2026-10-09 
 
 | Path | What it is |
 |---|---|
-| `public/index.html` | The whole site: a heading (`dominickdominick.com`). Everything in `public/` is served as is. |
+| `public/index.html`, `gate.css`, `gate.js` | The whole site: a password box, and a blank page once the right password is entered. `gate.js` holds only a salted PBKDF2 hash of the password (never the password), checked in the browser, so it is a front door and not real security. Everything in `public/` is served as is. |
 | `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings. Cloudflare's build reads it, so keep it valid. |
 | `CLAUDE.md` | This file. |
 
