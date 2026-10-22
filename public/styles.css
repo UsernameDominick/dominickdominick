@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat+Underline:ital,wght@0,100..900;1,100..900&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap');
 
 /* Global */
-*, body {
+* {
 	box-sizing: border-box;
 	margin: 0px;
 	padding: 0px;
@@ -12,17 +12,18 @@
 .headerContainer {
 	height: auto;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	linear-gradient: grayscale;
+	position: sticky;
+	top: 0;
+	z-index: 10;
 }
 
 /* Header */
 .header {
 	background-color: transparent;
-	position: sticky;
 	text-align: center;
 }
 
-.header h1 {
+#header {
 	font-family: "Montserrat Underline", sans-serif;
 	color: floralwhite;
 	text-shadow: 2px 0px 1px black;
@@ -33,18 +34,15 @@
 
 .navContainer {
 	text-align: center;
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); white;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	border-top: 2px solid floralwhite;
 	border-bottom: 2px solid floralwhite;
-}
-
-.nav {
-	word-spacing: 100%;
 }
 
 .nav li {
 	list-style: none;
 	display: inline-block;
+	margin: 0 20px;
 }
 
 .nav a {
@@ -71,30 +69,29 @@
 
 .backgroundVideo {
 	object-fit: cover;
-	object-position: ;
-    width: 100vw;
-    height: 100vh;
-    object-fit: fill;
+	object-position: center;
+	width: 100vw;
+	height: 100vh;
 }
 
 /* Flex Box */
 .flexContainer {
 	background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-	height: 100vh;
+	min-height: 100vh;
 	padding: 10px;
 	display: flex;
 	flex-flow: row nowrap;
 	justify-content: space-evenly;
 }
 
-@keyframes flicker {   
-	0% { filter: grayscale(0)    hue-rotate(0deg)  contrast(1); opacity: 0.1;}
-	100%   { filter: grayscale(0.75) hue-rotate(30deg) contrast(600);opacity: 0.3;}
+@keyframes flicker {
+	0%   { filter: grayscale(0)    hue-rotate(0deg)  contrast(1); opacity: 0.1; }
+	100% { filter: grayscale(0.75) hue-rotate(30deg) contrast(6); opacity: 0.3; }
 }
 
 .flexItem {
 	position: relative;
-	isolation: isolate;      
+	isolation: isolate;
 	overflow: hidden;
 	border-radius: 4px;
 	padding: 15px;
@@ -111,9 +108,6 @@
 	z-index: -1;
 	background: url("scaryLady.JPEG") center / cover;
 	filter: grayscale(0.75) hue-rotate(30deg) contrast(6);
-}
-
-.flexItem::before {
 	animation: flicker 10s ease-in-out infinite alternate;
 }
 
@@ -124,15 +118,12 @@
 
 .recentContainer {
 	display: inline-block;
-	animation: none;
-	color: black;
 	width: 100%;
 	/*outline: 10px solid blue;*/
 }
 
 .projectsContainer {
 	/*outline: 10px solid yellow;*/
-	flex: 5;
 }
 
 .recentContainer div {
@@ -152,6 +143,3 @@
 /** {
 		outline: 2px solid red;
 }*/
-
-
-
