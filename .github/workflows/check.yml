@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   html:
     name: HTML
@@ -73,3 +77,196 @@ jobs:
           print("\n".join(missing) or "Every local link points at a real file.")
           sys.exit(1 if missing else 0)
           EOF
+
+  accessibility:
+    name: Accessibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Run axe on every page at phone and desktop widths
+        run: |
+          npm install --no-save --no-package-lock playwright @axe-core/playwright
+          python3 -m http.server 8080 --directory public > /dev/null 2>&1 &
+          sleep 1
+          cat > axe-check.mjs <<'EOF'
+          import { chromium } from "playwright";
+          import axe from "@axe-core/playwright";
+          import fs from "node:fs";
+
+          const AxeBuilder = axe.AxeBuilder ?? axe.default ?? axe;
+          const pages = fs.readdirSync("public", { recursive: true }).map(f => f.split("\\").join("/")).filter(f => f.endsWith(".html"));
+          const browser = await chromium.launch({ channel: "chrome" });
+          let count = 0;
+          for (const width of [390, 1440]) {
+            const context = await browser.newContext({ viewport: { width, height: 900 } });
+            for (const p of pages) {
+              const page = await context.newPage();
+              await page.goto(`http://localhost:8080/${p}`, { waitUntil: "load" });
+              const { violations } = await new AxeBuilder({ page }).analyze();
+              for (const v of violations) {
+                count++;
+                console.log(`${p} at ${width}px: ${v.help} (${v.id}, ${v.impact})`);
+                for (const n of v.nodes.slice(0, 3)) console.log(`    ${n.target.join(" ")}`);
+              }
+              await page.close();
+            }
+            await context.close();
+          }
+          await browser.close();
+          console.log(count ? `${count} accessibility problem(s).` : "No accessibility problems.");
+          process.exit(count ? 1 : 0);
+          EOF
+          node axe-check.mjs
+
+  layout:
+    name: Layout
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Load every page at phone, tablet and desktop widths
+        run: |
+          npm install --no-save --no-package-lock playwright
+          python3 -m http.server 8080 --directory public > /dev/null 2>&1 &
+          sleep 1
+          cat > layout-check.mjs <<'EOF'
+          import { chromium } from "playwright";
+          import fs from "node:fs";
+
+          const pages = fs.readdirSync("public", { recursive: true }).map(f => f.split("\\").join("/")).filter(f => f.endsWith(".html"));
+          const browser = await chromium.launch({ channel: "chrome" });
+          const problems = [];
+          for (const [label, width] of [["phone", 390], ["tablet", 768], ["desktop", 1440]]) {
+            const context = await browser.newContext({ viewport: { width, height: 900 } });
+            for (const p of pages) {
+              const page = await context.newPage();
+              const where = `${p} on ${label} (${width}px)`;
+              page.on("pageerror", e => problems.push(`${where}: JavaScript error: ${e.message}`));
+              page.on("response", r => { if (r.status() >= 400) problems.push(`${where}: ${r.status()} for ${new URL(r.url()).pathname}`); });
+              page.on("requestfailed", r => { if (r.failure()?.errorText !== "net::ERR_ABORTED") problems.push(`${where}: couldn't load ${new URL(r.url()).pathname}`); });
+              await page.goto(`http://localhost:8080/${p}`, { waitUntil: "networkidle" });
+              const found = await page.evaluate(() => ({
+                overflow: document.documentElement.scrollWidth - window.innerWidth,
+                brokenImages: [...document.images].filter(i => i.complete && i.naturalWidth === 0).map(i => i.getAttribute("src")),
+                tinyText: [...document.querySelectorAll("body *")].filter(el =>
+                  el.offsetParent !== null &&
+                  [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) &&
+                  parseFloat(getComputedStyle(el).fontSize) < 12).length,
+              }));
+              if (found.overflow > 1) problems.push(`${where}: page scrolls sideways by ${found.overflow}px`);
+              for (const src of found.brokenImages) problems.push(`${where}: image didn't load: ${src}`);
+              if (found.tinyText) problems.push(`${where}: ${found.tinyText} piece(s) of text smaller than 12px`);
+              await page.close();
+            }
+            await context.close();
+          }
+          await browser.close();
+          const unique = [...new Set(problems)];
+          console.log(unique.join("\n") || "Every page fits at phone, tablet and desktop widths with no errors.");
+          process.exit(unique.length ? 1 : 0);
+          EOF
+          node layout-check.mjs
+
+  lighthouse:
+    name: Lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Score every page (90 or more in each category)
+        run: |
+          cat > lighthouserc.json <<'EOF'
+          {
+            "ci": {
+              "collect": { "staticDistDir": "./public", "numberOfRuns": 3, "maxAutodiscoverUrls": 0 },
+              "assert": {
+                "assertions": {
+                  "categories:performance": ["error", { "minScore": 0.9 }],
+                  "categories:accessibility": ["error", { "minScore": 0.9 }],
+                  "categories:best-practices": ["error", { "minScore": 0.9 }],
+                  "categories:seo": ["error", { "minScore": 0.9 }]
+                }
+              },
+              "upload": { "target": "temporary-public-storage" }
+            }
+          }
+          EOF
+          npx --yes @lhci/cli@0 autorun
+
+  code:
+    name: Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Install the checkers
+        run: |
+          npm install --no-save --no-package-lock eslint @eslint/js globals stylelint stylelint-config-recommended
+          echo '{ "extends": "stylelint-config-recommended" }' > .stylelintrc.json
+          cat > eslint.config.mjs <<'EOF'
+          import js from "@eslint/js";
+          import globals from "globals";
+
+          export default [
+            js.configs.recommended,
+            { languageOptions: { ecmaVersion: "latest", sourceType: "script", globals: globals.browser } },
+          ];
+          EOF
+      - name: CSS
+        run: npx stylelint "public/**/*.css" --allow-empty-input
+      - name: JavaScript
+        if: ${{ !cancelled() }}
+        run: npx eslint --no-error-on-unmatched-pattern public
+
+  images:
+    name: Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Every image is under 300 KB
+        run: |
+          big=$(find public -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.gif' -o -iname '*.svg' \) -size +300k)
+          if [ -n "$big" ]; then
+            echo "Images over 300 KB:"
+            echo "$big" | while read -r f; do du -h "$f"; done
+            exit 1
+          fi
+          echo "Every image is under 300 KB."
+
+  spelling:
+    name: Spelling
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Check spelling
+        run: |
+          dirs="public"
+          [ -d content ] && dirs="$dirs content"
+          pipx run codespell $dirs --skip "*.jpg,*.jpeg,*.JPEG,*.JPG,*.png,*.webp,*.avif,*.gif,*.ico,*.mp4,*.webm,*.woff,*.woff2"

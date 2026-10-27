@@ -1,0 +1,78 @@
+name: Live site
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Live site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Wait for the deploy, then check every page and file
+        run: |
+          python3 - <<'EOF'
+          import pathlib, sys, time, urllib.error, urllib.parse, urllib.request
+
+          site = "https://dominickdominick.com"
+          root = pathlib.Path("public")
+
+          def get(path):
+              request = urllib.request.Request(site + urllib.parse.quote(path), headers={"User-Agent": "dominickdominick-live-check"})
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      status, headers, body = response.status, response.headers, response.read()
+              except urllib.error.HTTPError as error:
+                  status, headers, body = error.code, error.headers, error.read()
+              if (headers.get("cf-mitigated") or "").lower() == "challenge":
+                  print("::warning::Cloudflare showed the check a bot challenge, so it was skipped.")
+                  sys.exit(0)
+              return status, body
+
+          def url_for(file):
+              rel = file.relative_to(root).as_posix()
+              if rel == "index.html":
+                  return "/"
+              if rel.endswith("/index.html"):
+                  return "/" + rel[: -len("index.html")]
+              if rel.endswith(".html"):
+                  return "/" + rel[: -len(".html")]
+              return "/" + rel
+
+          home = (root / "index.html").read_text(encoding="utf-8").replace("\r\n", "\n")
+          expected = home.split("</body>")[0].rstrip()
+          for attempt in range(20):
+              status, body = get("/")
+              if status == 200 and body.decode("utf-8", "replace").replace("\r\n", "\n").startswith(expected):
+                  break
+              time.sleep(15)
+          else:
+              print("The live home page still doesn't match index.html after 5 minutes. Check the Cloudflare deploy.")
+              sys.exit(1)
+
+          problems = []
+          for file in sorted(p for p in root.rglob("*") if p.is_file()):
+              if file.name == "404.html":
+                  continue
+              status, _ = get(url_for(file))
+              if status != 200:
+                  problems.append(f"{url_for(file)} returned {status}")
+          status, _ = get("/this-page-does-not-exist")
+          if status != 404:
+              problems.append(f"A made-up URL returned {status} instead of 404")
+
+          print("\n".join(problems) or "The live site matches the latest push, every file loads, and bad URLs get a 404.")
+          sys.exit(1 if problems else 0)
+          EOF
