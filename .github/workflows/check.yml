@@ -21,7 +21,7 @@ jobs:
       - name: Validate HTML
         run: |
           npm install --no-save --no-package-lock vnu-jar
-          java -jar "$(node -p "require('vnu-jar')")" --errors-only --skip-non-html public/
+          java -jar "$(node -p "String(require('vnu-jar'))")" --errors-only --skip-non-html public/
 
   links:
     name: Links
