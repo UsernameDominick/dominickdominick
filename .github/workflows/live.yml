@@ -59,7 +59,7 @@ jobs:
                   break
               time.sleep(15)
           else:
-              print("The live home page still doesn't match index.html after 5 minutes. Check the Cloudflare deploy.")
+              print("::error title=Live site::The live home page still doesn't match index.html after 5 minutes. Check the Cloudflare deploy.")
               sys.exit(1)
 
           problems = []
@@ -73,6 +73,8 @@ jobs:
           if status != 404:
               problems.append(f"A made-up URL returned {status} instead of 404")
 
-          print("\n".join(problems) or "The live site matches the latest push, every file loads, and bad URLs get a 404.")
+          for problem in problems:
+              print(f"::error title=Live site::{problem}")
+          print(f"{len(problems)} live site problem(s)." if problems else "The live site matches the latest push, every file loads, and bad URLs get a 404.")
           sys.exit(1 if problems else 0)
           EOF

@@ -25,7 +25,25 @@ jobs:
       - name: Validate HTML
         run: |
           npm install --no-save --no-package-lock vnu-jar
-          java -jar "$(node -p "String(require('vnu-jar'))")" --errors-only --skip-non-html public/
+          set +e
+          java -jar "$(node -p "String(require('vnu-jar'))")" --errors-only --skip-non-html --format json public/ 2> vnu.json
+          code=$?
+          set -e
+          python3 - <<'EOF'
+          import json, pathlib
+          raw = pathlib.Path("vnu.json").read_text(errors="replace")
+          try:
+              messages = json.loads(raw).get("messages", [])
+          except ValueError:
+              print(raw)
+              messages = []
+          for m in messages:
+              path = "public/" + m.get("url", "").split("/public/", 1)[-1]
+              text = m.get("message", "").replace("\n", " ")
+              print(f"::error file={path},line={m.get('lastLine', 1)},title=HTML::{text}")
+          print(f"{len(messages)} HTML error(s)." if messages else "No HTML errors.")
+          EOF
+          exit $code
 
   links:
     name: Links
@@ -72,9 +90,11 @@ jobs:
                   if path.endswith("/") or target.is_dir():
                       target = target / "index.html"
                   if not target.exists():
-                      missing.append(f"{page.relative_to(root)}: {url}")
+                      missing.append((page.relative_to(root).as_posix(), url))
 
-          print("\n".join(missing) or "Every local link points at a real file.")
+          for page, url in missing:
+              print(f"::error file=public/{page},title=Broken link::{url} points at a file that doesn't exist")
+          print(f"{len(missing)} broken link(s)." if missing else "Every local link points at a real file.")
           sys.exit(1 if missing else 0)
           EOF
 
@@ -110,7 +130,7 @@ jobs:
               const { violations } = await new AxeBuilder({ page }).analyze();
               for (const v of violations) {
                 count++;
-                console.log(`${p} at ${width}px: ${v.help} (${v.id}, ${v.impact})`);
+                console.log(`::error file=public/${p},title=Accessibility::${p} at ${width}px: ${v.help} (${v.impact})`);
                 for (const n of v.nodes.slice(0, 3)) console.log(`    ${n.target.join(" ")}`);
               }
               await page.close();
@@ -150,9 +170,10 @@ jobs:
             for (const p of pages) {
               const page = await context.newPage();
               const where = `${p} on ${label} (${width}px)`;
-              page.on("pageerror", e => problems.push(`${where}: JavaScript error: ${e.message}`));
-              page.on("response", r => { if (r.status() >= 400) problems.push(`${where}: ${r.status()} for ${new URL(r.url()).pathname}`); });
-              page.on("requestfailed", r => { if (r.failure()?.errorText !== "net::ERR_ABORTED") problems.push(`${where}: couldn't load ${new URL(r.url()).pathname}`); });
+              const add = text => problems.push({ file: p, text: `${where}: ${text}` });
+              page.on("pageerror", e => add(`JavaScript error: ${e.message}`));
+              page.on("response", r => { if (r.status() >= 400) add(`${r.status()} for ${new URL(r.url()).pathname}`); });
+              page.on("requestfailed", r => { if (r.failure()?.errorText !== "net::ERR_ABORTED") add(`couldn't load ${new URL(r.url()).pathname}`); });
               await page.goto(`http://localhost:8080/${p}`, { waitUntil: "networkidle" });
               const found = await page.evaluate(() => ({
                 overflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -162,17 +183,22 @@ jobs:
                   [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) &&
                   parseFloat(getComputedStyle(el).fontSize) < 12).length,
               }));
-              if (found.overflow > 1) problems.push(`${where}: page scrolls sideways by ${found.overflow}px`);
-              for (const src of found.brokenImages) problems.push(`${where}: image didn't load: ${src}`);
-              if (found.tinyText) problems.push(`${where}: ${found.tinyText} piece(s) of text smaller than 12px`);
+              if (found.overflow > 1) add(`page scrolls sideways by ${found.overflow}px`);
+              for (const src of found.brokenImages) add(`image didn't load: ${src}`);
+              if (found.tinyText) add(`${found.tinyText} piece(s) of text smaller than 12px`);
               await page.close();
             }
             await context.close();
           }
           await browser.close();
-          const unique = [...new Set(problems)];
-          console.log(unique.join("\n") || "Every page fits at phone, tablet and desktop widths with no errors.");
-          process.exit(unique.length ? 1 : 0);
+          const seen = new Set();
+          for (const { file, text } of problems) {
+            if (seen.has(text)) continue;
+            seen.add(text);
+            console.log(`::error file=public/${file},title=Layout::${text}`);
+          }
+          console.log(seen.size ? `${seen.size} layout problem(s).` : "Every page fits at phone, tablet and desktop widths with no errors.");
+          process.exit(seen.size ? 1 : 0);
           EOF
           node layout-check.mjs
 
@@ -204,7 +230,22 @@ jobs:
             }
           }
           EOF
+          set +e
           npx --yes @lhci/cli@0 autorun
+          code=$?
+          set -e
+          python3 - <<'EOF'
+          import json, pathlib, urllib.parse
+          results = pathlib.Path(".lighthouseci/assertion-results.json")
+          links = pathlib.Path(".lighthouseci/links.json")
+          reports = json.loads(links.read_text()) if links.exists() else {}
+          for r in json.loads(results.read_text()) if results.exists() else []:
+              page = urllib.parse.urlsplit(r["url"]).path.lstrip("/")
+              name = r.get("auditProperty") or r.get("auditId")
+              report = reports.get(r["url"], "in the log")
+              print(f"::error file=public/{page},title=Lighthouse::{page} {name} scored {r.get('actual')}, needs {r.get('expected')}. Full report: {report}")
+          EOF
+          exit $code
 
   code:
     name: Code
@@ -230,10 +271,36 @@ jobs:
           ];
           EOF
       - name: CSS
-        run: npx stylelint "public/**/*.css" --allow-empty-input
+        run: |
+          set +e
+          npx stylelint "public/**/*.css" --allow-empty-input -f json -o stylelint.json
+          code=$?
+          set -e
+          python3 - <<'EOF'
+          import json, os, pathlib
+          report = pathlib.Path("stylelint.json")
+          for f in json.loads(report.read_text() or "[]") if report.exists() else []:
+              path = os.path.relpath(f["source"])
+              for w in f.get("warnings", []):
+                  print(f"::error file={path},line={w.get('line', 1)},col={w.get('column', 1)},title=CSS::{w['text']}")
+          EOF
+          exit $code
       - name: JavaScript
         if: ${{ !cancelled() }}
-        run: npx eslint --no-error-on-unmatched-pattern public
+        run: |
+          set +e
+          npx eslint --no-error-on-unmatched-pattern public -f json -o eslint.json
+          code=$?
+          set -e
+          python3 - <<'EOF'
+          import json, os, pathlib
+          report = pathlib.Path("eslint.json")
+          for f in json.loads(report.read_text() or "[]") if report.exists() else []:
+              path = os.path.relpath(f["filePath"])
+              for m in f.get("messages", []):
+                  print(f"::error file={path},line={m.get('line', 1)},col={m.get('column', 1)},title=JavaScript::{m['message']} ({m.get('ruleId')})")
+          EOF
+          exit $code
 
   images:
     name: Images
@@ -249,8 +316,7 @@ jobs:
         run: |
           big=$(find public -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.gif' -o -iname '*.svg' \) -size +300k)
           if [ -n "$big" ]; then
-            echo "Images over 300 KB:"
-            echo "$big" | while read -r f; do du -h "$f"; done
+            echo "$big" | while read -r f; do echo "::error file=$f,title=Image too big::$f is $(du -h "$f" | cut -f1), over the 300 KB limit"; done
             exit 1
           fi
           echo "Every image is under 300 KB."
@@ -269,4 +335,10 @@ jobs:
         run: |
           dirs="public"
           [ -d content ] && dirs="$dirs content"
-          pipx run codespell $dirs --skip "*.jpg,*.jpeg,*.JPEG,*.JPG,*.png,*.webp,*.avif,*.gif,*.ico,*.mp4,*.webm,*.woff,*.woff2"
+          set +e
+          pipx run codespell $dirs --skip "*.jpg,*.jpeg,*.JPEG,*.JPG,*.png,*.webp,*.avif,*.gif,*.ico,*.mp4,*.webm,*.woff,*.woff2" > spelling.txt
+          code=$?
+          set -e
+          sed -E 's/^([^:]+):([0-9]+): (.*)$/::error file=\1,line=\2,title=Spelling::\3/' spelling.txt
+          [ "$code" -eq 0 ] && echo "No spelling mistakes found."
+          exit $code
