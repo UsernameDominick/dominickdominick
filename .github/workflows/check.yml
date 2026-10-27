@@ -2,7 +2,6 @@ name: Check
 
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -14,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
       - name: Validate HTML
         run: |
           npm install --no-save --no-package-lock vnu-jar
@@ -29,9 +28,48 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: Check links
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --offline --no-progress --root-dir ${{ github.workspace }}/public 'public/**/*.html'
-          fail: true
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Check local links
+        run: |
+          python3 - <<'EOF'
+          import pathlib, sys, urllib.parse
+          from html.parser import HTMLParser
+
+          root = pathlib.Path("public").resolve()
+          missing = []
+
+          class Links(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.urls = []
+
+              def handle_starttag(self, tag, attrs):
+                  for name, value in attrs:
+                      if not value:
+                          continue
+                      if name in ("href", "src", "poster", "data"):
+                          self.urls.append(value)
+                      elif name == "srcset":
+                          self.urls += [part.split()[0] for part in value.split(",") if part.strip()]
+
+          for page in sorted(root.rglob("*.html")):
+              parser = Links()
+              parser.feed(page.read_text(encoding="utf-8", errors="replace"))
+              for url in parser.urls:
+                  parts = urllib.parse.urlsplit(url)
+                  if parts.scheme or parts.netloc or not parts.path:
+                      continue
+                  path = urllib.parse.unquote(parts.path)
+                  target = root / path.lstrip("/") if path.startswith("/") else page.parent / path
+                  if path.endswith("/") or target.is_dir():
+                      target = target / "index.html"
+                  if not target.exists():
+                      missing.append(f"{page.relative_to(root)}: {url}")
+
+          print("\n".join(missing) or "Every local link points at a real file.")
+          sys.exit(1 if missing else 0)
+          EOF
