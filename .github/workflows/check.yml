@@ -202,6 +202,49 @@ jobs:
           EOF
           node layout-check.mjs
 
+  screenshots:
+    name: Screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Take a full-page picture of every page at phone, tablet and desktop widths
+        run: |
+          npm install --no-save --no-package-lock playwright
+          python3 -m http.server 8080 --directory public > /dev/null 2>&1 &
+          sleep 1
+          cat > screenshots.mjs <<'EOF'
+          import { chromium } from "playwright";
+          import fs from "node:fs";
+
+          const pages = fs.readdirSync("public", { recursive: true }).map(f => f.split("\\").join("/")).filter(f => f.endsWith(".html"));
+          const browser = await chromium.launch({ channel: "chrome" });
+          fs.mkdirSync("screenshots", { recursive: true });
+          for (const [label, width] of [["phone", 390], ["tablet", 768], ["desktop", 1440]]) {
+            const context = await browser.newContext({ viewport: { width, height: 900 } });
+            for (const p of pages) {
+              const page = await context.newPage();
+              await page.goto(`http://localhost:8080/${p}`, { waitUntil: "networkidle" });
+              const name = `${p.replace(/\.html$/, "").replaceAll("/", "-")}-${label}.png`;
+              await page.screenshot({ path: `screenshots/${name}`, fullPage: true });
+              console.log(`Saved ${name}`);
+              await page.close();
+            }
+            await context.close();
+          }
+          await browser.close();
+          EOF
+          node screenshots.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: 30
+
   lighthouse:
     name: Lighthouse
     runs-on: ubuntu-latest
