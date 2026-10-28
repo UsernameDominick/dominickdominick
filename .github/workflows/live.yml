@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 jobs:
   live:
@@ -22,9 +23,28 @@ jobs:
           git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}" "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
       - name: Wait for the deploy, then check every page and file
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'EOF'
-          import pathlib, sys, time, urllib.error, urllib.parse, urllib.request
+          import json, os, pathlib, sys, time, urllib.error, urllib.parse, urllib.request
+
+          if os.environ.get("GITHUB_EVENT_NAME") == "push":
+              api = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/commits/{os.environ['GITHUB_SHA']}/check-runs"
+              for attempt in range(40):
+                  request = urllib.request.Request(api, headers={"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Accept": "application/vnd.github+json"})
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      runs = [r for r in json.load(response)["check_runs"] if r["app"]["name"].startswith("Cloudflare")]
+                  if runs and all(r["status"] == "completed" for r in runs):
+                      failed = [r for r in runs if r["conclusion"] != "success"]
+                      if failed:
+                          print(f"::error title=Live site::Cloudflare's deploy {failed[0]['conclusion']}: {failed[0]['html_url']}")
+                          sys.exit(1)
+                      print("Cloudflare finished deploying this commit.")
+                      break
+                  time.sleep(15)
+              else:
+                  print("::warning title=Live site::Cloudflare didn't report a finished deploy within 10 minutes; checking the site anyway.")
 
           site = "https://dominickdominick.com"
           root = pathlib.Path("public")
