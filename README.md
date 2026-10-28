@@ -4,14 +4,11 @@ _a personal archive for things i find interesting._
 
 **[visit the site →](https://dominickdominick.com)**
 
-<!-- optional: a homepage screenshot. drop one in public/img/ and point to it here. -->
-<!-- ![homepage](public/img/screenshot-home.png) -->
-
 ---
 
-## about me
+## me
 
-i'm a student, musician and developer based in illinois. i've been into technology for as long as i can remember, mostly web development, software development and hardware. this site is where i document and archive things i find interesting.
+i'm a student based in illinois. i've been into technology for as long as i can remember, mostly web development, software development and hardware. this site is a place to document and archive things i find interesting.
 
 ## what i'm working on
 
