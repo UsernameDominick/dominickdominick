@@ -90,9 +90,11 @@ what's planned and in progress lives on the [project board](https://github.com/u
 
 ai is a great tool that can save a lot of time, but without control and transparency it struggles to stay consistent. it's a text predictor, not a thinking thing. it forgets, it hallucinates, and maybe worst of all, it's really good at making you feel productive when you're actually spending more time waiting on responses than looking at the project. it also makes feature creep easy: asking for more and more complicated things quietly hurts the design and makes the code harder to maintain. used right, though, it can change how you work for the better, so i wanted to use it on this site in a way that's controlled and out in the open. below is a short summary of how, with links to the full rules and settings.
 
-i used claude to design the mockups, which i've been using as the reference for the real site. that wasn't one prompt and done. the mockups took around 4 hours of trial and error, mostly me asking for small changes over and over and shaping the design myself, with claude making the edits. it got me to a finished design a lot quicker than spending a week trying things out on my own. i'm now hand-building the site from those mockups in this repo.
+i used claude to make the mockups that are used for me to reference in building the site. this helped me get a finalized design out in hours, instead of spending two weeks going through a hundred different iterations. it still took a lot of back and forth, just way less than doing it all by hand.
 
-claude also helps plan the build on the [project board](https://github.com/users/usernamedominick/projects/1/views/1), where i track the things i want and need to do. when i need it to, i have claude re-sort the board: it reads the code and moves the cards where they belong, without touching the code. it also helps with tooling, security and safety checks, documentation, and sometimes menial work, like formatting file paths or writing html boilerplate for a new page. tl;dr, it's a tool, not a replacement.
+claude also helps plan the build on the [project board](https://github.com/users/usernamedominick/projects/1/views/1), where i track the things i want and need to do. when i need it to, i have claude re-sort the board. it reads the code and moves the cards where they belong, without touching the code. it also helps with tooling, security and safety checks, documentation, and sometimes menial work, like formatting file paths or writing html boilerplate for a new page. 
+
+tl;dr, it's a tool, not a replacement.
 
 anything claude changes in the site's code is marked with a `- claude -` comment.
 
