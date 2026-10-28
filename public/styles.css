@@ -5,6 +5,8 @@
 	box-sizing: border-box;
 	margin: 0px;
 	padding: 0px;
+
+  outline: 1px solid red;
 }
 
 :root {
@@ -14,6 +16,10 @@
   --accent-color: #f9c53a;
   --dark-gray-color: #2f2c2e;
   --red-color: #e4473f;
+  --link-color: #eceef2;
+  --panel-color: #1f1d20;
+  --line-color: rgba(236, 238, 242, 0.22);
+  --article-text-color: #d5d8df;
   --main-font: "Strait", sans-serif;
   --code-font: ui-monospace, Menlo, Consolas, monospace;
 }
@@ -68,19 +74,29 @@ table {
 }
 
 body {
+  min-height: 100dvh;
+  flex-direction: column;
+  display: flex;
 	color: var(--text-color);
 	font-family: var(--main-font);
   background-color: var(--background-color);
-  background-repeat: no-repeat;
-  background-position: center 4.5rem;
-  background-size: 100% auto;
 }
 
 .home {
 	background-image: url("/img/bg_homePage.png");
+  background-repeat: repeat;
+  background-position: center 4.5rem;
+  background-size: 100%;
 }
 
 /* Nav */
+.navLine {
+  flex: 1;
+  height: 1px;
+  margin: 0 1.5rem;
+  background-color: rgba(236, 238, 242, 0.22);
+}
+
 .navContainer {
 	height: 4.5rem;
 	background-color: var(--background-color);
@@ -88,18 +104,53 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	padding: 2rem;
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.65);
+  position: relative;
+  font-size: 1.1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.04em;
 }
 
 .navLinks {
 	display: inline-flex;
-	gap: 25px;
+	gap: 1.5rem;
 }
 
 .navLinks a {
   color: inherit;
 }
 
+.navLinks .sep {
+  color: var(--line-color);
+}
+
+.navLink a:hover {
+  color: rgba(236, 238, 242, 0.22);
+}
+
 .navLinks li, .navLinks a {
 	list-style: none;
 	text-decoration: none;
+}
+
+/* Content */
+.contentContainer {
+  background-color: rgba(31, 29, 32, 0.84);
+  display: flex;
+  margin: 2rem 2rem 0rem 2rem;
+  backdrop-filter: blur(12px);
+  flex-grow: 1;
+  border: 1px solid rgba(255, 240, 225, 0.09);
+  border-bottom: 0;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+  padding: 2rem;
+}
+
+.contentContainerL {
+  flex-grow: 2;
+}
+
+.contentContainerR {
+  flex-grow: 1;
 }
