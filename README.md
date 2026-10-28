@@ -90,8 +90,4 @@ npx wrangler dev
 
 ### Roadmap
 
-<!-- What's next. Being upfront that the site is in progress reads well. Delete items as you ship them. -->
-
-- [ ] Fill in the about section and keywords on the home page
-- [ ] Add projects
-- [ ] Add content to the random page
+What's planned and in progress lives on the [project board](https://github.com/users/UsernameDominick/projects/1/views/1).
