@@ -28,7 +28,7 @@
 <body class="home">
 	<div class="navContainer">
 		<a href="/">
-			<h1>dominick dominick</h1>
+			<span>dominick dominick</span>
 		</a>
 		<div aria-hidden="true" class="navLine">
 		</div>
@@ -56,9 +56,18 @@
 			</div>
 		</div>
 		<div class="contentContainerR">
-			<h2>keywords<h2>
+			<h2 class="contentContainerHeading">keywords</h2>
 			<div class="keywordsContainer">
-				<div>----</div>
+				<!-- - claude - -->
+				<a href="/random/?q=web+dev">web dev</a>
+				<a href="/random/?q=music">music</a>
+				<a href="/random/?q=hardware">hardware</a>
+				<a href="/random/?q=css">css</a>
+				<a href="/random/?q=synths">synths</a>
+				<a href="/random/?q=javascript">javascript</a>
+				<a href="/random/?q=linux">linux</a>
+				<a href="/random/?q=html">html</a>
+				<!-- - end claude - -->
 			</div>
 			<div class="searchContainer">
 				<form class="searchBar" role="search" action="/random/" method="get">
@@ -72,9 +81,18 @@
 					</select>
 				</form>
 			</div>
-			<div class="recentArticleContainer">
-				<h2>keywords<h2>
-			</div>
+			<h2  class="contentContainerHeading recentHeading">random</h2>
+			<ul class="recentArticleContainer" aria-label="recent articles">
+				<li>
+					<a href="/random/article/">
+						<div class="articleTop">
+							<h3>testArticle</h3>
+							<span class="articleTag">random</span>
+						</div>
+						<p class="articleMeta">10.28.26 · 3 min read · 640 words</p>
+					</a>
+				</li>
+			</ul>
 		</div>
 	</div>
 
