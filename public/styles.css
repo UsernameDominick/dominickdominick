@@ -118,15 +118,16 @@ body {
 }
 
 .navLinks a {
-  color: inherit;
+  color: rgba(236, 238, 242, 0.6);
+  font-size: 18px;
 }
 
 .navLinks .sep {
   color: var(--line-color);
 }
 
-.navLink a:hover {
-  color: rgba(236, 238, 242, 0.22);
+.navLinks a:hover {
+  color: rgba(236, 238, 242, 0.9);
 }
 
 .navLinks li, .navLinks a {
