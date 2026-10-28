@@ -11,13 +11,7 @@ _a personal archive for things i find interesting._
 
 ## about me
 
-<!--
-two or three sentences, first person. what you're into, what you're working toward.
-this can mirror the "about" section and keywords on the home page.
-business casual: contractions are fine, skip buzzwords like "passionate" or "leveraging".
--->
-
-write a short intro here.
+i'm a student, musician and developer based in illinois. i've been into technology for as long as i can remember, mostly web development, software development and making music. this site is where i document and archive things i find interesting.
 
 ## what i'm working on
 
