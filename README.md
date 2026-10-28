@@ -82,7 +82,7 @@ Two GitHub Actions workflows keep the site healthy:
 
 ### Run it locally
 
-Open `public/index.html` in a browser, or run it the way Cloudflare does:
+Run it the way Cloudflare does, then open http://localhost:8787:
 
 ```sh
 npx wrangler dev
