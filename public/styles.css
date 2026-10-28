@@ -6,7 +6,7 @@
 	margin: 0px;
 	padding: 0px;
 
-  outline: 1px solid red;
+  outline: 1px solid lightgrey;
 }
 
 :root {
@@ -147,10 +147,42 @@ body {
   padding: 2rem;
 }
 
+.contentLinkContainer {
+  display: flex;
+  gap: 1rem;
+}
+
+.contentLinkContainer div {
+  border: 1px solid grey;
+  padding: 0.5rem;
+  width: 2.5rem;
+}
+
+#contentTitle {
+  border: none;
+  width: 100%;
+}
+
 .contentContainerL {
   flex-grow: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem;
+  overflow-y: auto;
+  flex-basis: 0;
 }
 
 .contentContainerR {
   flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem 2rem;
+  flex-basis: 0;
+}
+
+.keywordsContainer {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
