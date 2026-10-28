@@ -64,7 +64,7 @@ jobs:
 
           problems = []
           for file in sorted(p for p in root.rglob("*") if p.is_file()):
-              if file.name == "404.html":
+              if file.name == "404.html" or file.name.startswith("_") or file.name == ".assetsignore":
                   continue
               status, _ = get(url_for(file))
               if status != 200:
