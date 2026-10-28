@@ -2,5 +2,50 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "env": {
+    "GIT_AUTHOR_NAME": "UsernameDominick",
+    "GIT_AUTHOR_EMAIL": "gentile.dominick14@gmail.com",
+    "GIT_COMMITTER_NAME": "UsernameDominick",
+    "GIT_COMMITTER_EMAIL": "gentile.dominick14@gmail.com"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(git remote -v)",
+      "Bash(git ls-remote *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push *+*)"
+    ],
+    "ask": [
+      "Edit(/public/**)",
+      "Edit(/.github/workflows/**)",
+      "Edit(/.claude/settings.json)",
+      "Bash(git push * main*)",
+      "Bash(git push *:main*)",
+      "Bash(git ship *main*)",
+      "Bash(git reset --hard*)",
+      "Bash(git reset * --hard*)",
+      "Bash(git rebase *)",
+      "Bash(git commit --amend*)",
+      "Bash(git commit * --amend*)",
+      "Bash(git filter-branch *)",
+      "Bash(git filter-repo *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch * -D *)",
+      "Bash(git push --delete *)",
+      "Bash(git push * --delete *)",
+      "Bash(git push * :*)"
+    ]
   }
 }

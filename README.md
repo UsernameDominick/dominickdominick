@@ -96,4 +96,4 @@ tl;dr, it's a tool, not a replacement.
 
 anything claude changes in the site's code is marked with a `- claude -` comment.
 
-the full rules claude follows are in [`claude.md`](CLAUDE.md), and its settings are in [`.claude/settings.json`](.claude/settings.json).
+the full rules claude follows are in [`claude.md`](.claude/CLAUDE.md), and its settings are in [`.claude/settings.json`](.claude/settings.json).
