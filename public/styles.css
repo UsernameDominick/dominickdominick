@@ -5,8 +5,7 @@
 	box-sizing: border-box;
 	margin: 0px;
 	padding: 0px;
-
-  /*outline: 1px solid lightgrey;*/
+  outline: 1px solid lightgrey;
 }
 
 :root {
@@ -89,12 +88,27 @@ body {
   background-size: 100%;
 }
 
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 /* Nav */
 .navLine {
   flex: 1;
   height: 1px;
   margin: 0 1.5rem;
   background-color: rgba(236, 238, 242, 0.22);
+}
+
+@media (max-width: 768px) {
+  .navLine {
+    display: none;
+  }
 }
 
 .navContainer {
@@ -110,6 +124,17 @@ body {
   font-size: 1.1rem;
   line-height: 1.5rem;
   letter-spacing: 0.04em;
+}
+
+
+@media (max-width: 768px) {
+  .navContainer {
+    flex-direction: column;
+    justify-content: center;
+    height: auto;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
 }
 
 .navLinks {
@@ -162,6 +187,12 @@ body {
   gap: 1rem;
 }
 
+@media (max-width: 768px) {
+  .contentLinkContainer {
+    gap: 0.25rem;  
+  }
+}
+
 .contentLinkContainer div {
   border: 1px solid grey;
   padding: 0.5rem;
@@ -201,9 +232,59 @@ body {
   flex-basis: 0;
 }
 
+@media (max-width: 768px) {
+  .contentContainerR {
+    display: none;
+  }
+}
+
 .keywordsContainer {
   display: flex;
   justify-content: space-between;
   flex-direction: row;
   flex-wrap: wrap;
+}
+
+.searchBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.searchBar input {
+  flex: 1 1 10rem;
+  min-width: 10rem;
+  min-height: 2.5rem;
+  padding: 2px 0.75rem 0;
+  border: 1px solid rgba(236, 238, 242, 0.3);
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--text-color);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.searchBar input::placeholder {
+  color: var(--muted-text-color);
+}
+
+.searchBar select {
+  flex: none;
+  width: 7rem;
+  min-height: 2.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(236, 238, 242, 0.3);
+  border-radius: 0;
+  background-color: var(--background-color);
+  color: var(--muted-text-color);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.searchBar input:focus-visible,
+.searchBar select:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  border-color: var(--accent-color);
 }
