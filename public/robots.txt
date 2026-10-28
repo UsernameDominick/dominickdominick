@@ -1,0 +1,6 @@
+# - claude -
+User-agent: *
+Allow: /
+
+Sitemap: https://dominickdominick.com/sitemap.xml
+# - end claude -
