@@ -86,8 +86,14 @@ what's planned and in progress lives on the [project board](https://github.com/u
 
 ---
 
-## how ai is used
+## how the site uses ai
 
-the site is designed and build by hand. i used claude to help plan the design ([see the project board]([CANVAS-LINK-HERE](https://github.com/users/UsernameDominick/projects/1))), then I've been building the pages from the mockups by hand. claude also helps with tooling, security and safety checks, documentation, and sometimes menial work. anything it changes in the site's code is marked with a `- claude -` comment. 
+ai is a great tool that can save a lot of time, but without control and transparency it struggles to stay consistent. it's a text predictor, not a thinking thing. it forgets, it hallucinates, and maybe worst of all, it's really good at making you feel productive when you're actually spending more time waiting on responses than looking at the project. it also makes feature creep easy: asking for more and more complicated things quietly hurts the design and makes the code harder to maintain. used right, though, it can change how you work for the better, so i wanted to use it on this site in a way that's controlled and out in the open. below is a short summary of how, with links to the full rules and settings.
+
+i used claude to design the mockups, which i've been using as the reference for the real site. it got me to a finished design quickly, without spending (probably an embarrassing amount of) time centering divs and making flexboxes. i'm now hand-building the site from those mockups in this repo.
+
+claude also helps plan the build on the [project board](https://github.com/users/usernamedominick/projects/1/views/1), where i track the things i want and need to do. when i need it to, i have claude re-sort the board: it reads the code and moves the cards where they belong, without touching the code. it also helps with tooling, security and safety checks, documentation, and sometimes menial work, like formatting file paths or writing html boilerplate for a new page. tl;dr, it's a tool, not a replacement.
+
+anything claude changes in the site's code is marked with a `- claude -` comment.
 
 the full rules claude follows are in [`claude.md`](CLAUDE.md), and its settings are in [`.claude/settings.json`](.claude/settings.json).
