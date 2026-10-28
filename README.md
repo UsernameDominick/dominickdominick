@@ -83,3 +83,11 @@ http://localhost:8787
 ### roadmap
 
 what's planned and in progress lives on the [project board](https://github.com/users/usernamedominick/projects/1/views/1).
+
+---
+
+## how ai is used
+
+i design and build this site by hand. i used [claude](https://claude.ai) to help plan the design ([see the planning canvas](CANVAS-LINK-HERE)), then built the pages from those mockups myself. claude also helps with tooling, the checks, these docs and the occasional bit of menial work. anything it changes in the site's code is marked with a `- claude -` comment.
+
+the full rules claude follows are in [`claude.md`](CLAUDE.md), and its settings are in [`.claude/settings.json`](.claude/settings.json).
