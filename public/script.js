@@ -1,5 +1,3 @@
-const panel = document.querySelector(".contentContainer");
-
 window.addEventListener("pointerdown", function(event) {
 	if(event.target.closest(".navContainer")) {
 		return;
@@ -24,15 +22,13 @@ window.addEventListener("wheel", function (event) {
 	}
 });
 
-window.addEventListener("pointerdown", reveal);
-
 window.addEventListener("keydown", function (event) {
-	const downKeys = ["ArrowUp","PageDown"," ","Enter","Tab"];
+	const downKeys = ["ArrowDown", "PageDown", " ", "Enter", "Tab"];
 	const upKeys = ["ArrowUp","PageUp"];
 
 	if(downKeys.includes(event.key)) {
 		reveal();
-	} else if (upkeys.includes(even.key) && window.scrollY === 0) {
+	} else if (upKeys.includes(event.key) && window.scrollY === 0) {
 		hide();
 	}
 });
