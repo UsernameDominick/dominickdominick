@@ -183,6 +183,95 @@ body {
   transform: translateY(0);
 }
 
+/* - claude - */
+/* ===== article page ===== */
+#articleTitle {
+  max-width: 48rem;
+  margin-top: 1.5rem;
+  font-size: 3.5rem;
+  line-height: 3.75rem;
+  letter-spacing: 0.03em;
+}
+
+.articleInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  letter-spacing: 0.14em;
+  color: var(--muted-text-color);
+}
+
+.articleBody {
+  margin-top: 1.5rem;
+}
+
+.articleBody p {
+  max-width: 40rem;
+  margin-top: 1.25rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  letter-spacing: 0.02em;
+  color: var(--article-text-color);
+}
+
+/* the first paragraph is bigger, like an intro */
+.articleBody p:first-child {
+  font-size: 1.5rem;
+  line-height: 2.25rem;
+  color: var(--text-color);
+}
+
+.articleBody h2 {
+  margin-top: 3rem;
+  font-size: 2rem;
+  line-height: 2.5rem;
+  letter-spacing: 0.03em;
+}
+
+.articleBody blockquote {
+  max-width: 40rem;
+  margin-top: 2rem;
+  padding-left: 1.5rem;
+  border-left: 4px solid var(--accent-color);
+  font-size: 1.5rem;
+  line-height: 2.25rem;
+  letter-spacing: 0.03em;
+}
+
+.articleBody figure {
+  max-width: 40rem;
+  margin-top: 2.5rem;
+}
+
+.articleBody figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.04em;
+  color: var(--muted-text-color);
+}
+
+.articleBody pre {
+  max-width: 40rem;
+  margin-top: 1.75rem;
+  padding: 1.25rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  color: var(--article-text-color);
+  background-color: rgba(0, 0, 0, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(236, 238, 242, 0.12);
+}
+
+.backLink {
+  display: inline-block;
+  margin-top: 3rem;
+  letter-spacing: 0.14em;
+  color: var(--muted-text-color);
+}
+/* - end claude - */
+
 /* ===== left column ===== */
 .contentContainerL {
   display: flex;
