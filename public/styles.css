@@ -314,6 +314,9 @@ body {
 }
 
 .contentLine {
+  /* - claude - */
+  flex-shrink: 0;
+  /* - end claude - */
   height: 1px;
   margin-top: 1rem;
   background-color: var(--line-color);
