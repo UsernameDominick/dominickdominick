@@ -309,6 +309,7 @@ body {
 
 .contentPathContainer {
   display: flex;
+  justify-content: flex-end;
   width: 100%;
 }
 
@@ -499,10 +500,6 @@ body {
 }
 
 @media (max-width: 895px) {
-  .contentPathContainer {
-    justify-content: flex-end;
-  }
-
   #contentPath {
     font-size: 0.75rem;
   }
