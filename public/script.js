@@ -1,11 +1,11 @@
 const panel = document.querySelector(".contentContainer");
 
 function reveal() {
-	panel.classList.add("revealed");
+	document.body.classList.add("revealed");
 }
 
 function hide() {
-	panel.classList.remove("revealed");
+	document.body.classList.remove("revealed");
 }
 
 window.addEventListener("wheel", function (event) {

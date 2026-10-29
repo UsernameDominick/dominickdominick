@@ -74,6 +74,7 @@ table {
 
 body {
   min-height: 100dvh;
+  overflow: hidden;
   flex-direction: column;
   display: flex;
 	color: var(--text-color);
@@ -163,6 +164,7 @@ body {
 /* Content */
 .contentContainer {
   gap: 1.5rem;
+  min-height: 0;
   background-color: rgba(31, 29, 32, 0.84);
   display: flex;
   margin: 2rem clamp(1rem, 4vw, 4rem) 0;
@@ -176,7 +178,11 @@ body {
   transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.contentContainer.revealed {
+body:not(.revealed) {
+  overflow: hidden;
+}
+
+.revealed .contentContainer {
   transform: translateY(0);
 }
 
