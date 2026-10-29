@@ -100,10 +100,9 @@ body {
 /* 404 page */
 .notFound {
   background-image: url("/img/bg_404.png");
-  background-repeat: no-repeat;
-  background-position: center 4.5rem;
-  background-size: 100%;
-} 
+  background-repeat: space no-repeat;
+  background-position: center;
+}
 
 /* nav */
 .navLine {
