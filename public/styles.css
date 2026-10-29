@@ -172,6 +172,18 @@ body {
   border-bottom: 0;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
   padding: 2rem;
+  transform: translateY(15rem);
+  transition: transform 0.65s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.contentContainer.revealed {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contentContainer {
+    transition: none;
+  }
 }
 
 .contentContainerL {
@@ -248,6 +260,19 @@ body {
 }
 
 @media (max-width: 768px) {
+  .contentContainer {
+    padding: 0;
+  }
+
+  .contentContainerL {
+    padding: 1.5rem;
+  }
+
+  #pageTitle h1 {
+    font-size: 2.5rem;
+    line-height: 2.75rem;
+  }
+
   .contentContainerR {
     display: none;
   }
