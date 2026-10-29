@@ -97,7 +97,15 @@ body {
   white-space: nowrap;
 }
 
-/* Nav */
+/* 404 page */
+.notFound {
+  background-image: url("/img/bg_404.png");
+  background-repeat: no-repeat;
+  background-position: center 4.5rem;
+  background-size: 100%;
+} 
+
+/* nav */
 .navLine {
   flex: 1;
   height: 1px;
