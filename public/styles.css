@@ -100,7 +100,7 @@ body {
 /* 404 page */
 .notFound {
   background-image: url("/img/bg_404.png");
-  background-repeat: space no-repeat;
+  background-repeat: repeat;
   background-position: center;
 }
 
