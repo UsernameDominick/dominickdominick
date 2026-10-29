@@ -1,3 +1,5 @@
+const column = document.querySelector(".contentContainerL");
+
 window.addEventListener("pointerdown", function(event) {
 	if(event.target.closest(".navContainer")) {
 		return;
@@ -17,7 +19,7 @@ function hide() {
 window.addEventListener("wheel", function (event) {
 	if (event.deltaY > 0) {
 		reveal();
-	} else if (event.deltaY < 0 && window.scrollY === 0) {
+	} else if (event.deltaY < 0 && column.scrollTop === 0) {
 		hide();
 	}
 });
@@ -28,7 +30,7 @@ window.addEventListener("keydown", function (event) {
 
 	if(downKeys.includes(event.key)) {
 		reveal();
-	} else if (upKeys.includes(event.key) && window.scrollY === 0) {
+	} else if (upKeys.includes(event.key) && column.scrollTop === 0) {
 		hide();
 	}
 });
