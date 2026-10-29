@@ -296,11 +296,9 @@ body {
   flex: none;
   min-width: 2rem;
   height: 2rem;
-  border: 1px solid rgba(236, 238, 242, 0.5);
 }
 
 .socialIcon:hover {
-  border-color: var(--accent-color);
   color: var(--accent-color);
 }
 
