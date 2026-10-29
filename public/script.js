@@ -1,5 +1,13 @@
 const panel = document.querySelector(".contentContainer");
 
+window.addEventListener("pointerdown", function(event) {
+	if(event.target.closest(".navContainer")) {
+		return;
+	}
+
+	reveal();
+});
+
 function reveal() {
 	document.body.classList.add("revealed");
 }
