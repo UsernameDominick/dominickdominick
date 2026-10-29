@@ -329,8 +329,12 @@ body {
   color: var(--accent-color);
 }
 
-#contentPath span {
+#contentPath > span {
   color: var(--muted-text-color);
+}
+
+.pathShort {
+  display: none;
 }
 
 #pageTitle h1 {
@@ -483,6 +487,15 @@ body {
   color: var(--accent-color);
 }
 
+#contentPath a:hover {
+  text-decoration: underline;
+}
+
+#contentPath a:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
 /* ===== responsive ===== */
 @media (prefers-reduced-motion: reduce) {
   .contentContainer {
@@ -493,6 +506,14 @@ body {
 @media (max-width: 895px) {
   #contentPath {
     font-size: 0.75rem;
+  }
+
+  .pathFull {
+    display: none;
+  }
+
+  .pathShort {
+    display: inline;
   }
 }
 
