@@ -307,16 +307,15 @@ body {
   outline-offset: 2px;
 }
 
-.pathLine {
-  flex: 1;
-  min-width: 1rem;
-  height: 1px;
-  background-color: var(--line-color);
-}
-
 .contentPathContainer {
   display: flex;
-  flex: none;
+  width: 100%;
+}
+
+.contentLine {
+  height: 1px;
+  margin-top: 1rem;
+  background-color: var(--line-color);
 }
 
 #contentPath {
@@ -500,6 +499,10 @@ body {
 }
 
 @media (max-width: 895px) {
+  .contentPathContainer {
+    justify-content: flex-end;
+  }
+
   #contentPath {
     font-size: 0.75rem;
   }
