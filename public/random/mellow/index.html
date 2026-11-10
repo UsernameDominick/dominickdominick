@@ -291,7 +291,7 @@ const DX7 = (function () {
 
   class FmCore {
     constructor() { this.buf = [new Int32Array(N), new Int32Array(N)]; this.has = new Uint8Array(3); }
-    // params: array of 6 {gainOut, levelIn, freq, phase}
+    // params: array of 6 {gainOut, inputLevel, freq, phase}
     render(output, params, algorithm, fbBuf, fbShift) {
       const THRESH = 1120, alg = ALGS[algorithm], has = this.has; has[0] = 1; has[1] = 0; has[2] = 0;
       for (let op = 0; op < 6; op++) {
@@ -300,7 +300,7 @@ const DX7 = (function () {
         const p = params[op], inbus = (flags >> 4) & 3, outbus = flags & 3;
         const outptr = outbus === 0 ? output : this.buf[outbus - 1];
         const gain1 = p.gainOut;
-        const gain2 = exp2Lookup((p.levelIn - (14 << 24)) | 0);
+        const gain2 = exp2Lookup((p.inputLevel - (14 << 24)) | 0);
         p.gainOut = gain2;
         if (gain1 >= THRESH || gain2 >= THRESH) {
           if (!has[outbus]) add = false;
@@ -361,7 +361,7 @@ const DX7 = (function () {
   class Dx7Note {
     constructor() {
       this.core = new FmCore(); this.env = []; this.params = [];
-      for (let i = 0; i < 6; i++) { this.env.push(new Env()); this.params.push({ gainOut: 0, levelIn: 0, freq: 0, phase: 0 }); }
+      for (let i = 0; i < 6; i++) { this.env.push(new Env()); this.params.push({ gainOut: 0, inputLevel: 0, freq: 0, phase: 0 }); }
       this.pitchenv = new PitchEnv(); this.basepitch = new Int32Array(6); this.ampmodsens = new Int32Array(6);
       this.fb = new Int32Array(2); this.fbShift = 16; this.alg = 0; this.pmd = 0; this.pms = 0; this.amd = 0;
       this.opMode = [0, 0, 0, 0, 0, 0]; this.opSwitch = 63; this.inited = false; this.note = -1; this.fn = 0;
@@ -383,7 +383,7 @@ const DX7 = (function () {
         this.opMode[op] = mode;
         this.basepitch[op] = oscFreq(midinote, mode, patch[off + 18], patch[off + 19], patch[off + 20]);
         this.ampmodsens[op] = ampmodsenstab[patch[off + 14] & 3];
-        this.params[op].phase = 0; this.params[op].gainOut = 0; this.params[op].levelIn = 0;
+        this.params[op].phase = 0; this.params[op].gainOut = 0; this.params[op].inputLevel = 0;
       }
       for (let i = 0; i < 4; i++) { rates[i] = patch[126 + i]; levels[i] = patch[130 + i]; }
       this.pitchenv.set(rates, levels);
@@ -416,7 +416,7 @@ const DX7 = (function () {
       // ==== OP RENDER ====
       for (let op = 0; op < 6; op++) {
         const p = this.params[op];
-        if (!(this.opSwitch & (1 << op))) { this.env[op].getsample(); p.levelIn = 0; continue; }
+        if (!(this.opSwitch & (1 << op))) { this.env[op].getsample(); p.inputLevel = 0; continue; }
         p.freq = freqLookup((this.basepitch[op] + (tune | 0) + (this.opMode[op] ? 0 : pitchMod)) | 0);
         let level = this.env[op].getsample();
         if (this.ampmodsens[op] !== 0) {
@@ -425,7 +425,7 @@ const DX7 = (function () {
           const lv = level >>> 0, ldiff = Math.floor(((lv >>> 16) * pt + Math.floor((lv & 65535) * pt / 65536)) / 256) >>> 0;
           level = (level - ldiff) | 0;
         }
-        p.levelIn = level;
+        p.inputLevel = level;
       }
       this.core.render(buf, this.params, this.alg, this.fb, this.fbShift);
     }
@@ -568,7 +568,7 @@ const FS={
 const G={};for(const k in FS){const s=FS[k].replace(/ /g,'');G[k]=[];for(let i=0;i<35;i++)if(s[i]==='#')G[k].push(i);}
 
 let C,P;
-/* Frame dedupe. draw() writes its canvas calls into a flat recording (REC) instead of the canvas; recEnd() replays it onto the real canvas only when it differs from the
+/* Frame dedupe. draw() writes its canvas calls into a flat recording (REC) instead of the canvas; recFlush() replays it onto the real canvas only when it differs from the
    last one replayed. A screen that is not moving then costs no raster, no commit and no upload. Same calls in the same order = the same pixels. A resize, a font that
    finishes loading, the tab coming back and a 1 s refresh (in case a browser dropped the canvas) force a replay. */
 let ops=[],pops=[],nops=0,pn=-1,rFill=null,rFont=null,recCtx=null,recForce=true,recW=0,recT=-1e9;
@@ -578,7 +578,7 @@ const REC={set fillStyle(v){if(v!==rFill){rFill=v;ops[nops++]=0;ops[nops++]=v}},
 const MAC=new Map();
 function recMacro(key,fn){let m=MAC.get(key);if(!m){const so=ops,sn=nops;ops=[];nops=0;rFill=rFont=null;fn();m=ops.slice(0,nops);ops=so;nops=sn;if(MAC.size>40)MAC.clear();MAC.set(key,m)}rFill=rFont=null;ops[nops++]=4;ops[nops++]=m}
 function recRun(c,a,n){for(let i=0;i<n;){switch(a[i]){case 0:c.fillStyle=a[i+1];i+=2;break;case 1:c.font=a[i+1];i+=2;break;case 2:c.fillRect(a[i+1],a[i+2],a[i+3],a[i+4]);i+=5;break;case 4:{const m=a[i+1];recRun(c,m,m.length);i+=2;break}default:c.fillText(a[i+1],a[i+2],a[i+3]);i+=4}}}
-function recEnd(t){const cv=recCtx.canvas;let same=!recForce&&cv.width===recW&&t-recT<1000&&nops===pn;
+function recFlush(t){const cv=recCtx.canvas;let same=!recForce&&cv.width===recW&&t-recT<1000&&nops===pn;
  if(same)for(let i=0;i<nops;i++)if(ops[i]!==pops[i]){same=false;break}
  const o=ops;ops=pops;pops=o;pn=nops;if(same)return false;
  const k=cv.width/240,c=recCtx;c.setTransform(k,0,0,k,0,0);c.imageSmoothingEnabled=false;c.textBaseline='alphabetic';
@@ -597,12 +597,12 @@ function L(x0,y0,x1,y1,c){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);
 // up, down) are still drawn from the pixel table.
 const CAPR=.66,TSZ=9.1,TFONT=sc=>'600 '+(TSZ*sc).toFixed(2)+'px "Work Sans", system-ui, sans-serif',MC=document.createElement('canvas').getContext('2d'),TWC=new Map();
 function twMeasure(s,sc){const k=sc+'|'+s;let w=TWC.get(k);if(w==null){MC.font=TFONT(sc);w=0;for(const part of s.split(/([\u0001-\u0003])/)){if(!part)continue;w+=/[\u0001-\u0003]/.test(part)?5*sc+sc:MC.measureText(part).width}if(TWC.size>3000)TWC.clear();TWC.set(k,w)}return w}
-function T(s,x,y,c,sc=1,al='l'){s=String(s).toUpperCase();const w=twMeasure(s,sc);if(al==='c')x=Math.round(x-w/2);else if(al==='r')x=Math.round(x-w);C.fillStyle=c===P.faint?P.hint:c;C.textBaseline='alphabetic';C.font=TFONT(sc);
+function T(s,x,y,c,sc=1,al='l'){s=String(s).toLowerCase();const w=twMeasure(s,sc);if(al==='c')x=Math.round(x-w/2);else if(al==='r')x=Math.round(x-w);C.fillStyle=c===P.faint?P.hint:c;C.textBaseline='alphabetic';C.font=TFONT(sc);
  let ox=x;for(const part of s.split(/([\u0001-\u0003])/)){if(!part)continue;
   if(/[\u0001-\u0003]/.test(part)){const g=G[part]||G['?'];for(const i of g)C.fillRect(ox+(i%5)*sc,y+((i/5)|0)*sc,sc,sc);ox+=6*sc}
   else{C.fillText(part,ox,y+7*sc-(7*sc-CAPR*TSZ*sc)/2);ox+=twMeasure(part,sc)}}
  return w}
-const TW=(s,sc=1)=>twMeasure(String(s).toUpperCase(),sc);
+const TW=(s,sc=1)=>twMeasure(String(s).toLowerCase(),sc);
 
 // ---------- palettes, quantised to RGB565 ----------
 function q(h){const n=parseInt(h.slice(1),16);let r=n>>16&255,g=n>>8&255,b=n&255;r=Math.round(Math.round(r*31/255)*255/31);g=Math.round(Math.round(g*63/255)*255/63);b=Math.round(Math.round(b*31/255)*255/31);return `rgb(${r},${g},${b})`}
@@ -629,7 +629,7 @@ const PADS=['KICK','SNARE','HAT','OPEN','CLAP','RIM','SHAKER','PERC'],SHP=['SAW'
 const SMAX=128;   /* a pattern can be up to 8 bars (128 steps) long; only the first 16 x its length in bars is played and shown */
 const emptyPat=()=>[0,1,2,3].map((_,t)=>({sel:0,st:Array(SMAX).fill(-1),gate:Array(SMAX).fill(50),vel:Array(SMAX).fill(100),...(t===3?{dg:new Uint8Array(8*SMAX)}:{})}));   /* T4 (the drum track) also carries its drum grid: 8 pads x SMAX steps of velocity, 0 = no hit */
 const hsh=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)};
-const A={on:false,muted:false,rms:0,trRms:[0,0,0,0],bedRms:0,buf:new Float32Array(2048),heard:new Array(12).fill(0),bnd:[0,0,0,0],bndU:[0,0,0,0],bndC:[0,0,0,0],bendCs:[null,null,null,null],bdS:[new Set,new Set,new Set,new Set],bendOn:[false,false,false,false],bendT:[0,0,0,0],get bend(){return this.bnd[S._trk]},q:[0,1,2,3].map(()=>({pend:[],live:[],cyc:[],log:[],gap:null,nextT:0,len:.5,holdUntil:0,started:false,lastUse:-99})),arps:[new Set(),new Set(),new Set(),new Set()],get arpSet(){return this.arps[S.trk]},ans:[0,0,0,0],ais:[0,0,0,0],seqV:[],vox:[[],[],[],[]],irTok:0,irReady:false,fm:[null,null,null,null],fmMode:'',fmw:null,fmStat:null,fmPending:[],fmTune:0,smpLast:[],down:0,sn:0,t0:0,an0:0,ai:0,gk:0,gA:0,tk:0};
+const A={on:false,muted:false,rms:0,trRms:[0,0,0,0],bedRms:0,buf:new Float32Array(2048),heard:new Array(12).fill(0),bnd:[0,0,0,0],bndU:[0,0,0,0],bndC:[0,0,0,0],bendCs:[null,null,null,null],bdS:[new Set,new Set,new Set,new Set],bendOn:[false,false,false,false],bendT:[0,0,0,0],get bend(){return this.bnd[S._trk]},q:[0,1,2,3].map(()=>({pend:[],live:[],cyc:[],log:[],gap:null,nextT:0,len:.5,holdUntil:0,started:false,lastUse:-99})),arps:[new Set(),new Set(),new Set(),new Set()],get arpSet(){return this.arps[S.trk]},arpNext:[0,0,0,0],ais:[0,0,0,0],seqV:[],vox:[[],[],[],[]],irTok:0,irReady:false,fm:[null,null,null,null],fmMode:'',fmw:null,fmStat:null,fmPending:[],fmTune:0,smpLast:[],down:0,sn:0,t0:0,an0:0,ai:0,gk:0,gA:0,tk:0};
 const NN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const note=m=>NN[((m%12)+12)%12]+(Math.floor(m/12)-1);
 const WH=[53,55,57,59,60,62,64,65,67,69,71,72,74,76,77,79], BL=[54,56,58,61,63,66,68,70,73,75,78];
@@ -758,7 +758,7 @@ function statusBar(now){
  let hideTitle=0;
  {let ind=null,col=P.rec;
   if(AC&&BNC.on&&BNC.info){const i=BNC.info;ind='BOUNCE '+Math.max(0,i.tAll-AC.currentTime).toFixed(1)+'S';col=P.acc}
-  else if(AC&&S.countIn){const c=S.countIn;ind='COUNT '+clamp(c.n-Math.floor((AC.currentTime-c.t0)/c.beat),1,c.n);col=P.acc}
+  else if(AC&&S.countdown){const c=S.countdown;ind='COUNT '+clamp(c.n-Math.floor((AC.currentTime-c.t0)/c.beat),1,c.n);col=P.acc}
   IND=ind||'';
   if(ind){const w=TW(ind),xx=x-w-12;if(xx>=56){if(((now|0)>>8&1)||col!==P.rec)R(xx-8,4,5,5,col);T(ind,xx,3,col);if(xx<160)hideTitle=1}}
  }
@@ -1691,16 +1691,16 @@ function irGen(rt,size,damp,sr,probe){
  const sz=size/99,dp=damp/99,rnd0=(2463534242+rt*977+size*131)>>>0;let rx=rnd0;const rnd=()=>{rx^=rx<<13;rx>>>=0;rx^=rx>>>17;rx^=rx<<5;rx>>>=0;return rx/2147483648-1};
  // type table: pre-delay (s), line lengths (ms), RT60 at DC (s), Nyquist/DC decay ratio, modulation depth (samples), diffuser gain/count, early reflections [ms, gain], brightness
  const TY=[
-  {pre:.022,L:[17.3,21.1,25.7,29.9,34.3,39.1,44.9,51.7],ls:.75+sz*.5,t60:.9+sz*3.1,al:.85-.62*dp,mod:3,dg:.55,nd:4,er:[[31,.28],[43,-.22],[57,.18]],hi:0},                      // HALL: big, late, smooth, dark tail
-  {pre:.004,L:[11.3,14.9,18.7,22.9,27.7,33.1,39.7,47.3],ls:.8+sz*.4,t60:.18+sz*1.1,al:.95-.4*dp,mod:2.5,dg:.5,nd:3,er:[[6.3,.9],[9.7,-.8],[13.1,.7],[17.9,-.62],[23.3,.52],[29.7,-.42],[37.1,.34],[45.7,-.26]],hi:0},   // ROOM: short, strong early reflections
-  {pre:0,L:[13.7,17.3,21.1,25.3,29.9,34.7,39.9,45.7],ls:.85+sz*.3,t60:.5+sz*2.7,al:.98-.25*dp,mod:6,dg:.7,nd:6,er:[],hi:.9},                                              // PLATE: instant, dense, bright, no reflections
-  {pre:.024,L:[19.9,24.3,29.5,34.3,39.5,45.1,51.7,59.5],ls:.75+sz*.5,t60:1.4+sz*3,al:.9-.45*dp,mod:4,dg:.55,nd:4,er:[[33,.25],[47,-.2]],hi:0,shim:1}                       // SHIMMER: a hall whose tail is also fed an octave up
+  {pre:.022,L:[17.3,21.1,25.7,29.9,34.3,39.1,44.9,51.7],ls:.75+sz*.5,t60:.9+sz*3.1,al:.85-.62*dp,mod:3,dg:.55,diffN:4,er:[[31,.28],[43,-.22],[57,.18]],hi:0},                      // HALL: big, late, smooth, dark tail
+  {pre:.004,L:[11.3,14.9,18.7,22.9,27.7,33.1,39.7,47.3],ls:.8+sz*.4,t60:.18+sz*1.1,al:.95-.4*dp,mod:2.5,dg:.5,diffN:3,er:[[6.3,.9],[9.7,-.8],[13.1,.7],[17.9,-.62],[23.3,.52],[29.7,-.42],[37.1,.34],[45.7,-.26]],hi:0},   // ROOM: short, strong early reflections
+  {pre:0,L:[13.7,17.3,21.1,25.3,29.9,34.7,39.9,45.7],ls:.85+sz*.3,t60:.5+sz*2.7,al:.98-.25*dp,mod:6,dg:.7,diffN:6,er:[],hi:.9},                                              // PLATE: instant, dense, bright, no reflections
+  {pre:.024,L:[19.9,24.3,29.5,34.3,39.5,45.1,51.7,59.5],ls:.75+sz*.5,t60:1.4+sz*3,al:.9-.45*dp,mod:4,dg:.55,diffN:4,er:[[33,.25],[47,-.2]],hi:0,shim:1}                       // SHIMMER: a hall whose tail is also fed an octave up
  ][rt],n=Math.min(Math.floor(sr*3.2),Math.floor(sr*TY.t60*1.1)),pre=Math.floor(sr*TY.pre);
  const outL=new Float32Array(n),outR=new Float32Array(n),NL=8;
  const len=TY.L.map(ms=>Math.max(8,Math.round(ms*TY.ls*sr/1000))),mxd=Math.ceil(TY.mod)+3,line=len.map(l=>new Float32Array(l+mxd+2)),w=new Int32Array(NL);
  const g=len.map(l=>Math.pow(10,-3*l/(sr*TY.t60))),al=Math.max(.05,Math.min(.98,TY.al)),pd=g.map(gi=>Math.max(0,Math.min(.97,(Math.LN10/4)*Math.log10(gi)*(1-1/(al*al))))),z=new Float64Array(NL);
  // input diffusion: series allpass, lengths in ms scaled with the rate
- const dl=[4.3,3.1,8.6,6.3,2.3,5.1].slice(0,TY.nd).map(ms=>Math.round(ms*sr/1000)),dbuf=dl.map(l=>new Float32Array(l+1)),dw=new Int32Array(dl.length);
+ const dl=[4.3,3.1,8.6,6.3,2.3,5.1].slice(0,TY.diffN).map(ms=>Math.round(ms*sr/1000)),dbuf=dl.map(l=>new Float32Array(l+1)),dw=new Int32Array(dl.length);
  // early reflection taps: short noise bursts, panned alternately
  const er=TY.er.map(([ms,gn],k)=>{const bl=24,b=new Float32Array(bl);let lp=0;for(let j=0;j<bl;j++){lp+=.6*(rnd()-lp);b[j]=lp*Math.exp(-j/8)}return {at:pre+Math.round(ms*sr/1000),gn,b,pan:k%2?.75:.25}});
  // modulation: one slow sine per line, incommensurate rates
@@ -1752,7 +1752,7 @@ const SMP_RATE=22050,SMP_MAX=2;   // device limit: 2 s x 22,050 Hz x 8-bit = ~44
 const SMP_ULAW=true;   /* the 8 bits are mu-law (G.711, mu=255), not linear: the same 44 KB, but the step grows with the level, so quiet tails keep ~38 dB of signal-to-noise instead of falling to 20 dB. Decoding on the device is a 256-entry table (512 B of flash); encoding is a log lookup at record time. */
 function ulawQ(x){const a=Math.min(1,Math.abs(x));if(!(a>0))return 0;const q=Math.round(Math.log(1+255*a)/Math.log(256)*127)/127,y=(Math.pow(256,q)-1)/255;return x<0?-y:y}
 /* The sampler's one resampler: a Blackman-windowed sinc (12 zero crossings each side), evaluated at fractional positions from a 256-per-sample table, DC gain exactly 1. Going down (the recorded bar to 22,050 Hz) its cutoff sits at 92% of the new Nyquist, so nothing above 10 kHz folds back; going up (22,050 Hz data to the context's rate) it reconstructs the 8-bit steps without the images that a linear read leaves. On the device the same job is a half-band FIR on the 44,118 Hz recording and a 4-point Hermite read on playback (about 10 multiplies a sample). With `done`, the work is cut into ~2 ms tasks so the page never stalls. */
-function smpResample(d,rIn,rOut,done){const n=d.length,m=Math.max(1,Math.floor(n*rOut/rIn)),o=new Float32Array(m),ratio=rIn/rOut,fc=Math.min(1,rOut/rIn)*(rOut<rIn?.92:1),hw=12/fc,R=256,K=Math.ceil(hw*R),tab=new Float32Array(2*K+2);
+function smpResample(d,reverbIn,rOut,done){const n=d.length,m=Math.max(1,Math.floor(n*rOut/reverbIn)),o=new Float32Array(m),ratio=reverbIn/rOut,fc=Math.min(1,rOut/reverbIn)*(rOut<reverbIn?.92:1),hw=12/fc,R=256,K=Math.ceil(hw*R),tab=new Float32Array(2*K+2);
  for(let k=-K;k<=K;k++){const u=k/R,a=Math.PI*fc*u,s=k===0?1:Math.sin(a)/a,w=Math.abs(u)>=hw?0:.42+.5*Math.cos(Math.PI*u/hw)+.08*Math.cos(2*Math.PI*u/hw);tab[k+K]=fc*s*w}
  const run=(a,b)=>{for(let i=a;i<b;i++){const x=i*ratio,j0=Math.ceil(x-hw),j1=Math.floor(x+hw);let s=0,w=0;for(let j=j0;j<=j1;j++){const h=tab[((x-j)*R+K+.5)|0],v=d[j<0?0:j>=n?n-1:j];w+=h;s+=h*v}o[i]=w?s/w:0}};
  if(!done){run(0,m);return o}
@@ -1888,7 +1888,7 @@ function audioInit(){
  A.wowO=AC.createOscillator();A.wowO.frequency.value=.55;A.wowO.start();A.fluO=AC.createOscillator();A.fluO.frequency.value=6.3;A.fluO.start();
  A.dry=g();A.dust=g();A.dust.gain.value=0;A.post=g();A.dust.connect(A.post);A.post.connect(A.dry);A.bedBusy={};
  A.eIn=g();A.eW=g();echoMake();
- A.rIn=g();A.rW=g();convMake();
+ A.reverbIn=g();A.rW=g();convMake();
  A.fxn=[];A.lastDrv=[];A.lastBits=[];A.lastDg=[];
  for(let i=0;i<4;i++)A.fxn.push(fxTrack(i));
  A.white=noiseBuf(2,'white');
@@ -1956,7 +1956,7 @@ function echoSatCurve(){const n=2049,c=new Float32Array(n);for(let i=0;i<n;i++){
 /* distortion: make-up gain so a .25 sine leaves about as loud as it went in (+0.8 dB) at every GAIN setting; the old curve peaked at .6 whatever the drive, which was up to 12 dB louder at the top */
 function distCurve(k){const m=2048,c=new Float32Array(m),N=256;let s=0;for(let j=0;j<N;j++){const y=Math.tanh(k*.25*Math.sin(2*Math.PI*j/N));s+=y*y}const gain=.25/Math.SQRT2*1.1/Math.sqrt(s/N);
  for(let j=0;j<m;j++){const x=j/(m-1)*2-1;c[j]=Math.tanh(x*k)*gain}return c}
-function convMake(){A.conv=AC.createConvolver();if(A.irBuf)A.conv.buffer=A.irBuf;A.rIn.connect(A.conv);A.conv.connect(A.rW)}
+function convMake(){A.conv=AC.createConvolver();if(A.irBuf)A.conv.buffer=A.irBuf;A.reverbIn.connect(A.conv);A.conv.connect(A.rW)}
 /* one track's insert chain. Stages (each a pair of nodes in and out): filter F -> distortion D -> chorus C -> phaser P, then the tape stage T (wow/flutter delay, saturation, bit crush; K = the crusher inside it),
    then warmth. fxRoute wires only the stages that are on, so the default sound runs through the filter and warmth alone. */
 function fxTrack(i){
@@ -1969,7 +1969,7 @@ function fxTrack(i){
  n.tB=g();n.tT=g();n.tT.gain.value=0;n.wow=AC.createDelay(.1);n.wow.delayTime.value=Math.round(.005*AC.sampleRate)/AC.sampleRate;   /* a whole number of samples, so the still tape stage does not roll off the highs */
  n.wowG=g();A.wowO.connect(n.wowG);n.wowG.connect(n.wow.delayTime);n.fluG=g();A.fluO.connect(n.fluG);n.fluG.connect(n.wow.delayTime);
  n.sat=AC.createWaveShaper();n.crush=AC.createWaveShaper();n.wow.connect(n.sat);n.warm=bq('lowpass');n.tB.connect(n.warm);n.tT.connect(n.warm);n.post=n.warm;
- n.post.connect(A.dry);n.eS=g();n.rS=g();n.post.connect(n.eS);n.post.connect(n.rS);n.eS.connect(A.eIn);n.rS.connect(A.rIn);
+ n.post.connect(A.dry);n.eS=g();n.rS=g();n.post.connect(n.eS);n.post.connect(n.rS);n.eS.connect(A.eIn);n.rS.connect(A.reverbIn);
  n.sF={k:'F',i:[n.fDry,n.filt],o:n.tapeIn};n.sW={k:'F',i:[n.filt],o:n.filt};n.sD={k:'D',i:[n.dDry,n.dist],o:n.dsO};n.sC={k:'C',i:[n.cDry,n.chD],o:n.csO};n.sP={k:'P',i:[n.pDry,n.phF[0]],o:n.psO};
  fxRoute(n);return n}
 let NID=0;
@@ -1990,12 +1990,12 @@ function fxRebuild(){
  if(!AC||!A.fxn)return;
  for(let i=0;i<4;i++){const o=A.fxn[i];fxKill(o);for(const k of ['ei'+i,'ri'+i]){if(A.gt&&A.gt[k]&&A.gt[k].t)clearTimeout(A.gt[k].t);if(A.gt)delete A.gt[k]}A.lastDrv[i]=A.lastBits[i]=A.lastDg[i]=undefined;A.fxn[i]=fxTrack(i)}
  [A.eIn,A.eD,A.eLP,A.eHP,A.eSat,A.eFb].forEach(x=>{try{x.disconnect()}catch(e){}});echoMake();
- try{A.rIn.disconnect();A.conv.disconnect()}catch(e){}convMake();
+ try{A.reverbIn.disconnect();A.conv.disconnect()}catch(e){}convMake();
  A.rebuilt=(A.rebuilt||0)+1;audioSync()}
 function sleepLeft(live){const sl=slp();if(!sl)return 0;if(!live)return sl-2;if(!S.sleepT0)return sl;return Math.max(0,sl-(performance.now()-S.sleepT0)/60000)}
 /* the fade has finished: stop everything that would keep playing (or sending MIDI) in silence; any input wakes it up again */
 function sleepCheck(){if(!slp()||sleepLeft(true)>0){A.slept=false;return}if(A.slept)return;A.slept=true;
- const rec0=S.rec&&S.playing;if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.countIn=null;if(rec0)finishRec();S.recExt=false;   /* a recording that falls asleep ends like STOP does (trims a growing pattern, saves); recExt used to stay on and the next plain PLAY grew the pattern */
+ const rec0=S.rec&&S.playing;if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.countdown=null;if(rec0)finishRec();S.recExt=false;   /* a recording that falls asleep ends like STOP does (trims a growing pattern, saves); recExt used to stay on and the next plain PLAY grew the pattern */
  S.gen.on=false;A.arps.forEach(x=>x.clear());A.arpKeys={};for(let t=0;t<4;t++){releaseLatch(t);qClear(t)}}
 function wake(){if(AC&&slp()&&sleepLeft(true)<=0){S.sleepT0=performance.now();A.slept=false;audioSync()}}
 // The reverb and the echo exist once (shared by the four tracks), so their character (reverb type, size, damping; echo time, feedback, tone) is one
@@ -2034,7 +2034,7 @@ function audioSync(){
   P(n.eS.gain,f.emix/100*(.35+sp)*.6,.05);P(n.rS.gain,f.rmix/100*(.35+sp*1.2)*.7,.05);   // this track's sends into the shared echo and reverb
   dust=Math.max(dust,f.dust/99*.05+mood*.05);emix=Math.max(emix,f.emix)}
  P(A.dust.gain,dust,.1);
- {const dt=(x=>x>2?x/2:x)(60/S.bpm*[.5,1,1.5,2][sf.et]),dp=A.eD.delayTime;if(isFinite(dt)&&(A.eTg!==dt||A.eDn!==A.eD)){const first=A.eTg===undefined||A.eDn!==A.eD;A.eTg=dt;A.eDn=A.eD;if(first)dp.value=dt;else{const cur=dp.value;dp.cancelScheduledValues(t);dp.setValueAtTime(cur,t);dp.linearRampToValueAtTime(dt,t+Math.abs(dt-cur)/.2)}}}
+ {const dt=(x=>x>2?x/2:x)(60/S.bpm*[.5,1,1.5,2][sf.et]),dp=A.eD.delayTime;if(isFinite(dt)&&(A.eTg!==dt||A.eDprev!==A.eD)){const first=A.eTg===undefined||A.eDprev!==A.eD;A.eTg=dt;A.eDprev=A.eD;if(first)dp.value=dt;else{const cur=dp.value;dp.cancelScheduledValues(t);dp.setValueAtTime(cur,t);dp.linearRampToValueAtTime(dt,t+Math.abs(dt-cur)/.2)}}}
  P(A.eLP.frequency,500*Math.pow(12,sf.etone/99),.05);
  if(!(A.killT&&performance.now()<A.killT)){P(A.eFb.gain,emix>0?sf.efb/99*.8:0,.05);P(A.eW.gain,1,.05);P(A.rW.gain,A.irHold?0:1,A.irHold?.008:.05)}   /* (not while KILL is flushing the echo and reverb) */
  const key=sf.rt+'|'+sf.size+'|'+sf.damp;if(A.irKey!==key){A.irKey=key;clearTimeout(A.irT);A.irT=setTimeout(()=>swapIR(sf),A.irReady?180:0)}
@@ -2081,7 +2081,7 @@ function fmSend(trk,e){
  else A.fmPending.push([trk,e])}
 function fmVoices(){
  if(A.fmMode==='worklet'){const s=A.fmStat;return s?{active:s.active.reduce((a,b)=>a+b,0),held:s.held.reduce((a,b)=>a+b,0),heldBy:s.held.slice()}:{active:0,held:0,heldBy:[0,0,0,0]}}
- let a=0,h=0;const hb=[0,0,0,0];A.fm.forEach((nd,t)=>{if(nd)nd.eng.voices.forEach(v=>{if(v.active){a++;if(v.held){h++;hb[t]++}}})});return {active:a,held:h,heldBy:hb}}
+ let a=0,h=0;const hb=[0,0,0,0];A.fm.forEach((fmNode,t)=>{if(fmNode)fmNode.eng.voices.forEach(v=>{if(v.active){a++;if(v.held){h++;hb[t]++}}})});return {active:a,held:h,heldBy:hb}}
 function fmNode(trk){
  if(A.fm[trk])return A.fm[trk];
  const eng=new DX7.Engine(AC.sampleRate),sp=AC.createScriptProcessor(2048,0,1),q=[],lv=new Map(),gn=AC.createGain();gn.gain.value=1;eng.og=3;
@@ -2093,9 +2093,9 @@ function fmNode(trk){
  return A.fm[trk]={eng,sp,q,gn};
 }
 // the FM-1 has one 12-voice FM engine: all FM tracks together never sound more than 12 voices
-function fmCap(me){let n=0,bs=-1e18,bg=null,bv=null;A.fm.forEach(nd=>{if(nd)nd.eng.voices.forEach(v=>{if(v.active){n++;const s=DX7.stealScore(v);if(s>bs){bs=s;bv=v;bg=nd.eng}}})});
+function fmCap(me){let n=0,bs=-1e18,bg=null,bv=null;A.fm.forEach(fmNode=>{if(fmNode)fmNode.eng.voices.forEach(v=>{if(v.active){n++;const s=DX7.stealScore(v);if(s>bs){bs=s;bv=v;bg=fmNode.eng}}})});
  if(n<12||me.voices.every(v=>v.active))return;if(bg)bg.fadeOut(bv)}   /* the same rule as the worklet's cap: oldest released voice of any track, then oldest held note */
-function fmPush(nd,e){nd.q.push(e);nd.q.sort((a,b)=>a.t-b.t)}
+function fmPush(fmNode,e){fmNode.q.push(e);fmNode.q.sort((a,b)=>a.t-b.t)}
 let fmIds=0;
 function fmVoice(trk,m,vel,when,sq){
  const note=clamp(Math.round(m)+TK(trk).tr,0,127),id=++fmIds,w=when||0;
@@ -2381,7 +2381,7 @@ function parFit(b,v,k){
 // what the file's sound state is fitted to: the boot banks (S0) for the project keys, the live value for the master volume
 const parBase=k=>k==='vol'?S.vol:S0[k];
 function parApply(par){if(!par||typeof par!=='object')return;PARK().forEach(k=>{if(k in par&&parBase(k)!==undefined)S[k]=parFit(parBase(k),par[k],k==='tk'?'':k)});bindTrack(S._trk)}
-// a lane may only drive a number inside the sound banks (never the song chain, the patterns or anything else of S): its path is checked here, its value is clamped on every write (aApply)
+// a lane may only drive a number inside the sound banks (never the song chain, the patterns or anything else of S): its path is checked here, its value is clamped on every write (applyAuto)
 const LANE_PATH=/^(|gen|tracks\.[0-3]|scape\.[0-3]|tk\.[0-3](\.\w+)*)$/;
 function laneTargetOk(id,path,key){if(aBase(id).startsWith('bend'))return true;if(!LANE_PATH.test(path)||(typeof key!=='string'&&typeof key!=='number'))return false;const o=aObj(path);return !!o&&typeof o==='object'&&typeof o[key]==='number'}
 const laneRange=(path,key)=>{const pp=path.replace(/^tk\.\d\.?/,'').replace(/\.\d+/g,'');return parRng(/^\d+$/.test(String(key))?pp:pp?pp+'.'+key:String(key))};   // the same table, by where the lane writes
@@ -2413,14 +2413,14 @@ setInterval(autoSave,4000);document.addEventListener('visibilitychange',()=>{if(
 function loadSong(){try{const d=JSON.parse(localStorage.getItem('mellow-song'));if(d&&typeof d.p==='string'){songRestore(d.p,!!d.full);if(d.full){try{dgForceKit()}catch(e){}}if(d.bpm>=30&&d.bpm<=300)S.bpm=d.bpm;if(d.rate>=0&&d.rate<=2)S.rate=d.rate|0;if(d.swing>=50&&d.swing<=75)S.swing=d.swing;if(d.sgate>=20&&d.sgate<=100)S.sgate=d.sgate}}catch(e){}}
 function clickAt(t,acc){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=acc?1500:1000;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(acc?.28:.18,t+.002);g.gain.exponentialRampToValueAtTime(.0008,t+.05);o.connect(g);g.connect(A.master);o.start(t);o.stop(t+.06);o.onended=()=>{try{g.disconnect()}catch(e){}}}
 function startCountIn(ext){if(!AC)return;stopSeq();S.seqEn=true;S.rec=true;S.playing=true;S.patNext=-1;S.recExt=!!ext;songStart();if(S.screen!=='seq')S.screen='seq';
- const beat=60/S.bpm*4/TSIGS[S.ts][1],n=TSN()*S.glob.cin,t0=AC.currentTime+.08;S.countIn=n?{t0,beat,n,next:0}:null;A.t0=t0+n*beat;A.sn=0;S.t0=performance.now()+(A.t0-AC.currentTime)*1000;undoPush('RECORDING')}
+ const beat=60/S.bpm*4/TSIGS[S.ts][1],n=TSN()*S.glob.cin,t0=AC.currentTime+.08;S.countdown=n?{t0,beat,n,next:0}:null;A.t0=t0+n*beat;A.sn=0;S.t0=performance.now()+(A.t0-AC.currentTime)*1000;undoPush('RECORDING')}
 // RECORD LENGTH = GROWS (extend recording): the pattern is not looped, it grows a bar at a time as you play past its end; stopping cuts it back to the
 // last bar you reached and saves it.
 function extendOne(){const L=S.plen[S.pat];if(L>=maxBars()){S.recExt=false;toast('LONGEST LENGTH: NOW LOOPING');return false}
  const a=L*SPB(),b=(L+1)*SPB();S.plen[S.pat]=L+1;S.seqs.forEach((q,t)=>{if(t===DT)dgClearCols(q,a,b);if(S.tl[S.pat][t])return;for(let i=a;i<b;i++){q.st[i]=-1;q.gate[i]=50;q.vel[i]=100}});return true}
 function trimToPlayed(){if(!AC)return;const lat=AC.outputLatency||AC.baseLatency||0,played=Math.max(0,(AC.currentTime-lat-A.t0)/stepSec());
  const bars=clamp(Math.ceil(played/SPB()-1e-6),1,maxBars());S.plen[S.pat]=Math.min(S.plen[S.pat],bars);S.seqs.forEach(q=>{if(q.sel>=nst())q.sel=nst()-1})}
-function finishRec(){S.countIn=null;if(S.recExt){S.recExt=false;trimToPlayed()}saveSong();toast('SAVED')}
+function finishRec(){S.countdown=null;if(S.recExt){S.recExt=false;trimToPlayed()}saveSong();toast('SAVED')}
 // ---------- the drum track and its grid ----------
 // T4 (index 3, DT) is ALWAYS the drum track: it can only hold DRUM kits (presets of other engines are hidden and refused on it), and the other three tracks are untouched.
 // SEQ on T4 opens the DRUM GRID instead of the step sequencer: one row per pad (KICK SNARE HAT OPEN CLAP RIM SHAKER PERC), one column per step, so every drum part is
@@ -2892,11 +2892,11 @@ function nestPaint(z,x,y){const a=S.auto[z.lid];if(!a)return;const N=a.v.length,
 function stopSeq(){if(!AC)return;recCloseAll();A.seqV.forEach(v=>v&&v.cut&&v.cut());   /* STOP: notes that have not started never sound, notes that sound are let go now (they used to ring out their whole gate, and the ones in the look-ahead still started) */
  A.seqV=[];A.sq=[];A.sl=[];A.sqMask=0;A.sqDm=0;S.padHits=[];S.song.jump=-1;S.song.go=0}
 // STOP: stops the sequencer and leaves everything else (never starts it). Double-tap STOP is KILL.
-function stopOnly(){const rec0=S.rec&&S.playing;S.countIn=null;if(S.playing){S.playing=false;stopSeq()}if(rec0)finishRec();if(AC)audioSync()}
+function stopOnly(){const rec0=S.rec&&S.playing;S.countdown=null;if(S.playing){S.playing=false;stopSeq()}if(rec0)finishRec();if(AC)audioSync()}
 // KILL: silence everything now. The sequencer stops and its queued notes never sound; every key, hold, latch, queue, arp and Drift note on every track is let go and every voice of
 // every engine fades out in a few milliseconds (never a hard cut); the shared reverb and echo are ducked, flushed and brought back, so no tail is left. The output guard (limiter, soft clip) is untouched.
 function killAll(){
- const rec0=S.rec&&S.playing;S.playing=false;S.countIn=null;stopSeq();if(rec0)finishRec();S.rec=false;S.recExt=false;
+ const rec0=S.rec&&S.playing;S.playing=false;S.countdown=null;stopSeq();if(rec0)finishRec();S.rec=false;S.recExt=false;
  S.gen.on=false;A.arps.forEach(x=>x.clear());A.arpKeys={};if(A.arpSet)A.arpSet.clear();
  for(let t=0;t<4;t++){HOLD[t]=0;releaseLatch(t,true,true);qClear(t)}
  latchMark.clear();Object.keys(heldK).forEach(id=>keyOff(id[0],+id.slice(1)));A.down=0;
@@ -2911,7 +2911,7 @@ function fxFlush(){if(!AC||!A.eW)return;const t=AC.currentTime;A.killT=performan
  [A.eW,A.rW,A.eFb].forEach(n=>{n.gain.cancelScheduledValues(t);n.gain.setTargetAtTime(0,t,.006);n.gain._v=undefined});   /* (audioSync's P() only writes a value that changed: forget the cached one so it sets them again) */
  clearTimeout(A.flushT);A.flushT=setTimeout(()=>{if(!AC)return;
   [A.eIn,A.eD,A.eLP,A.eHP,A.eSat,A.eFb].forEach(x=>{try{x.disconnect()}catch(e){}});echoMake();A.eFb.gain.value=0;   /* a new gain node starts at 1: keep the feedback closed until audioSync opens it */
-  try{A.rIn.disconnect();A.conv.disconnect()}catch(e){}convMake();
+  try{A.reverbIn.disconnect();A.conv.disconnect()}catch(e){}convMake();
   A.killT=0;audioSync()},90)}
 function rebase(oss,obpm){if(!AC)return;if(S.playing){const nss=stepSec(),pos=(AC.currentTime-A.t0)/oss;A.t0=AC.currentTime-pos*nss;S.t0=performance.now()-pos*nss*1000}if(S.gen.on&&obpm!==S.bpm){S.gen.t0=performance.now();A.gA=AC.currentTime;A.gk=0}}
 function arpPattern(notes,t){const ar=TK(t),m=ar.arp.mode,set=A.arps[t==null?S.trk:t],base=m===5&&set.size?[...set]:notes,seq=[];for(let o=0;o<ar.arp.oct;o++)base.forEach(n=>seq.push(n+12*o));
@@ -2931,7 +2931,7 @@ function laStep(){const np=performance.now();
 function tick(){
  if(!AC)return;const ct=AC.currentTime,LA=laStep();if(A.syncDirty){A.syncDirty=0;audioSync()}
  if(S.playing)songMaskSync();
- if(S.countIn){const c=S.countIn;while(c.next<c.n&&c.t0+c.next*c.beat<ct+LA){clickAt(c.t0+c.next*c.beat,c.next===0);c.next++}if(ct>=c.t0+c.n*c.beat)S.countIn=null}
+ if(S.countdown){const c=S.countdown;while(c.next<c.n&&c.t0+c.next*c.beat<ct+LA){clickAt(c.t0+c.next*c.beat,c.next===0);c.next++}if(ct>=c.t0+c.n*c.beat)S.countdown=null}
  if(S.playing){const ss=stepSec(),sw=(S.swing-50)/50*ss;let n=0;while(A.t0+A.sn*ss<ct+LA&&!(BNC.on&&BNC.info&&A.t0+A.sn*ss>=BNC.info.tEnd-.0005)&&n++<8){   /* a bounce ends at tEnd: the look-ahead used to schedule the first step of the NEXT pass (a stray downbeat at the very end of the file) before the 80 ms poll stopped it */if(S.recExt&&A.sn>0&&A.sn%nst()===0)extendOne();let NS=nst();if(S.song.on&&S.song.jump>=0&&!S.recExt&&A.sn>0&&A.sn%(S.plen[S.pat]===1?BSTEPS():SPB())===0){songJumpNow(ss);NS=nst()}if(S.song.on&&!S.recExt&&A.sn>0&&A.sn%NS===0)songAdvance(NS);if(A.sn%NS===0&&S.rec&&A.sn>0&&!S.recExt)undoPush('RECORDING');if(A.sn%NS===0&&S.patNext>=0&&!S.recExt){S.pat=S.patNext;S.patNext=-1;{const sh=A.sn*ss;A.t0+=sh;A.sn=0;S.t0+=sh*1000}}   /* the new pattern starts from its first step (and may have a different length) */
   const when=A.t0+A.sn*ss+(A.sn%2?sw:0),i0=A.sn%NS;A.recW.forEach((w,t)=>{if(A.sn%nstT(t)===0)w.clear()});if(S.glob.metro&&A.sn%BSTEPS()===0)clickAt(A.t0+A.sn*ss,i0%SPB()===0);
    const it=A.sn%nstT(S.trk),rep=S.rec&&S.glob.rmode===1&&!S.recExt&&!A.recW[S.trk].has(it);   /* REPLACE: what the playhead passes on the recording track is wiped, unless it was just played in this pass */
@@ -2941,10 +2941,10 @@ function tick(){
 qTick(ct);midiClockTick(ct);
  for(let t=0;t<4;t++){const arp=TK(t).arp,notes=[...A.arps[t]].sort((a,b)=>a-b);   // each track has its own arp notes (held or latched on that track)
   if(arp.on&&notes.length){const sb=[1,1.5,2,3,4,6,8,12][arp.rate],sd=60/S.bpm/sb,lk=S.playing&&A.t0>0;   /* while the sequencer plays the arp sits on its grid (a multiple of its step from the pattern start), so it can't flam against the pattern, and a tempo change can't drift it */
-   if(A.ans[t]<ct-.2||!arpOn[t]){arpOn[t]=1;let st=ct+.02;if(lk){const nx=A.t0+Math.ceil((ct+.01-A.t0)/sd-1e-6)*sd;if(nx-ct<=.18)st=nx}A.ans[t]=st}let n=0;
-   while(A.ans[t]<ct+LA&&n++<6){const pat=arpPattern(notes,t),sw=A.ais[t]%2?(arp.sw-50)/50*sd:0,nn=pat[A.ais[t]%pat.length],when=A.ans[t]+sw;
+   if(A.arpNext[t]<ct-.2||!arpOn[t]){arpOn[t]=1;let st=ct+.02;if(lk){const nx=A.t0+Math.ceil((ct+.01-A.t0)/sd-1e-6)*sd;if(nx-ct<=.18)st=nx}A.arpNext[t]=st}let n=0;
+   while(A.arpNext[t]<ct+LA&&n++<6){const pat=arpPattern(notes,t),sw=A.ais[t]%2?(arp.sw-50)/50*sd:0,nn=pat[A.ais[t]%pat.length],when=A.arpNext[t]+sw;
     noteVoice(t,nn,.75,when,sd*arp.gate/100);recArp(t,nn,when,sd);A.ais[t]++;
-    if(lk){const T=A.ans[t];let nx=A.t0+(Math.floor((T-A.t0)/sd+1e-6)+1)*sd;if(nx-T<.5*sd)nx+=sd;A.ans[t]=nx}else A.ans[t]+=sd}}else{A.ans[t]=ct;A.ais[t]=0;arpOn[t]=0}}
+    if(lk){const T=A.arpNext[t];let nx=A.t0+(Math.floor((T-A.t0)/sd+1e-6)+1)*sd;if(nx-T<.5*sd)nx+=sd;A.arpNext[t]=nx}else A.arpNext[t]+=sd}}else{A.arpNext[t]=ct;A.ais[t]=0;arpOn[t]=0}}
  const g=S.gen;if(g.on){const sec=30/S.bpm;let n=0;while(A.gA+(A.gk+.25)*sec<ct+LA&&n++<4){const e=genAt(A.gk+12);if(e)noteVoice(S.trk,e.midi,e.vel,A.gA+(A.gk+.25)*sec+Math.max(0,e.hm/12*sec),e.wd/12*sec*1.6);A.gk++}}
  A.tk=(A.tk||0)+1;
  if(A.tk%2===0){A.an.getFloatTimeDomainData(A.buf);let s=0;for(let i=0;i<A.buf.length;i++)s+=A.buf[i]*A.buf[i];A.rms=Math.sqrt(s/A.buf.length);if(!(A.rms<4))guardWatch();
@@ -3214,7 +3214,7 @@ function aPathOf(target){if(target===S)return '';if(AP.has(target))return AP.get
 function aPhase(a,r,now){return (((now-r.t0)/aLen(a))%1+1)%1}
 function aValue(a,p){const n=a.v.length,x=clamp(p,0,.9999)*n,i=Math.floor(x),j=(i+1)%n,f=x-i;return (a.v[i]*(1-f)+a.v[j]*f)/255}
 const aActive=id=>{const a=S.auto[id];return !!(a&&a.v&&(a.mode===1||(a.mode===2&&aRt(id).run)))};
-function aApply(id,lane,v){const r=aRt(id),q=Math.round(v*1000);if(q===r.last)return;r.last=q;
+function applyAuto(id,lane,v){const r=aRt(id),q=Math.round(v*1000);if(q===r.last)return;r.last=q;
  if(aBase(id).startsWith('bend')){setBend(v*2-1,+aBase(id).slice(4));return}
  const o=aObj(lane.path);if(!o)return;const rg=laneRange(lane.path,lane.key),val=Math.round(clamp(lane.lo+v*(lane.hi-lane.lo),rg?Math.max(lane.lo,rg[0]):lane.lo,rg?Math.min(lane.hi,rg[1]):lane.hi));   /* never outside the parameter's own range (a list index, an algorithm number), whatever the lane says */if(o[lane.key]!==val){o[lane.key]=val;if(lane.path==='adsr')applyAdsr();if(AC)syncSoon()}}
 const aCur=t=>t===0?(A.bend+1)/2:MODT[t][2]();
@@ -3223,7 +3223,7 @@ const aSongSteps=()=>(S.song.base||0)+playPosF();
 function songTotalBars(){let n=0;songChain().forEach(e=>n+=S.plen[e.pat]*e.rep);return n||S.plen[S.pat]}
 // the player moved a parameter: it is theirs for a moment, and while recording with RECORD AUTOMATION on the movement is written into its lane
 function aNoteId(id,path,key,lo,hi,name,v01){const r=aRt(id),now=performance.now();r.man=now;r.last=-1;
- if(!(S.glob.arec&&S.rec&&S.playing&&AC&&A.on&&!S.countIn))return;
+ if(!(S.glob.arec&&S.rec&&S.playing&&AC&&A.on&&!S.countdown))return;
  let lane=S.auto[id];const b=Math.round(clamp(v01,0,1)*255);
  if(!lane){if(aFull()){if(!r.rg||now-r.rg>3000)toast('AUTOMATION LIMIT '+NLANES);r.rg=now;return}const tb=S.song.on?songTotalBars():S.plen[S.pat];lane={name,path,key,lo,hi,v:null,bars:AU_BARS.find(x=>x>=tb)||16,mode:1,sync:0};lane.v=new Array(AU_N*lane.bars).fill(b);undoPush();S.auto[id]=lane;toast('AUTOMATING '+name)}
  else if(!r.rg||now-r.rg>1500)undoPush();   // the first write of a gesture is one undo step
@@ -3253,7 +3253,7 @@ function autoStep(now){
   if(ls>=0&&!r.on){r.on=1;r.bt=now;r.base=aCurOf(id,lane);if(lane.mode===2){r.run=1;r.t0=now}}
   if(lane.mode===1){if(lane.sync===1)v=aValue(lane,aPhase(lane,r,now));else{if(!(S.playing&&AC&&A.on))continue;const L=lane.bars*SPB();v=aValue(lane,((ls>=0?aSlotSteps():aSongSteps())%L)/L)}}
   else if(r.run){const el=now-r.t0,L=aLen(lane);if(el>=L){r.run=0;v=aValue(lane,.9999)}else v=aValue(lane,el/L)}else continue;
-  aApply(id,lane,v)}
+  applyAuto(id,lane,v)}
  const rc=AUC.rec;if(rc){if(!MOD.act){aFinish()}else{const N=AU_N*AUC.bars,cur=Math.round(clamp(aCur(rc.t),0,1)*255);let idx;
   if(S.playing&&AC&&A.on){idx=Math.floor(((aSongSteps()/(AUC.bars*SPB()))%1)*N);if(rc.last<0){rc.last=idx;rc.v[idx]=cur;rc.cnt=1}else if(idx!==rc.last){let i=rc.last;while(i!==idx){i=(i+1)%N;rc.v[i]=cur;rc.cnt++}rc.last=idx;if(rc.cnt>=N)aFinish()}else rc.v[idx]=cur}
   else{idx=Math.floor((now-rc.t0)/(AUC.bars*SPB()*stepSec()*1000)*N);if(idx>=N){for(let i=Math.max(0,rc.last+1);i<N;i++)rc.v[i]=cur;rc.last=N-1;aFinish()}else{for(let i=Math.max(0,rc.last+1);i<=idx;i++)rc.v[i]=cur;rc.last=idx}}}}}
@@ -3479,7 +3479,7 @@ applyGrid();
 function projectJSON(){const o=JSON.parse(songSnap(true));return JSON.stringify({app:'mellow',v:2,snap:o,bpm:S.bpm,rate:S.rate,swing:S.swing,sgate:S.sgate,tracks:S.tracks.map(t=>({preset:PRESETS[t.pre][0],vol:t.vol})),user:USERP})}
 function importProject(txt){let d;try{d=JSON.parse(txt)}catch(e){return 'THAT IS NOT A MELLOW PROJECT'}
  if(!d||d.app!=='mellow'||!d.snap||typeof d.snap!=='object')return 'THAT IS NOT A MELLOW PROJECT';
- const keep=songSnap(true);undoPush('IMPORT');if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.recExt=false;S.countIn=null;
+ const keep=songSnap(true);undoPush('IMPORT');if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.recExt=false;S.countdown=null;
  if(d.user&&typeof d.user==='object'&&!Array.isArray(d.user)){let nu=PRESETS.filter(p=>p[1]==='USER').length;for(const nm in d.user){const u=d.user[nm];if(nu>=USERMAX)break;if(!userOk(nm,u)||Object.prototype.hasOwnProperty.call(USERP,nm))continue;USERP[nm]={en:u.en,snap:u.snap};PRESETS.push([nm,'USER',u.en]);nu++}try{localStorage.setItem('mellow-user',JSON.stringify(USERP))}catch(e){}}
  try{songRestore(JSON.stringify(d.snap),true)}catch(e){songRestore(keep,true);afterRestore();return 'THAT PROJECT IS DAMAGED'}   /* all or nothing: a file that still cannot be read leaves the project as it was */
  if(d.bpm>=30&&d.bpm<=300)S.bpm=d.bpm;if(d.rate>=0&&d.rate<=2)S.rate=d.rate|0;if(d.swing>=50&&d.swing<=75)S.swing=d.swing;if(d.sgate>=20&&d.sgate<=100)S.sgate=d.sgate;
@@ -3511,7 +3511,7 @@ function bouncePasses(kind){if(kind==='song'){const out=[];songChain().forEach(e
  return [{pat:S.pat,steps:SPB()*Math.max(S.plen[S.pat],...S.tl[S.pat].map(x=>x||0))}]}
 function bounceStart(kind){ensureAudio();if(!AC||BNC.on)return;
  if(kind==='song'&&!songChain().length){toast('THE SONG IS EMPTY');return}
- if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.recExt=false;S.countIn=null;
+ if(S.playing){S.playing=false;stopSeq()}S.rec=false;S.recExt=false;S.countdown=null;
  const keep={song:S.song.on,pat:S.pat,patNext:S.patNext,metro:S.glob.metro};S.glob.metro=0;S.song.on=kind==='song'?1:0;S.patNext=-1;
  const ss=stepSec(),steps=bouncePasses(kind).reduce((n,x)=>n+x.steps,0),main=steps*ss,tail=3,sr=AC.sampleRate;
  const chunks=[],sp=AC.createScriptProcessor(4096,2,2),z=AC.createGain();z.gain.value=0;A.master.connect(sp);sp.connect(z);z.connect(AC.destination);
@@ -3621,14 +3621,14 @@ function press(id,btn){ensureAudio();wake();const scr=S.screen;   /* btn: the pr
  if(BNC.on&&(id==='play'||id==='stop')){bounceCancel();return}
  if(id==='home'&&btn){const nt=performance.now();if(nt-HOMETAP.t<=350){HOMETAP.t=0;S.dlg=null;S.pop=null;S.screen='scape';audioSync();return}HOMETAP.t=nt}   /* HOME: a tap goes home; a second tap within 0.35 s opens the soundscape (the SCAPE line on Home is gone) */
  if(id==='stop'){const nt=performance.now();if(nt-STOPTAP.t<350){STOPTAP.t=0;killAll()}else{STOPTAP.t=nt;stopOnly()}return}   /* STOP: stops at once; a second tap within 0.35 s is KILL */
- if(id==='rec'&&!S.rec&&!S.playing&&S.seqEn&&AC&&scr!=='smp'&&!S.dlg&&!S.countIn&&(S.glob.cin||S.glob.rlen)){startCountIn(!!S.glob.rlen);audioSync();return}   /* REC while stopped: the COUNT-IN setting plays its clicks first, the RECORD LENGTH setting can let the pattern grow; with both off it records at once */
+ if(id==='rec'&&!S.rec&&!S.playing&&S.seqEn&&AC&&scr!=='smp'&&!S.dlg&&!S.countdown&&(S.glob.cin||S.glob.rlen)){startCountIn(!!S.glob.rlen);audioSync();return}   /* REC while stopped: the COUNT-IN setting plays its clicks first, the RECORD LENGTH setting can let the pattern grow; with both off it records at once */
  const rec0=S.rec&&S.playing;
   if(id==='save'&&scr!=='save'){SAVEFROM=scr;S.save.name=PRESETS[S.preset][0].slice(0,10).padEnd(10,' ');S.save.cur=0;{const us=PRESETS.filter(p=>p[1]==='USER'),cu=us.indexOf(PRESETS[S.preset]);S.save.slot=cu>=0?cu+1:Math.min(128,us.length+1)}}press0(id);
  if(id==='play'){S.playing?startSeq():stopSeq()}
  if(id==='rec'&&S.rec&&!rec0&&S.playing&&scr!=='smp')undoPush('RECORDING');   /* REC switched on while it plays: what is recorded before the next pass is an undo step too */
  if(id==='rec'&&S.rec&&!S.playing){S.playing=true;startSeq()}
  if(id==='rec'&&scr==='smp'){S.rec=false;startResample()}
- if(!S.playing)S.countIn=null;
+ if(!S.playing)S.countdown=null;
  if(rec0&&(!S.playing||!S.rec))finishRec();
  audioSync()}
 document.querySelector('.stage').addEventListener('pointerdown',()=>ensureAudio(),true);
@@ -3939,7 +3939,7 @@ function newProject(){
  S.pats=Array.from({length:16},emptyPat);S.plen.fill(1);S.tl.forEach(a=>a.fill(0));S.ts=2;S.gu=0;S.snap=0;S.song.on=0;S.song.sel=0;S.song.pos=0;S.song.rc=0;S.song.chain.forEach((e,i)=>{e.pat=i===0?0:-1;e.rep=1;e.mute=0;e.dmute=0;e.col=[0,0,0,0]});S.song.jump=-1;S.song.go=0;S.auto={};AUC.armed=false;AUC.rec=null;applyGrid();S.pat=0;S.patNext=-1;S.seqPage=0;S.seqEn=false;S.rec=false;S.recExt=false;S.clr=0;S.dlg=null;S.hits.length=0;S.padHits=[];
  S.trk=0;S.op=2;S.screen='home';S.ppMode='edit';S.ppPage=0;S.arp.on=false;S.gen.on=false;S.playing=false;
  S.smpData=null;A.smpBuf=null;A.heard.fill(0);keyAt=0;for(let t=0;t<4;t++)qClear(t);
- S.countIn=null;try{localStorage.removeItem('mellow-song')}catch(e){}
+ S.countdown=null;try{localStorage.removeItem('mellow-song')}catch(e){}
  [0,5,7,8].forEach((p,t)=>{S._trk=t;applyPreset(p);if(engOf(t)==='FM')adsrFromOps();S.fx.emix=0;S.fx.rmix=0});S._trk=0;bindTrack(0);   // a new project starts dry: no reverb or echo send on any track
  if(AC)audioSync();S.pop=null;S.toast={s:'NEW PROJECT  \u00b7  UNDO IN SETTINGS',t:performance.now()}}
 
@@ -4193,7 +4193,7 @@ const mobEl=document.getElementById('mobile'),mobBtns={},mobDials={};let mobKeys
  // Only the toggles/modes have one; the screens (HOME, EDIT, FX ...) and PLAY / STOP / SAVE ignore a hold and keep the 45 ms press.
  // REC is the one exception: HOLD REC opens the RECORDING SETTINGS screen (HOLDACT, below) and does not touch the recording; a tap still arms and disarms it.
  const HOLDMS=350,HOLDOFF={
-  seq:()=>{if(!S.seqEn)return false;const rec0=S.rec&&S.playing;S.seqEn=false;S.rec=false;S.countIn=null;if(S.playing){S.playing=false;stopSeq()}if(rec0)finishRec();S.recExt=false;/* a recording that is switched off here ends like STOP does (finishRec: trims a growing pattern, saves); recExt used to stay on and the next plain PLAY grew the pattern a bar at a time */if(S.screen==='seq'||S.screen==='song'||S.screen==='nest'||S.screen==='dgrid')S.screen='home';toast('SEQ OFF');if(AC)audioSync();return true},
+  seq:()=>{if(!S.seqEn)return false;const rec0=S.rec&&S.playing;S.seqEn=false;S.rec=false;S.countdown=null;if(S.playing){S.playing=false;stopSeq()}if(rec0)finishRec();S.recExt=false;/* a recording that is switched off here ends like STOP does (finishRec: trims a growing pattern, saves); recExt used to stay on and the next plain PLAY grew the pattern a bar at a time */if(S.screen==='seq'||S.screen==='song'||S.screen==='nest'||S.screen==='dgrid')S.screen='home';toast('SEQ OFF');if(AC)audioSync();return true},
   song:()=>{if(!S.song.on)return false;songSetOn(0);toast('SONG OFF');return true},
   key:()=>{if(!S.scale.hl)return false;if(S.screen==='scale')press('key');else S.scale.hl=0;return true},
   arp:()=>{if(!S.arp.on)return false;S.arp.on=false;A.arps.forEach(x=>x.clear());A.arpKeys={};if(S.screen==='gen'||(S.screen==='pp'&&S.ppMode==='arp'))S.screen='home';toast('ARP OFF');return true},
@@ -4288,7 +4288,7 @@ let last=0;
 function frame(t){
  requestAnimationFrame(frame);
  if(t-last<30)return;const dtf=Math.min(6,Math.max(.5,(t-last)/33));last=t;   // dtf: frames are 30-35 ms apart on a good phone, longer on a busy one
- fitScreenCanvas();draw(bctx,t,true);recEnd(t);
+ fitScreenCanvas();draw(bctx,t,true);recFlush(t);
  autoStep(performance.now());
  MOD.sprT.forEach(t=>{if(A.bnd[t]===0){MOD.sprT.delete(t);return}if(MOD.act&&t===S._trk)return;if(!aActive(stripId(0,t)))setBend(Math.abs(A.bnd[t])<.03?0:A.bnd[t]*Math.pow(.55,dtf),t)});   // a bend from the strip springs back to centre (a bend from a MIDI controller stays until the controller lets go)
  {const st=document.getElementById('mk-r');if(st){const T=MODT[MOD.t],v=MOD.t===0?(A.bend+1)/2:T[2]();st.style.setProperty('--m',v.toFixed(3));const l=document.getElementById('mod-l'),lt=T[0]+(AUC.rec||AUC.armed?'  \u00b7  REC':aActive(stripId(MOD.t))?'  \u00b7  AUTO':'');if(l.textContent!==lt)l.textContent=lt;st.querySelector('.mid').style.display=MOD.t===0?'':'none'}}
