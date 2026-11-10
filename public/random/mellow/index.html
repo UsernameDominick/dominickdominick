@@ -16860,7 +16860,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 
 				8; /* notes 36-43 are pads 0-7; any other note folds mod 8, as dgFold does */
 	// Queue settings (hold the mod strip, QUEUE tab). MODE: NORMAL starts at once, PAUSE waits WAIT seconds after your last swipe and plays once,
-	// LOOP repeats until you cancel it. HOLD OVERLAP: how long a swipe-up held note keeps sounding after you play the next key. TIMING: SYNC snaps note
+	// LOOP repeats until you cancel it, waiting WAIT seconds between one pass and the next (the first pass starts at once). HOLD OVERLAP: how long a swipe-up held note keeps sounding after you play the next key. TIMING: SYNC snaps note
 	// lengths and the gap to the tempo (1/16 steps) and starts a queue on the beat; FREE uses your swipe lengths and the gap in milliseconds as they are.
 	const QS = { on: 1, mode: 0, wait: 1.5, tail: 0, sync: 1, gapS: 0, gapF: 0, kb: 0 },
 		QS0 = Object.assign({}, QS);
@@ -17070,8 +17070,12 @@ registerProcessor('dx7-fm',DX7FM);`;
 			if (!q.started && q.pend.length && ct < q.pend[q.pend.length - 1].at + 0.12) {
 				continue;
 			} /* a queue that is just starting waits a moment for a second finger's swipe to join the chord */ /* PAUSE: still waiting for you to finish queuing */
-			while ((q.pend.length || (QS.mode === 2 && q.cyc.length)) && q.nextT < ct + A.la) {
+			while (
+				(q.pend.length || (QS.mode === 2 && q.cyc.length)) &&
+				q.nextT + (q.pend.length ? 0 : QS.wait) < ct + A.la
+			) {
 				if (!q.pend.length) {
+					q.nextT += QS.wait;
 					q.cyc.forEach((x) =>
 						q.pend.push({
 							id: x.id,
