@@ -4,16 +4,6 @@ _a personal archive for things i find interesting._
 
 **[visit the site →](https://dominickdominick.com)**
 
----
-
-## me
-
-i'm a student based in illinois. i've been into technology for as long as i can remember, mostly web development, software development and hardware. this site is a place to document and archive things i find interesting.
-
-## what i'm working on
-
-- **[dominickdominick.com](https://github.com/usernamedominick/dominickdominick)**: this site.
-
 ## find me
 
 - github: [@usernamedominick](https://github.com/usernamedominick)
