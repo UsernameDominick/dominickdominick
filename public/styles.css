@@ -14,6 +14,7 @@
   --article-text-color: #d5d8df;
   --main-font: "Strait", sans-serif;
   --page-gutter: clamp(1rem, 4vw, 4rem);
+  --first-item-offset: 2rem;
   --page-max-width: 96rem;
   --code-font: ui-monospace, Menlo, Consolas, monospace;
 }
@@ -459,7 +460,8 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: calc(1.25rem + 3px) 0 calc(1.25rem - 3px);
+  /* the first thumbnail starts level with the first card on the left (1px for the separator line) */
+  padding: calc(var(--first-item-offset) + 1px) 0 1.25rem;
   box-shadow: inset 0 1px 0 rgba(236, 238, 242, 0.16);
 }
 
@@ -500,7 +502,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
-  margin-top: 2rem;
+  margin-top: var(--first-item-offset);
 }
 
 .projectCard {

@@ -1662,7 +1662,7 @@ if (typeof module !== "undefined") {
 			rmix: 10,
 		},
 		arp: { mode: 0, rate: 3, oct: 2, gate: 60, on: false },
-		scale: { root: 2, type: 2, chord: 0, spread: 1, hl: 0 },
+		scale: { root: 2, type: 2, chord: 0, spread: 1, hl: 0, only: 0 },
 		glob: {
 			mmode: 0,
 			mclk: 0,
@@ -2535,10 +2535,8 @@ if (typeof module !== "undefined") {
 		T(S.bpm, 22, 3, P.fg);
 		let x = 220;
 		battery(x, 3, 2);
-		if (S.glob.bt) {
-			x -= 9;
-			T("\u0001", x, 3, P.dim);
-		}
+		x -= 15;
+		gearIcon(x, 1, gearOn || SET.open ? P.acc : P.dim);
 		if (QS.kb && QS.on) {
 			x -= TW("KB>Q") + 5;
 			T("KB>Q", x, 3, P.acc);
@@ -2548,7 +2546,7 @@ if (typeof module !== "undefined") {
 			x -= TW(s) + 5;
 			T(s, x, 3, P.acc);
 		}
-		/* recording indicators live up here by the Bluetooth icon, never over the screen's contents */
+		/* recording indicators live up here by the settings cog, never over the screen's contents */
 		let hideTitle = 0;
 		{
 			let ind = null,
@@ -3244,15 +3242,12 @@ if (typeof module !== "undefined") {
 			R(x + 5, y + 24, Math.round((44 * t.vol) / 100), 4, fg);
 			T(t.vol + "%", x + 4, y + 31, dm);
 		}
-		gearIcon(223, 27, gearOn ? P.acc : P.dim);
 		B(HV.x - 1, HV.y - 1, HV.w + 2, HV.h + 2, P.faint);
 		songPreviewDraw(now, live, HV);
 		{
-			const k = currentKey(),
-				kt = "KEY " + keyName(k),
-				kx = 216 - TW(kt);
-			T(kt, 216, HM.cy + 1, k ? P.acc : P.faint, 1, "r");
-		} /* (the SCAPE line is gone: double-tap HOME for the soundscape) */
+			const k = currentKey();
+			T("KEY " + keyName(k), 234, 29, k ? P.acc : P.faint, 1, "r");
+		} /* the detected key: top right, under the settings cog in the status strip and above the wave box */
 	};
 	SCR.presets = (now) => {
 		{
@@ -4323,6 +4318,31 @@ if (typeof module !== "undefined") {
 			"r",
 		); /* the footer: one row, UNDO and REDO icons at the left, the pattern at the right (clear of the touch icon) */
 	};
+
+	// KEY play modes: off, SNAP (a key plays the nearest note of the scale: the CHORD knob's SNAP) or ONLY (a key outside the scale does not play)
+	const KMODE = { 1: { x: 124, y: 177, w: 52, h: 20 }, 2: { x: 182, y: 177, w: 52, h: 20 } };
+	const keyMode = () => (S.scale.only ? 2 : S.scale.chord === 1 ? 1 : 0);
+
+	function setKeyMode(m) {
+		S.scale.only = m === 2 ? 1 : 0;
+		if (m === 1) {
+			S.scale.chord = 1;
+		} else if (S.scale.chord === 1) {
+			S.scale.chord = 0;
+		}
+		toast(["KEYS: PLAY ANYTHING", "KEYS: SNAP TO THE SCALE", "KEYS: SCALE NOTES ONLY"][m]);
+	}
+
+	// ONLY mode: a key outside the selected scale does not play (drum and sampler pads are never blocked)
+	function keyBlocked(kind, i) {
+		const en = engOf(S.trk);
+		if (!S.scale.only || en === "DRUM" || (en === "SMP" && S.screen === "smp")) {
+			return false;
+		}
+		const pc = ((((kind === "w" ? WH[i] : BL[i]) + S.glob.gtr - S.scale.root) % 12) + 12) % 12;
+		return !SCALES[S.scale.type][1].includes(pc);
+	}
+
 	SCR.scale = (now) => {
 		const sc = SCALES[S.scale.type],
 			root = S.scale.root;
@@ -4368,15 +4388,21 @@ if (typeof module !== "undefined") {
 		});
 		T("F3", x0, ky + kh + 4, P.faint);
 		T("G5", x0 + 16 * kw - 2, ky + kh + 4, P.faint, 1, "r");
-		T("SNAP OR CHORD PLAYS FROM THE SCALE", 120, 180, P.faint, 1, "c");
-		T(
-			S.scale.hl ? "KEY AGAIN: LIGHTS OFF" : "KEY: LIGHTS ON",
-			120,
-			191,
-			P.dim,
-			1,
-			"c",
-		); /* both lines end above the knob strip (205) */
+		const km = keyMode();
+		T(["ANY KEY PLAYS", "SNAPS TO SCALE", "SCALE ONLY"][km], 8, 179, km ? P.fg : P.dim);
+		T(S.scale.hl ? "KEY AGAIN: LIGHTS OFF" : "KEY: LIGHTS ON", 8, 191, P.faint);
+		[
+			[1, "SNAP"],
+			[2, "ONLY"],
+		].forEach(([m, label]) => {
+			const b = KMODE[m];
+			if (km === m) {
+				R(b.x, b.y, b.w, b.h, P.sel);
+			} else {
+				B(b.x, b.y, b.w, b.h, P.faint);
+			}
+			T(label, b.x + b.w / 2, b.y + 7, km === m ? P.selfg : P.dim, 1, "c");
+		}); /* two boxes: tap one to switch it on (the other goes off), tap it again for off. All above the knob strip (205) */
 	};
 	SCR.global = (now) => {
 		title("DEVICE SETTINGS", S.glob.sel + 1 + "/" + GROWS.length);
@@ -4738,16 +4764,13 @@ if (typeof module !== "undefined") {
 	};
 
 	// ---------- phone-only UI settings (not firmware): the bench grid ----------
-	const UI = { grid: 1, tlock: 0, sqe: 0, hg: 1, bp: 0 };
+	const UI = { grid: 1, sqe: 0, hg: 1, bp: 0 };
 	let btnPageSet = null;
 	try {
 		const o = JSON.parse(localStorage.getItem("mellow-ui"));
 		if (o && typeof o === "object") {
 			if (o.grid === 0) {
 				UI.grid = 0;
-			}
-			if (o.tlock === 1) {
-				UI.tlock = 1;
 			}
 			if (o.sqe >= 0 && o.sqe <= 2) {
 				UI.sqe = o.sqe | 0;
@@ -4844,29 +4867,7 @@ if (typeof module !== "undefined") {
 		return rows;
 	})();
 
-	// the touch icon (bottom right of the screen): a fingertip ring; struck through when touch editing is locked
-	function touchIcon(x, y, c, locked) {
-		for (let j = 0; j < 11; j++) {
-			let a = -1;
-			for (let i = 0; i <= 11; i++) {
-				const d = Math.hypot(i - 5, j - 5),
-					on = i < 11 && ((d >= 3.7 && d <= 5.2) || d <= 1.6);
-				if (on && a < 0) {
-					a = i;
-				}
-				if (!on && a >= 0) {
-					R(x + a, y + j, i - a, 1, c);
-					a = -1;
-				}
-			}
-		}
-		if (locked) {
-			for (let i = -1; i < 11; i++) {
-				R(x + i, y + 10 - i, 2, 1, P.rec);
-			}
-		}
-
-	} // a target (ring and dot): it has no teeth, so it never reads as the cog
+	// the settings cog, drawn at the right of the status strip
 	function gearIcon(x, y, c) {
 		GEAR.forEach((runs, j) => runs.forEach(([a, n]) => R(x + a, y + j, n, 1, c)));
 	}
@@ -4966,9 +4967,6 @@ if (typeof module !== "undefined") {
 		SCR[S.screen](now, live);
 		statusBar(now);
 		knobStrip(knobs(), now);
-		if (S.screen !== "boot" && (S.screen !== "home" || UI.tlock)) {
-			touchIcon(224, 189, UI.tlock ? P.rec : P.dim, UI.tlock);
-		} /* not on Home (the mini song player runs the full width there), unless the screen is locked: then it is how you unlock */
 		if (live && S.pop && now - S.pop.t < 850) {
 			const p = S.pop;
 			const x = 34,
@@ -12203,6 +12201,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 		"scale.chord": [0, 4],
 		"scale.spread": [1, 3],
 		"scale.hl": [0, 1],
+		"scale.only": [0, 1],
 		modT: [0, 11],
 		"tracks.vol": [0, 100],
 		bpm: [30, 300],
@@ -16609,6 +16608,9 @@ registerProcessor('dx7-fm',DX7FM);`;
 				return;
 			}
 		}
+		if (keyBlocked(kind, i)) {
+			return;
+		}
 		S.hits.push(performance.now());
 		if (S.hits.length > 6) {
 			S.hits.shift();
@@ -16918,7 +16920,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 	} /* drums and the sampler's slices queue too (their keys are white keys 1-8) */
 	const qKeyOk = (kind, i) => {
 		const e = engOf(S.trk);
-		return (e !== "DRUM" && e !== "SMP") || (kind === "w" && i < 8);
+		return ((e !== "DRUM" && e !== "SMP") || (kind === "w" && i < 8)) && !keyBlocked(kind, i);
 	};
 
 	function qAdd(t, item) {
@@ -19616,19 +19618,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 			},
 			false,
 			0,
-			"beat lines on the sequencer screen. Hold the cog on Home to switch it too",
-		]);
-		rows.push([
-			"sr",
-			"TOUCH EDITING ON THE SCREEN",
-			() => (UI.tlock ? "LOCKED" : "ON"),
-			(d) => {
-				UI.tlock ^= 1;
-				saveUI();
-			},
-			false,
-			0,
-			"the touch icon at the screen's bottom right does the same",
+			"beat lines on the sequencer screen. Hold the cog at the top right of the screen to switch it too",
 		]);
 		rows.push([
 			"sr",
@@ -22996,7 +22986,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 			return MOD.t !== 0 || aActive(stripId(0)) || inQS("strip");
 		}
 		if (id === "key") {
-			return !!S.scale.hl || S.screen === "scale";
+			return !!S.scale.hl || S.screen === "scale" || keyMode() > 0;
 		}
 		if (id === "settings") {
 			return SET.open;
@@ -23707,12 +23697,58 @@ registerProcessor('dx7-fm',DX7FM);`;
 		}
 	}
 
-	/* the cog on Home: a tap opens the settings sheet, a hold (0.6 s) switches the bench grid off or on */
+	/* the cog in the status strip: a tap opens the settings sheet, a hold (0.6 s) switches the bench grid off or on */
 	let gearT = 0,
-		lockT = 0,
-		lockMsg = 0,
-		lockXY = { x: 0, y: 0 };
-	const gearHit = (x, y) => S.screen === "home" && !S.dlg && x >= 204 && y >= 22 && y < 42;
+		bpmDrag = null,
+		tapTimes = [];
+	const stripHit = (x, y) => !S.dlg && S.screen !== "boot" && y < 14;
+	const gearHit = (x, y) => stripHit(x, y) && x >= 198 && x < 220;
+	const playHit = (x, y) => stripHit(x, y) && x < 14;
+	const bpmHit = (x, y) => stripHit(x, y) && x >= 20 && x < 28 + TW(S.bpm);
+
+	// the tempo, changed the way the settings sheet changes it (a running pattern keeps its place)
+	function nudgeTempo(d) {
+		const ob = S.bpm,
+			oss = stepSec();
+		S.bpm = clamp(S.bpm + d, 30, 300);
+		if (stepSec() !== oss) {
+			rebase(oss, ob);
+		}
+		pop("TEMPO", S.bpm + " BPM", (S.bpm - 30) / 270);
+	}
+
+	// tap the tempo: the average gap of your last few taps (a pause over 2 s starts the count again)
+	function tapTempo() {
+		const now = performance.now();
+		if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) {
+			tapTimes = [];
+		}
+		tapTimes.push(now);
+		if (tapTimes.length > 5) {
+			tapTimes.shift();
+		}
+		if (tapTimes.length < 2) {
+			pop("TAP TEMPO", "TAP AGAIN", 0);
+			return;
+		}
+		const gap = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+		nudgeTempo(clamp(Math.round(60000 / gap), 30, 300) - S.bpm);
+	}
+
+	// the two boxes on the KEY screen
+	const keyModeHit = (x, y) => {
+		if (S.screen !== "scale" || S.dlg) {
+			return false;
+		}
+		for (const m of [1, 2]) {
+			const b = KMODE[m];
+			if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) {
+				setKeyMode(keyMode() === m ? 0 : m);
+				return true;
+			}
+		}
+		return false;
+	};
 
 	// ---------- touch editing on the screen (PROTOTYPE ONLY: the real screen is not a touch screen) ----------
 	// Touch a graph and drag: it draws the shape, and the sliders and the four values under it follow at once (they read the same numbers).
@@ -24219,39 +24255,20 @@ registerProcessor('dx7-fm',DX7FM);`;
 			}, 600);
 			return;
 		}
-		const inLock =
-			x >= 221 && y >= 187 && y < 201 && S.screen !== "boot" && (S.screen !== "home" || !!UI.tlock);
-		if (UI.tlock) {
-			if (inLock) {
-				UI.tlock = 0;
-				saveUI();
-				toast("TOUCH EDITING ON");
-				return;
-			}
-			const tn = performance.now();
-			if (tn - lockMsg > 2000) {
-				lockMsg = tn;
-				toast("TOUCH LOCKED: TAP THE LOCK ICON");
-			}
+		if (playHit(x, y)) {
+			press("play");
 			return;
-
-		} /* locked: the screen is display only, like the real one */
-		if (inLock) {
-			lockXY = { x: e.clientX, y: e.clientY };
-			clearTimeout(lockT);
-			lockT = setTimeout(() => {
-				lockT = 0;
-				UI.tlock = 1;
-				saveUI();
-				lz = null;
-				HELD = -1;
-				toast("TOUCH EDITING LOCKED");
-				try {
-					navigator.vibrate && navigator.vibrate(14);
-				} catch (q) {}
-			}, 450);
-
-		} /* a hold locks it; anything else on the icon is an ordinary touch (a drag from here still edits what is under it) */
+		}
+		if (bpmHit(x, y)) {
+			bpmDrag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, bpm0: S.bpm, moved: false };
+			try {
+				big.setPointerCapture(e.pointerId);
+			} catch (q) {}
+			return;
+		}
+		if (keyModeHit(x, y)) {
+			return;
+		}
 		const z = lcdZone(x, y);
 		if (lz && lz.t === "sq") {
 			sqUndo(lz);
@@ -24313,9 +24330,22 @@ registerProcessor('dx7-fm',DX7FM);`;
 		} catch (z) {}
 	});
 	big.addEventListener("pointermove", (e) => {
-		if (lockT && Math.hypot(e.clientX - lockXY.x, e.clientY - lockXY.y) > 6) {
-			clearTimeout(lockT);
-			lockT = 0;
+		if (bpmDrag && e.pointerId === bpmDrag.id) {
+			const moved = bpmDrag.x0 - e.clientX + (bpmDrag.y0 - e.clientY);
+			if (Math.abs(moved) > 6) {
+				bpmDrag.moved = true;
+			}
+			if (bpmDrag.moved) {
+				const want = clamp(
+					bpmDrag.bpm0 + Math.round((e.clientX - bpmDrag.x0 - (e.clientY - bpmDrag.y0)) / 4),
+					30,
+					300,
+				);
+				if (want !== S.bpm) {
+					nudgeTempo(want - S.bpm);
+				}
+			}
+			return;
 		}
 		if (!lz || e.pointerId !== lz.id) {
 			return;
@@ -24434,8 +24464,14 @@ registerProcessor('dx7-fm',DX7FM);`;
 		}
 	});
 	const lcdEnd = (e) => {
-		clearTimeout(lockT);
-		lockT = 0;
+		if (bpmDrag && e.pointerId === bpmDrag.id) {
+			const drag = bpmDrag;
+			bpmDrag = null;
+			if (e.type === "pointerup" && !drag.moved) {
+				tapTempo();
+			}
+			return;
+		}
 		if (gearOn && e.type === "pointerup") {
 			gearOn = false;
 			clearTimeout(gearT);
@@ -24545,7 +24581,11 @@ registerProcessor('dx7-fm',DX7FM);`;
 				};
 			let key = null,
 				act = null;
-			if (y >= 205) {
+			if (y < 14 && x >= 20 && x < 28 + TW(S.bpm)) {
+				key = "bpm";
+				act = (d) => nudgeTempo(e.shiftKey ? d * 10 : d);
+			} /* the tempo in the status strip: a notch is 1 BPM, 10 with shift */
+			else if (y >= 205) {
 				const c = clamp(Math.floor(x / 60), 0, 3);
 				key = "k" + c;
 				act = kn(c);
@@ -25649,7 +25689,10 @@ registerProcessor('dx7-fm',DX7FM);`;
 		{
 			scaleShare();
 			const hl =
-					!!S.scale.hl && engOf(S.trk) !== "DRUM" && S.screen !== "drum" && S.screen !== "smp",
+					(!!S.scale.hl || keyMode() > 0) &&
+					engOf(S.trk) !== "DRUM" &&
+					S.screen !== "drum" &&
+					S.screen !== "smp",
 				kb =
 					document.getElementById(
 						"mkeys",
@@ -25663,11 +25706,18 @@ registerProcessor('dx7-fm',DX7FM);`;
 					let c = "";
 					if (hl) {
 						const pc = ((((kind === "w" ? WH[i] : BL[i]) + tr - root) % 12) + 12) % 12;
-						c = pc === 0 ? "sin sroot" : sc.includes(pc) ? "sin" : "sout";
+						c =
+							pc === 0
+								? "sin sroot"
+								: sc.includes(pc)
+									? "sin"
+									: S.scale.only
+										? "sout sblock"
+										: "sout";
 					}
 					if (el._sc !== c) {
 						el._sc = c;
-						el.classList.remove("sin", "sout", "sroot");
+						el.classList.remove("sin", "sout", "sroot", "sblock");
 						if (c) {
 							c.split(" ").forEach((x) => el.classList.add(x));
 						}
