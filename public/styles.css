@@ -290,6 +290,8 @@ body {
 }
 
 .socialIcon {
+  position: relative;
+  top: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -447,7 +449,7 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1.25rem 0;
+  padding: calc(1.25rem + 3px) 0 calc(1.25rem - 3px);
   box-shadow: inset 0 1px 0 rgba(236, 238, 242, 0.16);
 }
 
