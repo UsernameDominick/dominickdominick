@@ -64,17 +64,43 @@
 			<div aria-hidden="true" class="contentLine"></div>
 			<ul class="cardRow" aria-label="made with ai">
 				<li class="projectCard">
-					<a href="/random/mellow/">
-						<img src="/img/mellow_logol.png" width="800" height="500" alt="mellow: a synth's screen, knobs, buttons and keys">
-						<div class="cardBody">
-							<h2 class="cardTitle">mellow</h2>
-							<p class="articleMeta">custom firmware for the fm-1</p>
-							<p class="articleMeta">disclaimer: claude was used to generate the code.</p>
-							<p class="articleMeta">published: 11.10.26</p>
-							<p class="articleMeta">last updated: 11.10.26</p>
-							<p class="articleMeta">usability: playable, songs can be made. needs bug fixes, and more UI/UX work.</p>
+					<div class="carousel" role="group" aria-roledescription="carousel" aria-label="mellow images">
+						<div class="carouselTrack" tabindex="0">
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="1 of 6">
+								<img src="/img/mellow/logo.webp" srcset="/img/mellow/logo-640.webp 640w, /img/mellow/logo.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="mellow logo: the word mellow in red, repeated in black on an orange background" fetchpriority="high">
+							</div>
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="2 of 6">
+								<img src="/img/mellow/home.webp" srcset="/img/mellow/home-640.webp 640w, /img/mellow/home.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="mellow's home screen: the lcd, eight knobs, a grid of buttons and a keyboard" loading="lazy" fetchpriority="low">
+							</div>
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="3 of 6">
+								<img src="/img/mellow/presets.webp" srcset="/img/mellow/presets-640.webp 640w, /img/mellow/presets.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="the preset browser, listing sounds like glass keys, tube flute and ice organ" loading="lazy" fetchpriority="low">
+							</div>
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="4 of 6">
+								<img src="/img/mellow/filter.webp" srcset="/img/mellow/filter-640.webp 640w, /img/mellow/filter.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="the filter page: a low pass curve with cutoff, q and mix" loading="lazy" fetchpriority="low">
+							</div>
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="5 of 6">
+								<img src="/img/mellow/mixer.webp" srcset="/img/mellow/mixer-640.webp 640w, /img/mellow/mixer.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="the mixer page: one fader for each track" loading="lazy" fetchpriority="low">
+							</div>
+							<div class="carouselSlide" role="group" aria-roledescription="slide" aria-label="6 of 6">
+								<img src="/img/mellow/song.webp" srcset="/img/mellow/song-640.webp 640w, /img/mellow/song.webp 1280w" sizes="(max-width: 768px) calc(100vw - 5.5rem), 540px" width="1280" height="720" alt="song mode: slots and patterns laid out in order" loading="lazy" fetchpriority="low">
+							</div>
 						</div>
-					</a>
+						<button type="button" class="carouselButton carouselPrev" aria-label="previous image">
+							<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 4l-8 8 8 8"></path></svg>
+						</button>
+						<button type="button" class="carouselButton carouselNext" aria-label="next image">
+							<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 4l8 8-8 8"></path></svg>
+						</button>
+						<span class="carouselCount" aria-hidden="true">1 / 6</span>
+					</div>
+					<div class="cardBody">
+						<h2 class="cardTitle"><a href="/random/mellow/">mellow</a></h2>
+						<p class="articleMeta">custom firmware for the fm-1</p>
+						<p class="articleMeta">disclaimer: claude was used to generate the code.</p>
+						<p class="articleMeta">published: 11.10.26</p>
+						<p class="articleMeta">last updated: 11.10.26</p>
+						<p class="articleMeta">usability: playable, songs can be made. needs bug fixes, and more UI/UX work.</p>
+					</div>
 				</li>
 			</ul>
 		</div>
@@ -106,7 +132,7 @@
 			<ul class="recentArticleContainer" aria-label="recent articles">
 				<li>
 					<a href="/random/">
-						<img src="/img/mellow.webp" width="800" height="500" alt="">
+						<img src="/img/mellow-thumb.webp" width="176" height="110" alt="">
 						<div class="articleText">
 							<div class="articleTop">
 								<h3>mellow</h3>
@@ -120,5 +146,6 @@
 	</main>
 
 	<script src="/script.js"></script>
+	<script src="/carousel.js"></script>
 </body>
 </html>

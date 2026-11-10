@@ -13,6 +13,8 @@
   --line-color: rgba(236, 238, 242, 0.22);
   --article-text-color: #d5d8df;
   --main-font: "Strait", sans-serif;
+  --page-gutter: clamp(1rem, 4vw, 4rem);
+  --page-max-width: 96rem;
   --code-font: ui-monospace, Menlo, Consolas, monospace;
 }
 
@@ -133,7 +135,7 @@ body {
   align-items: center;
   justify-content: space-between;
   height: 4.5rem;
-  padding: 2rem;
+  padding: 2rem max(2rem, calc((100% - var(--page-max-width)) / 2));
   font-size: 1.1rem;
   line-height: 1.5rem;
   letter-spacing: 0.04em;
@@ -168,7 +170,8 @@ body {
   flex-grow: 1;
   gap: 1.5rem;
   min-height: 0;
-  margin: 2rem clamp(1rem, 4vw, 4rem) 0;
+  width: min(100% - 2 * var(--page-gutter), var(--page-max-width));
+  margin: 2rem auto 0;
   padding: 2rem;
   background-color: rgba(31, 29, 32, 0.84);
   backdrop-filter: blur(12px);
@@ -492,7 +495,7 @@ body {
   color: var(--muted-text-color);
 }
 
-/* project cards in a wrapped row: each card runs the full width, image on the left, the information on the right */
+/* project cards in a wrapped row: each card runs the full width, an image carousel on the left, the information on the right */
 .cardRow {
   display: flex;
   flex-wrap: wrap;
@@ -501,25 +504,21 @@ body {
 }
 
 .projectCard {
+  display: flex;
   flex: 1 1 100%;
   min-width: 0;
-}
-
-.projectCard a {
-  display: flex;
   overflow: hidden;
   background-color: var(--panel-color);
   border: 1px solid var(--line-color);
 }
 
-.projectCard img {
-  flex: 0 0 60%;
-  width: 60%;
-  height: auto;
-  border-right: 1px solid var(--line-color);
+.projectCard:hover,
+.projectCard:focus-within {
+  border-color: var(--accent-color);
 }
 
 .cardBody {
+  position: relative;
   flex: 1;
   min-width: 0;
   padding: 1.75rem 2rem;
@@ -531,26 +530,133 @@ body {
   letter-spacing: 0.03em;
 }
 
+/* the title is the card's link: its ::after stretches over the whole text side, so a tap anywhere there opens the project */
+.cardTitle a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.cardTitle a:focus-visible {
+  outline: none;
+  color: var(--accent-color);
+}
+
 .cardBody .articleMeta {
   margin-top: 0.75rem;
   font-size: 1rem;
   line-height: 1.5rem;
 }
 
-.projectCard a:hover,
-.projectCard a:focus-visible {
+/* ===== image carousel ===== */
+.carousel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 60%;
+  min-width: 0;
+  border-right: 1px solid var(--line-color);
+  background-color: var(--background-color);
+}
+
+.carouselTrack {
+  display: flex;
+  width: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.carouselTrack::-webkit-scrollbar {
+  display: none;
+}
+
+.carouselTrack:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+.carouselSlide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+
+.carouselSlide img {
+  width: 100%;
+  height: auto;
+}
+
+/* the buttons and the counter only show once carousel.js has run; without it the images still swipe and scroll */
+.carouselButton,
+.carouselCount {
+  display: none;
+}
+
+.carousel.ready .carouselButton {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  transform: translateY(-50%);
+  background-color: rgba(22, 24, 29, 0.78);
+  border: 1px solid var(--line-color);
+  color: var(--text-color);
+}
+
+.carouselPrev {
+  left: 0.75rem;
+}
+
+.carouselNext {
+  right: 0.75rem;
+}
+
+.carousel.ready .carouselButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.carousel.ready .carouselButton:focus-visible {
   border-color: var(--accent-color);
+  color: var(--accent-color);
   outline: none;
 }
 
+.carousel.ready .carouselButton:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.carousel.ready .carouselCount {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  display: block;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0.08em;
+  background-color: rgba(22, 24, 29, 0.78);
+  border: 1px solid var(--line-color);
+  color: var(--muted-text-color);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .carouselTrack {
+    scroll-behavior: smooth;
+  }
+}
+
 @media (max-width: 768px) {
-  .projectCard a {
+  .projectCard {
     flex-direction: column;
   }
 
-  .projectCard img {
+  .carousel {
     flex: none;
-    width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--line-color);
   }
