@@ -376,6 +376,10 @@ body {
   margin-bottom: 0;
 }
 
+.searchContainer[hidden] + .recentHeading {
+  margin-top: 0;
+}
+
 /* keywords */
 .keywordsContainer {
   display: flex;
