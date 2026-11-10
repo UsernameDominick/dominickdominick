@@ -1,0 +1,3 @@
+[codespell]
+# the mellow app is a few thousand lines of code (names like levelIn and countIn), not prose
+skip = public/random/mellow/*
