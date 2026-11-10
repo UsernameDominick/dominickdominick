@@ -372,7 +372,8 @@ body {
 }
 
 .recentHeading {
-  margin-top: 1rem;
+  margin-top: 2rem;
+  margin-bottom: 0;
 }
 
 /* keywords */
@@ -390,7 +391,7 @@ body {
 
 /* search */
 .searchContainer {
-  margin-top: 1.5rem;
+  margin-top: 2.5rem;
 }
 
 .searchBar {
