@@ -443,9 +443,22 @@ body {
 
 /* articles */
 .recentArticleContainer a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   padding: 1.25rem 0;
   box-shadow: inset 0 1px 0 rgba(236, 238, 242, 0.16);
+}
+
+.recentArticleContainer img {
+  flex: none;
+  width: 5.5rem;
+  height: auto;
+  border: 1px solid var(--line-color);
+}
+
+.articleText {
+  min-width: 0;
 }
 
 .articleTop {
