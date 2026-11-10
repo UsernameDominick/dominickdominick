@@ -464,7 +464,7 @@ body {
   color: var(--muted-text-color);
 }
 
-/* project cards in a wrapped row */
+/* project cards in a wrapped row: each card runs the full width, image on the left, the information on the right */
 .cardRow {
   display: flex;
   flex-wrap: wrap;
@@ -472,37 +472,63 @@ body {
 }
 
 .projectCard {
-  flex: 0 1 20rem;
+  flex: 1 1 100%;
   min-width: 0;
 }
 
 .projectCard a {
-  display: block;
-  height: 100%;
+  display: flex;
   overflow: hidden;
   background-color: var(--panel-color);
   border: 1px solid var(--line-color);
 }
 
 .projectCard img {
-  width: 100%;
-  border-bottom: 1px solid var(--line-color);
+  flex: 0 0 60%;
+  width: 60%;
+  height: auto;
+  border-right: 1px solid var(--line-color);
 }
 
 .cardBody {
-  padding: 1rem 1.25rem 1.25rem;
+  flex: 1;
+  min-width: 0;
+  padding: 1.75rem 2rem;
 }
 
 .cardBody h3 {
-  font-size: 1.5rem;
-  line-height: 1.75rem;
+  font-size: 2rem;
+  line-height: 2.25rem;
   letter-spacing: 0.03em;
+}
+
+.cardBody .articleMeta {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .projectCard a:hover,
 .projectCard a:focus-visible {
   border-color: var(--accent-color);
   outline: none;
+}
+
+@media (max-width: 768px) {
+  .projectCard a {
+    flex-direction: column;
+  }
+
+  .projectCard img {
+    flex: none;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--line-color);
+  }
+
+  .cardBody {
+    padding: 1.25rem;
+  }
 }
 
 /* keyword cloud pattern: sizes repeat every 3, colors every 4 */
