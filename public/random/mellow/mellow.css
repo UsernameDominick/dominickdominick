@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Strait&display=swap");
+
 /* the app's stylesheet keeps its overrides in place on purpose, so these two style-order rules are off for this file only */
 /* stylelint-disable no-duplicate-selectors, no-descending-specificity */
 /* Work Sans (SIL Open Font License), the variable font, Latin subset, embedded so it always loads: no network and no fallback font */
@@ -109,7 +111,7 @@ body,
 }
 
 .wrap {
-  height: 100%;
+  height: calc(100% - var(--nav-h));
   box-sizing: border-box;
   max-width: 520px;
   margin: 0 auto;
@@ -1008,6 +1010,31 @@ textarea {
   filter: brightness(0.6);
 }
 
+/* a pressed key goes clearly greyer, in every mode (these come after the scale colours so they win over them) */
+.mkeys .mk.down.white {
+  background-color: #a29e8f;
+  color: #55524b;
+}
+
+.mkeys .mk.down.black {
+  background-color: #55544f;
+  color: #ece6d6;
+}
+
+.mkeys.kh .mk.white.sin.down {
+  background-color: #cdb67d;
+  color: #3a2d0e;
+}
+
+.mkeys.kh .mk.black.sin.down {
+  background-color: #96928a;
+}
+
+.mkeys.kh .mk.white.lit.down,
+.mkeys.kh .mk.black.lit.down {
+  filter: brightness(0.8);
+}
+
 /* ONLY mode: a key outside the scale is switched off (it cannot be pressed) */
 .mkeys.kh .mk.sblock {
   pointer-events: none;
@@ -1174,7 +1201,7 @@ textarea {
   }
 
   .wrap {
-    height: 100%;
+    height: calc(100% - var(--nav-h));
     max-width: none;
     padding: 0 0 var(--kbt);
     gap: 6px;
@@ -1281,12 +1308,12 @@ textarea {
 
 /* ===== phone held sideways: screen left, dials and buttons right, keys along the bottom ===== */
 :root {
-  --vh: 100vh;
+  --vh: calc(100vh - var(--nav-h));
 }
 
 @supports (height: 100dvh) {
   :root {
-    --vh: 100dvh;
+    --vh: calc(100dvh - var(--nav-h));
   }
 }
 
@@ -1999,4 +2026,91 @@ input,
 select,
 textarea {
   text-transform: lowercase;
+}
+
+/* ===== site nav ===== */
+/* the same bar as every page on the site (styles.css has the original); the app lives in the window's height minus --nav-h */
+:root {
+  --nav-h: 4.5rem;
+}
+
+.navContainer {
+  --background-color: #16181d;
+  --line-color: rgba(236, 238, 242, 0.22);
+  position: relative;
+  z-index: 3;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--nav-h);
+  padding: 2rem;
+  font-family: "Strait", sans-serif;
+  font-size: 1.1rem;
+  line-height: 1.5rem;
+  letter-spacing: 0.04em;
+  color: #f4f1ea;
+  background-color: var(--background-color);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.65);
+}
+
+.navContainer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.navLine {
+  flex: 1;
+  height: 1px;
+  margin: 0 1.5rem;
+  background-color: var(--line-color);
+}
+
+.navLinks {
+  display: inline-flex;
+  gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLinks a {
+  font-size: 18px;
+  color: rgba(236, 238, 242, 0.6);
+}
+
+.navLinks .sep {
+  color: var(--line-color);
+}
+
+.navLinks a:hover {
+  color: #f9c53a;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --nav-h: 5.75rem;
+  }
+
+  .navContainer {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .navLine {
+    display: none;
+  }
+}
+
+/* a phone held sideways has no height to spare, so the bar steps aside there */
+@media (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --nav-h: 0px;
+  }
+
+  .navContainer {
+    display: none;
+  }
 }

@@ -21,6 +21,20 @@
 	<link rel="stylesheet" href="/random/mellow/mellow.css">
 </head>
 <body>
+	<header class="navContainer">
+		<a href="/">
+			<span>dominick dominick</span>
+		</a>
+		<div aria-hidden="true" class="navLine">
+		</div>
+		<ul class='navLinks'>
+			<li><a href="/projects/">projects</a></li>
+			<li class="sep" aria-hidden="true">|</li>
+			<li><a href="/">home</a></li>
+			<li class="sep" aria-hidden="true">|</li>
+			<li><a href="/random/">random</a></li>
+		</ul>
+	</header>
 	<div class="bench" id="bench" aria-hidden="true"></div>
 	<div class="wrap">
 		<section class="section" aria-label="interactive device">
@@ -1591,6 +1605,13 @@ if (typeof module !== "undefined") {
 		tk: 0,
 	};
 	const NN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+	// the site's nav bar sits above the app: the app has the window's height minus the bar's
+	function navHeight() {
+		const nav = document.querySelector(".navContainer");
+		return nav ? nav.offsetHeight : 0;
+	}
+
 	const note = (m) => NN[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 	const WH = [53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79],
 		BL = [54, 56, 58, 61, 63, 66, 68, 70, 73, 75, 78];
@@ -3244,10 +3265,14 @@ if (typeof module !== "undefined") {
 		}
 		B(HV.x - 1, HV.y - 1, HV.w + 2, HV.h + 2, P.faint);
 		songPreviewDraw(now, live, HV);
-		{
-			const k = currentKey();
-			T("KEY " + keyName(k), 234, 29, k ? P.acc : P.faint, 1, "r");
-		} /* the detected key: top right, under the settings cog in the status strip and above the wave box */
+		T(
+			"PLAYED " + playedName(),
+			234,
+			29,
+			playedFresh(now) ? P.acc : P.faint,
+			1,
+			"r",
+		); /* the key you last played: top right, under the status strip and above the wave box */
 	};
 	SCR.presets = (now) => {
 		{
@@ -4319,6 +4344,12 @@ if (typeof module !== "undefined") {
 		); /* the footer: one row, UNDO and REDO icons at the left, the pattern at the right (clear of the touch icon) */
 	};
 
+	// the key you pressed last, shown on Home and on the KEY page (it replaces the detected key)
+	let lastPlayed = null;
+	const playedName = () =>
+		lastPlayed ? NN[lastPlayed.m % 12] + (Math.floor(lastPlayed.m / 12) - 1) : "---";
+	const playedFresh = (now) => !!lastPlayed && now - lastPlayed.t < 700;
+
 	// KEY play modes: off, SNAP (a key plays the nearest note of the scale: the CHORD knob's SNAP) or ONLY (a key outside the scale does not play)
 	const KMODE = { 1: { x: 124, y: 177, w: 52, h: 20 }, 2: { x: 182, y: 177, w: 52, h: 20 } };
 	const keyMode = () => (S.scale.only ? 2 : S.scale.chord === 1 ? 1 : 0);
@@ -4348,11 +4379,8 @@ if (typeof module !== "undefined") {
 			root = S.scale.root;
 		T(NN[root], 6, 18, P.fg, 3);
 		T(sc[0], 6 + Math.ceil(TW(NN[root], 3)) + 7, 25, P.fg, 2);
-		{
-			const k = currentKey();
-			T("DETECTED KEY", 234, 18, P.faint, 1, "r");
-			T(keyName(k), 234, 29, k ? P.acc : P.faint, 1, "r");
-		}
+		T("PLAYED", 234, 18, P.faint, 1, "r");
+		T(playedName(), 234, 26, playedFresh(now) ? P.acc : P.fg, 2, "r");
 		const deg = ["1", "B2", "2", "B3", "3", "4", "#4", "5", "B6", "6", "B7", "7"];
 		T(sc[1].map((i) => deg[i]).join(" "), 6, 48, P.dim);
 		R(0, 60, 240, 1, P.faint);
@@ -4390,7 +4418,7 @@ if (typeof module !== "undefined") {
 		T("G5", x0 + 16 * kw - 2, ky + kh + 4, P.faint, 1, "r");
 		const km = keyMode();
 		T(["ANY KEY PLAYS", "SNAPS TO SCALE", "SCALE ONLY"][km], 8, 179, km ? P.fg : P.dim);
-		T(S.scale.hl ? "KEY AGAIN: LIGHTS OFF" : "KEY: LIGHTS ON", 8, 191, P.faint);
+		T(["KEY AGAIN: GO BACK", "NEAREST SCALE NOTE", "OTHER KEYS ARE OFF"][km], 8, 191, P.faint);
 		[
 			[1, "SNAP"],
 			[2, "ONLY"],
@@ -4792,7 +4820,9 @@ if (typeof module !== "undefined") {
 
 	function applyGrid() {
 		document.body.classList.toggle("nogrid", !UI.grid);
-		const hp = Math.round(clamp(innerHeight - innerWidth - 272, 0, [0, 20, 34][UI.hg]));
+		const hp = Math.round(
+			clamp(innerHeight - navHeight() - innerWidth - 272, 0, [0, 20, 34][UI.hg]),
+		);
 		/* on a short phone the strip gives way first: the keys and buttons come before it */ document.documentElement.style.setProperty(
 			"--hg",
 			hp + "px",
@@ -16647,6 +16677,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 			const m = (kind === "w" ? WH[i] : BL[i]) + S.oct * 12 + S.glob.gtr,
 				ns = chordNotes(m);
 			heardNote(ns[0]);
+			lastPlayed = { m, t: performance.now() };
 			if (S.arp.on) {
 				ns.forEach((n) => A.arpSet.add(n));
 				A.arpKeys[id] = ns;
@@ -20708,7 +20739,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 		}
 		e.preventDefault();
 		const m = mobKeys.find((x) => x[1] === k[0] && x[2] === k[1]);
-		m && flash(m[0]);
+		m && m[0].classList.add("down");
 		kbHeld.add(k[0] + k[1]);
 		keyOn(k[0], k[1]);
 	});
@@ -20892,6 +20923,8 @@ registerProcessor('dx7-fm',DX7FM);`;
 	document.addEventListener("keyup", (e) => {
 		const k = KB[e.key.toLowerCase()];
 		if (k) {
+			const m = mobKeys.find((x) => x[1] === k[0] && x[2] === k[1]);
+			m && m[0].classList.remove("down");
 			kbHeld.delete(k[0] + k[1]);
 			keyOff(k[0], k[1]);
 		}
@@ -22957,13 +22990,11 @@ registerProcessor('dx7-fm',DX7FM);`;
 				return;
 			case "key" /* KEY: opens the scale screen and lights the scale on the keys; pressed again on that screen it switches the lights off and leaves */:
 				if (S.screen === "scale") {
-					S.scale.hl = 0;
 					S.screen =
 						KEYFROM && KEYFROM !== "scale" && KEYFROM !== "pp" && SCR[KEYFROM] ? KEYFROM : "home";
 					return;
 				}
 				KEYFROM = S.screen;
-				S.scale.hl = 1;
 				S.screen = "scale";
 				return;
 			case "hold": {
@@ -22990,7 +23021,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 			return MOD.t !== 0 || aActive(stripId(0)) || inQS("strip");
 		}
 		if (id === "key") {
-			return !!S.scale.hl || S.screen === "scale" || keyMode() > 0;
+			return S.screen === "scale" || keyMode() > 0;
 		}
 		if (id === "settings") {
 			return SET.open;
@@ -24731,7 +24762,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 		// the keyboard and the pitch strip run along the whole bottom of the panel; the LCD is a square of about 60% of the window height on the left, and the knobs row and the button cloud sit beside it, exactly as tall as the LCD
 		// (every height a whole pixel): the keys take what the LCD and the strip leave, but never get taller than 3.4 x a white key's width (then the LCD grows instead)
 		const vw = document.documentElement.clientWidth || innerWidth,
-			vh = innerHeight,
+			vh = innerHeight - navHeight(),
 			dpr = window.devicePixelRatio || 1,
 			m = 12,
 			pad = 12,
@@ -24911,14 +24942,10 @@ registerProcessor('dx7-fm',DX7FM);`;
 					return true;
 				},
 				key: () => {
-					if (!S.scale.hl) {
+					if (S.screen !== "scale") {
 						return false;
 					}
-					if (S.screen === "scale") {
-						press("key");
-					} else {
-						S.scale.hl = 0;
-					}
+					press("key");
 					return true;
 				},
 				arp: () => {
@@ -25693,10 +25720,7 @@ registerProcessor('dx7-fm',DX7FM);`;
 		{
 			scaleShare();
 			const hl =
-					(!!S.scale.hl || keyMode() > 0) &&
-					engOf(S.trk) !== "DRUM" &&
-					S.screen !== "drum" &&
-					S.screen !== "smp",
+					!!S.scale.only && engOf(S.trk) !== "DRUM" && S.screen !== "drum" && S.screen !== "smp",
 				kb =
 					document.getElementById(
 						"mkeys",
