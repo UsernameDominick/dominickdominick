@@ -464,6 +464,47 @@ body {
   color: var(--muted-text-color);
 }
 
+/* project cards in a wrapped row */
+.cardRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.projectCard {
+  flex: 0 1 20rem;
+  min-width: 0;
+}
+
+.projectCard a {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--panel-color);
+  border: 1px solid var(--line-color);
+}
+
+.projectCard img {
+  width: 100%;
+  border-bottom: 1px solid var(--line-color);
+}
+
+.cardBody {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.cardBody h3 {
+  font-size: 1.5rem;
+  line-height: 1.75rem;
+  letter-spacing: 0.03em;
+}
+
+.projectCard a:hover,
+.projectCard a:focus-visible {
+  border-color: var(--accent-color);
+  outline: none;
+}
+
 /* keyword cloud pattern: sizes repeat every 3, colors every 4 */
 .keywordsContainer a:nth-child(3n+1) { font-size: 2rem; }
 .keywordsContainer a:nth-child(3n+2) { font-size: 1.25rem; }
