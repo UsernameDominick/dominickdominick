@@ -501,7 +501,8 @@ Object.defineProperty(window.__mellow, "QSEL", {
 		"gestureend",
 	].forEach((t) => document.addEventListener(t, stop, { passive: false }));
 
-	const inSheet = (e) => e.target && e.target.closest && e.target.closest(".sheet"); // the settings sheet scrolls, so its touches are left alone
+	// the settings sheet scrolls and the site links (nav bar, footer) are tapped, so their touches are left alone
+	const inSheet = (e) => e.target && e.target.closest && e.target.closest(".sheet, .navContainer, .phoneFooter");
 	document.addEventListener(
 		"touchmove",
 		(e) => {
