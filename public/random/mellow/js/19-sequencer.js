@@ -33,9 +33,14 @@ function stepPlay(t, k, when) {
 		sqAdd(t, when, v);
 		return;
 	}
-	const v = noteVoice(t, n, vel, when, Math.max(0.03, ((q.gate[i] / 100) * ss * S.sgate) / 100));
-	A.seqV.push(v);
-	sqAdd(t, when, v);
+	const len = Math.max(0.03, ((q.gate[i] / 100) * ss * S.sgate) / 100),
+		chord = q.ch[i];
+	// the step's own note, and the rest of its chord when it was recorded as one
+	(chord ? [n, ...chord.map((o) => clamp(n + o, 0, 127))] : [n]).forEach((m) => {
+		const v = noteVoice(t, m, vel, when, len);
+		A.seqV.push(v);
+		sqAdd(t, when, v);
+	});
 }
 
 /* A.sq: the sequenced sounds of the last few seconds (voices and drum hits, by track), so a song mute can cancel what is already scheduled in the look-ahead and let go of what sounds. A.sl: the steps the scheduler passed recently with the mask each had, so an un-mute can fill in the steps it skipped. */

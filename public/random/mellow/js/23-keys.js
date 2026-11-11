@@ -5,6 +5,10 @@
 // ---------- keys ----------
 const heldK = {};
 
+// a chord as the offsets of its other notes from its first note (what a recorded step keeps); null for a single note
+const chordOffsets = (notes) =>
+	notes && notes.length > 1 ? notes.slice(1).map((x) => x - notes[0]) : null;
+
 function chordNotes(m) {
 	const sc = SCALES[S.scale.type][1],
 		root = S.scale.root,
@@ -46,6 +50,7 @@ function stepOn(j, on) {
 	if (on) {
 		if (q.st[j] < 0) {
 			q.st[j] = newPitch(j);
+			q.ch[j] = null;
 		}
 		if (!q.vel[j]) {
 			q.vel[j] = 100;
@@ -58,6 +63,7 @@ function stepOn(j, on) {
 			S.ghost = { j, v: q.vel[j] || 100, t: performance.now() };
 		}
 		q.st[j] = -1;
+		q.ch[j] = null;
 	}
 }
 
@@ -211,7 +217,11 @@ function keyOn(kind, i, keep) {
 				}
 			});
 			{
-				const h = recNote(en === "SMP" ? 36 + S.smp.slice : ns[0], kv);
+				const h = recNote(
+					en === "SMP" ? 36 + S.smp.slice : ns[0],
+					kv,
+					en === "SMP" ? null : chordOffsets(ns),
+				);
 				if (h) {
 					vs.rec = h;
 					recVoice(h, vs.find(Boolean));
@@ -682,7 +692,7 @@ function qTick(ct) {
 					});
 				} /* the step's pitch bend: glides from 0 over the first part of the step */
 				{
-					const h = recAt(t, it.notes[0], 0.8, when, 0);
+					const h = recAt(t, it.notes[0], 0.8, when, 0, undefined, chordOffsets(it.notes));
 					if (h) {
 						const v0 = vs.find(Boolean);
 						if (it.hold) {

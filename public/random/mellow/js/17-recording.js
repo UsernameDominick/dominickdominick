@@ -19,6 +19,7 @@ function songSnap(full) {
 				return {
 					st: q.st.slice(0, n),
 					gate: q.gate.slice(0, n),
+					ch: q.ch.slice(0, n),
 					vel: q.vel.slice(0, n),
 					...dgSnap(q, t, n),
 				};
@@ -337,6 +338,14 @@ function songRestore(js, withPar) {
 	} /* an older save is just the patterns (one bar each) */
 	/* every cell is coerced: a note is a whole number -1..127, a gate 0..12800 (percent of a step), a velocity 0..127; anything else (a string, null, NaN, a missing array) becomes an empty step as emptyPat() makes it */
 	const cell = (x, a, b, e) => (typeof x === "number" && isFinite(x) ? clamp(x, a, b) : e);
+	// a chord is a short list of whole-number offsets; anything else is no chord
+	const chordCell = (x) =>
+		Array.isArray(x) &&
+		x.length > 0 &&
+		x.length <= 5 &&
+		x.every((n) => Number.isInteger(n) && n >= -48 && n <= 48)
+			? x.slice()
+			: null;
 	d.slice(0, 16).forEach((P, pi) => {
 		if (Array.isArray(P)) {
 			P.slice(0, 4).forEach((q, t) => {
@@ -345,10 +354,12 @@ function songRestore(js, withPar) {
 					return;
 				}
 				const g = Array.isArray(q.gate) ? q.gate : [],
+					c = Array.isArray(q.ch) ? q.ch : [],
 					v = Array.isArray(q.vel) ? q.vel : [];
 				for (let i = 0; i < q.st.length && i < SMAX; i++) {
 					o.st[i] = Math.round(cell(q.st[i], -1, 127, -1));
 					o.gate[i] = cell(g[i], 0, 12800, 50);
+					o.ch[i] = chordCell(c[i]);
 					o.vel[i] = cell(v[i], 0, 127, 100);
 				}
 				if (t === DT) {
@@ -573,6 +584,7 @@ function extendOne() {
 		for (let i = a; i < b; i++) {
 			q.st[i] = -1;
 			q.gate[i] = 50;
+			q.ch[i] = null;
 			q.vel[i] = 100;
 		}
 	});

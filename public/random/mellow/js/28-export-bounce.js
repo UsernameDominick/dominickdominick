@@ -195,14 +195,17 @@ function midiFileBytes(kind) {
 				}
 				const on = Math.round((base + j) * tps),
 					dur = Math.max(1, Math.round(((q.gate[i] / 100) * tps * S.sgate) / 100));
-				ev[t].push(
-					{
-						k: on,
-						o: 1,
-						b: [0x90 | ch, clamp(n, 0, 127), clamp(Math.round(q.vel[i] || 100), 1, 127)],
-					},
-					{ k: on + dur, o: 0, b: [0x80 | ch, clamp(n, 0, 127), 0] },
-				);
+				// the step's note, and the rest of its chord when it was recorded as one
+				(q.ch[i] ? [n, ...q.ch[i].map((o) => n + o)] : [n]).forEach((m) => {
+					ev[t].push(
+						{
+							k: on,
+							o: 1,
+							b: [0x90 | ch, clamp(m, 0, 127), clamp(Math.round(q.vel[i] || 100), 1, 127)],
+						},
+						{ k: on + dur, o: 0, b: [0x80 | ch, clamp(m, 0, 127), 0] },
+					);
+				});
 			}
 		}
 		base += ps.steps;

@@ -874,6 +874,7 @@ function openClearDlg() {
 			null,
 			() => {
 				S.seq.st[S.seq.sel] = -1;
+				S.seq.ch[S.seq.sel] = null;
 				S.toast = { s: "CLEARED", t: performance.now() };
 			},
 			() => {

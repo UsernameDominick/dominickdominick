@@ -675,7 +675,7 @@ function gateNudge(g, d, t) {
 // converted from seconds to steps and divided by the GATE page's share so playback gives the same seconds. A note still open when recording stops is closed at the stop.
 A.recOpen = [];
 
-function recAt(t, n, vel, when, key, pad) {
+function recAt(t, n, vel, when, key, pad, chord) {
 	if (
 		!S.rec ||
 		!S.playing ||
@@ -693,7 +693,7 @@ function recAt(t, n, vel, when, key, pad) {
 		N = nstT(t),
 		i = ((pos % N) + N) % N,
 		q = S.seqs[t];
-	const h = { q, i, n, t0: when, t, done: 0, prev: [q.st[i], q.vel[i], q.gate[i]] };
+	const h = { q, i, n, t0: when, t, done: 0, prev: [q.st[i], q.vel[i], q.gate[i], q.ch[i]] };
 	A.recOpen.forEach((o) => {
 		if (o.q === q && o.i === i) {
 			o.done = 1;
@@ -705,6 +705,7 @@ function recAt(t, n, vel, when, key, pad) {
 		(o) => !o.done,
 	); /* a note written on a cell that holds an open note replaces it; if the new one is taken back (a key press that turned into a swipe-right queue) the old one carries on (see recCancel) */
 	q.st[i] = n;
+	q.ch[i] = chord && chord.length ? chord : null;
 	q.vel[i] = clamp(Math.round(vel * 127), 1, 127);
 	q.gate[i] = 50;
 	A.recW[t].add(i);
@@ -746,7 +747,7 @@ function recLiveSkip(t, k, when, pad) {
 	return false;
 }
 
-function recNote(n, vel) {
+function recNote(n, vel, chord) {
 	if (!S.rec || !S.playing || !AC || S.screen === "smp" || AC.currentTime < A.t0 - 0.005) {
 		return null;
 	}
@@ -761,7 +762,7 @@ function recNote(n, vel) {
 		dgRec(q, i, n, vel);
 		return { drum: 1, q, idx, prev, done: 0 };
 	} /* a drum hit's record has a handle too: a pad key that turns out to be a swipe-right queue takes it back */
-	return recAt(S.trk, n, vel, AC.currentTime, 1);
+	return recAt(S.trk, n, vel, AC.currentTime, 1, undefined, chord);
 }
 
 function recClose(h, end) {
@@ -814,6 +815,7 @@ function recCancel(h) {
 		h.q.st[h.i] = h.prev[0];
 		h.q.vel[h.i] = h.prev[1];
 		h.q.gate[h.i] = h.prev[2];
+		h.q.ch[h.i] = h.prev[3] || null;
 		if (h.sup) {
 			h.sup.forEach((o) => {
 				if (o.by !== h) {
@@ -860,6 +862,7 @@ function recArp(t, n, when, sd) {
 		return;
 	}
 	q.st[i] = n;
+	q.ch[i] = null;
 	q.vel[i] = 95;
 	q.gate[i] = gateQ(
 		clamp(

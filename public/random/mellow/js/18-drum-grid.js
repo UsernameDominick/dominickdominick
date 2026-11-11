@@ -188,6 +188,7 @@ function dgFold(q, n) {
 				g[dgPadOf(m) * SMAX + i] = clamp(Math.round(q.vel[i]), 1, 127);
 			}
 			q.st[i] = -1;
+			q.ch[i] = null;
 		}
 	}
 }

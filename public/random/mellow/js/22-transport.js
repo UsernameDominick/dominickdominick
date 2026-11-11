@@ -304,6 +304,7 @@ function tick() {
 					); /* REPLACE: what the playhead passes on the recording track is wiped, unless it was just played in this pass */
 			if (rep) {
 				S.seqs[S.trk].st[it] = -1;
+				S.seqs[S.trk].ch[it] = null;
 			}
 			if (when >= ct - 0.1) {
 				const sm = songMask();

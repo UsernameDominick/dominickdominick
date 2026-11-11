@@ -568,6 +568,7 @@ function knobs0() {
 				set: (d) => {
 					if (q.st[i] < 0) {
 						q.st[i] = PERC ? 36 : 60;
+						q.ch[i] = null;
 						if (!q.vel[i]) {
 							q.vel[i] = 100;
 						}

@@ -380,6 +380,7 @@ function songClip(k) {
 			const o = S.pats[e.pat][t];
 			o.st.fill(-1);
 			o.gate.fill(50);
+			o.ch.fill(null);
 			o.vel.fill(100);
 			o.sel = 0;
 			if (o.dg) {
@@ -730,6 +731,7 @@ function patGrab(pi, trk) {
 						sel: q.sel,
 						st: q.st.slice(),
 						gate: q.gate.slice(),
+						ch: q.ch.slice(),
 						vel: q.vel.slice(),
 						dg: q.dg ? q.dg.slice() : null,
 					},
@@ -757,6 +759,7 @@ function patPut(pi, c) {
 		for (let j = 0; j < SMAX; j++) {
 			o.st[j] = s.st[j];
 			o.gate[j] = s.gate[j];
+			o.ch[j] = s.ch ? s.ch[j] : null;
 			o.vel[j] = s.vel[j];
 		}
 		if (o.dg && s.dg) {

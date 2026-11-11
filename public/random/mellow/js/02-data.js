@@ -94,6 +94,7 @@ const emptyPat = () =>
 		sel: 0,
 		st: Array(SMAX).fill(-1),
 		gate: Array(SMAX).fill(50),
+		ch: Array(SMAX).fill(null), // the chord a step plays: the offsets of its other notes from its own note, null for a single note
 		vel: Array(SMAX).fill(100),
 		...(t === 3 ? { dg: new Uint8Array(8 * SMAX) } : {}),
 	}));
