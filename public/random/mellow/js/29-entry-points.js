@@ -304,6 +304,8 @@ function doClear() {
 		S.sgate = 100;
 		S.swing = 50;
 		S.rec = false;
+		S.recExt = false;
+		S.countdown = null;
 	}
 	S.pop = null;
 	S.toast = { s: ["", "TRACK CLEARED", "PATTERN CLEARED", "NEW SONG"][c], t: performance.now() };

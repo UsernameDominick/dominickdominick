@@ -552,8 +552,11 @@ function buildKeys() {
 		}
 		const k = document.createElement("button");
 		k.className = "mk black";
-		k.style.width = W * 0.62 + "%";
-		k.style.left = (wi + 1 - mobStart) * W - W * 0.31 + "%";
+		// 62% of a white key, but never under 24px (a finger needs that much), centred on the line between its two white keys
+		const bw = W * 0.62,
+			edge = (wi + 1 - mobStart) * W;
+		k.style.width = "max(24px, " + bw + "%)";
+		k.style.left = "calc(" + edge + "% - max(12px, " + bw / 2 + "%))";
 		k.textContent = BLL[j];
 		k.setAttribute("aria-label", BLL[j] || note(m));
 		bindMobKey(k, "b", j);

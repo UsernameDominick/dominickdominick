@@ -120,6 +120,17 @@ body,
   gap: 8px;
 }
 
+/* only shown when javascript is off, since the whole synth is drawn by script */
+.noscript {
+  margin: 24px 0 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background-color: var(--bezel);
+  color: #ece6d6;
+  font: 15px/1.5 var(--body);
+  text-align: center;
+}
+
 button:focus-visible,
 .bigknob:focus-visible {
   outline: 2px solid var(--accent);
@@ -2158,7 +2169,24 @@ textarea {
     padding: 0 max(7px, env(safe-area-inset-left, 0px)) env(safe-area-inset-bottom, 0px);
     background-color: var(--bezel);
   }
+}
 
+/* held sideways, a phone has the nav bar hidden too: the same links sit in the empty band under the buttons, beside the screen and above the keys (the keys dock is --kbh plus 8px padding top and bottom, the page keeps 6px under it) */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1000px) {
+  .phoneFooter {
+    position: fixed;
+    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: calc(var(--kbh) + 16px + 12px);
+    left: calc(max(10px, env(safe-area-inset-left, 0px)) + var(--sc) + 8px);
+    z-index: 20;
+    display: flex;
+    align-items: stretch;
+    height: 34px;
+    margin: 0 -3px;
+  }
+}
+
+@media (max-width: 520px) and (orientation: portrait), (orientation: landscape) and (max-height: 500px) and (max-width: 1000px) {
   /* each link is a synth button; its 3px transparent border is the 6px gap between buttons and keeps the whole 32px a tap target */
   .phoneFooter a {
     display: flex;

@@ -916,6 +916,7 @@ function stopSeq() {
 	A.sl = [];
 	A.sqMask = 0;
 	A.sqDm = 0;
+	A.recLive.length = 0; // what the queue just wrote belongs to the pass that stopped
 	S.padHits = [];
 	S.song.jump = -1;
 	S.song.go = 0;

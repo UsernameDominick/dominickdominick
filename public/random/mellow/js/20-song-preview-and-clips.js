@@ -11,9 +11,14 @@ function bounceStart(kind) {
 		toast("THE SONG IS EMPTY");
 		return;
 	}
+	// a take in progress is finished and saved first, the same as STOP does (it used to be dropped untrimmed and unsaved)
+	const rec0 = S.rec && S.playing;
 	if (S.playing) {
 		S.playing = false;
 		stopSeq();
+	}
+	if (rec0) {
+		finishRec();
 	}
 	S.rec = false;
 	S.recExt = false;

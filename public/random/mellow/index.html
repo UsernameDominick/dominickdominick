@@ -4,7 +4,9 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<title>mellow | dominickdominick</title>
-	<meta name="description" content="mellow, a playable prototype of custom firmware for the m-vave fm-1 synth.">
+	<meta name="description" content="mellow, a fully playable synth based on the fm-1 JS synth engine">
+	<meta name="theme-color" content="#141414">
+	<meta name="color-scheme" content="dark">
 
 	<link rel="icon" href="/favicon.ico" sizes="any">
 	<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
@@ -13,10 +15,15 @@
 	<link rel="canonical" href="https://dominickdominick.com/random/mellow/">
 
 	<meta property="og:title" content="mellow | dominick dominick">
-	<meta property="og:description" content="mellow, a playable prototype of custom firmware for the m-vave fm-1 synth.">
-	<meta property="og:image" content="https://dominickdominick.com/img/share.png">
+	<meta property="og:description" content="mellow, a fully playable synth based on the fm-1 JS synth engine">
+	<meta property="og:image" content="https://dominickdominick.com/img/mellow/logo.webp">
+	<meta property="og:image:type" content="image/webp">
+	<meta property="og:image:width" content="1280">
+	<meta property="og:image:height" content="720">
+	<meta property="og:image:alt" content="the mellow logo">
 	<meta property="og:url" content="https://dominickdominick.com/random/mellow/">
 	<meta property="og:type" content="website">
+	<meta name="twitter:card" content="summary_large_image">
 
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,13 +48,14 @@
 		</ul>
 	</header>
 	<div class="bench" id="bench" aria-hidden="true"></div>
-	<div class="wrap">
+	<main class="wrap">
+		<noscript><p class="noscript">mellow needs javascript to run. turn it on and reload the page.</p></noscript>
 		<section class="section" aria-label="interactive device">
 			<div class="stage">
 				<div class="screencol">
 					<div class="bezel" id="bezel">
 						<div class="pxwrap">
-							<canvas id="big" width="240" height="240" aria-label="fm-1 screen"></canvas>
+							<canvas id="big" width="240" height="240" role="img" aria-label="fm-1 screen"></canvas>
 							<div class="dim" id="dim"></div>
 						</div>
 					</div>
@@ -56,7 +64,7 @@
 				</div>
 			</div>
 		</section>
-	</div>
+	</main>
 
 	<nav class="phoneFooter" aria-label="site">
 		<a href="/projects/">projects</a>
