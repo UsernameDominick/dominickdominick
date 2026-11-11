@@ -1250,6 +1250,9 @@ function applyPreset0(i) {
 		Object.assign(S.wt, { tab: 0 }, WTP[nm]);
 	} else if (en === "SMP" && SMPP[nm]) {
 		Object.assign(S.smp, SMPP[nm]);
+	} else if (en === "SMP") {
+		// VINYL LOOP has no SMPP entry: it is the sampler as it starts up, and it used to keep whatever the sample preset before it had set
+		Object.assign(S.smp, { slice: 2, st: 0, pitch: 0, dir: 0 });
 	} else if (en === "DRUM" && DRUMP[nm]) {
 		const d = JSON.parse(JSON.stringify(DRUMP[nm]));
 		S.drum.tune = d.tune;
