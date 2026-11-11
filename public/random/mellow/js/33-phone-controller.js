@@ -906,7 +906,8 @@ function frame(t) {
 			pc = pu ? String(pu.col) : "0",
 			pa = pu ? (1 - pu.f) * (1 - pu.f) * 0.9 : 0,
 			pas = pa.toFixed(2),
-			bn = document.documentElement.style;
+			// only the bench reads --pc / --pa: set on the page root they made every element restyle about 30 times a second while playing
+			bn = document.getElementById("bench").style;
 		if (bn._pc !== pc) {
 			bn._pc = pc;
 			bn.setProperty("--pc", pc);

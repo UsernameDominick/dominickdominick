@@ -22,7 +22,8 @@ function ensureAudio() {
 
 function resetKnob(i) {
 	ensureAudio();
-	pPush("reset" + i);
+	// the same undo key as turning the knob: the first tap of the double-tap nudged it a step, and the reset joins that step, so one UNDO goes back to the value before
+	pPush("k" + i);
 	if (S.screen === "boot") {
 		S.screen = "home";
 	}
@@ -39,7 +40,7 @@ function resetKnob(i) {
 }
 
 function resetDial(id) {
-	pPush("reset" + id);
+	pPush(id); // joins the nudge from the double-tap's first tap (see resetKnob)
 	if (id === "master") {
 		ensureAudio();
 		S.vol = S0.vol != null ? S0.vol : 72;

@@ -577,6 +577,7 @@ const DX7 = (function () {
 			this.basepitch = new Int32Array(6);
 			this.ampmodsens = new Int32Array(6);
 			this.fb = new Int32Array(2);
+			this.bc = 0; // the pitch bend a fading (stolen or killed) note keeps, set by Engine.fadeOut
 			this.fbShift = 16;
 			this.alg = 0;
 			this.pmd = 0;
@@ -751,9 +752,9 @@ const DX7 = (function () {
 			this.tune = 0;
 			this.dying = [];
 			this.spare = [];
-			for (let i = 0; i < 6; i++) {
+			for (let i = 0; i < this.nv; i++) {
 				this.spare.push(new Dx7Note());
-			} // stolen voices are swapped, not allocated
+			} // stolen voices are swapped, not allocated: one spare per voice, so KILL with every voice sounding still fades them all (with 6 spares, voices 7-12 were cut dead: a click)
 			this.og = 1; // output gain applied before the limiter (the FM-1 tracks use 3)
 			this.dcx = 0;
 			this.dcy = 0;
@@ -927,10 +928,11 @@ const DX7 = (function () {
 			return false;
 		}
 		fadeOut(v) {
-			if (this.dying.length >= 6) {
+			if (this.dying.length >= this.nv) {
 				this.spare.push(this.dying.shift());
 			} // a burst of steals: the oldest fade (already half way) ends now
 			v.dx.fn = 0;
+			v.dx.bc = v.bc | 0; // the fade keeps the voice's own pitch bend (it used to jump back to the unbent pitch for its last 3 ms)
 			this.dying.push(v.dx);
 			v.dx = this.spare.pop() || new Dx7Note();
 			v.active = false;
@@ -982,7 +984,7 @@ const DX7 = (function () {
 				// fade-out of stolen/killed voices: 1 -> 0.5 -> 0 over two blocks
 				const y = dying[d];
 				vbuf.fill(0);
-				y.compute(vbuf, lfoVal, lfoDelay, this.tune);
+				y.compute(vbuf, lfoVal, lfoDelay, this.tune + (y.bc | 0));
 				const g0 = 1 - y.fn * 0.5;
 				for (let j = 0; j < N; j++) {
 					mix[j] = (mix[j] + Math.round((vbuf[j] >> 4) * (g0 - (0.5 * (j + 1)) / N))) | 0;

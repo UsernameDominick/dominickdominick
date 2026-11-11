@@ -201,7 +201,7 @@ class MellowGuard extends AudioWorkletProcessor{
    let ya=a-this.px0+this.R*this.py0,yb=b-this.px1+this.R*this.py1;this.px0=a;this.px1=b;if(ya>-1e-20&&ya<1e-20)ya=0;if(yb>-1e-20&&yb<1e-20)yb=0;this.py0=ya;this.py1=yb;
    const m0=Math.max(ya<0?-ya:ya,yb<0?-yb:yb);
    if(m0>this.OV){if(++this.ov>.003*sr)this.trip('over')}else if(this.ov>0)this.ov-=.25;
-   ya*=1.32;yb*=1.32;{const pc=m0*1.32,ce=this.ce+(pc-this.ce)*(pc>this.ce?this.kca:this.kcr);this.ce=ce;if(ce>.4){const cg=Math.pow(ce*2.5,-.5);ya*=cg;yb*=cg}}
+   ya*=1.32;yb*=1.32;{const pc=m0*1.32,ce=this.ce+(pc-this.ce)*(pc>this.ce?this.kca:this.kcr);this.ce=ce;if(ce>.4){const cg=1/Math.sqrt(ce*2.5);ya*=cg;yb*=cg}}
    e+=((ya*ya+yb*yb)*.5-e)*this.ke;const rm=Math.sqrt(e),tg=rm>RM?RM/rm:1;G+=(tg-G)*(tg<G?this.ka:this.kb);
    if(G<.12){if(++this.deep>.4*sr)this.trip('level')}else if(this.deep>0)this.deep--;
    ya*=G;yb*=G;d0[w]=ya;d1[w]=yb;
@@ -804,6 +804,7 @@ function fxTrack(i) {
 	A.fluO.connect(n.fluG);
 	n.fluG.connect(n.wow.delayTime);
 	n.sat = AC.createWaveShaper();
+	n.sat.oversample = "2x"; // like the distortion: at high drive the tape curve aliased (it costs only while the tape stage is plugged in)
 	n.crush = AC.createWaveShaper();
 	n.wow.connect(n.sat);
 	n.warm = bq("lowpass");
@@ -1060,11 +1061,18 @@ function audioSync() {
 	} /* the first value is set outright: a fresh gain node starts at 1, which is louder than the ceiling allows */
 	let dust = 0,
 		emix = 0;
-	/* P: schedule a parameter only when its target changed (and is a finite number): a steady state costs nothing, and a NaN can never reach the graph (setTargetAtTime would throw on it) */
+	/* P: schedule a parameter only when its target changed (and is a finite number): a steady state costs nothing, and a NaN can never reach the graph (setTargetAtTime would throw on it).
+	   A parameter never written before (a node just built, e.g. by the panic rebuild) gets its value outright: gains start at 1, and gliding down from there let a +11 dB burst through. */
 	const P = (p, v, c) => {
 		if (p._v !== v && isFinite(v)) {
+			const fresh = p._v === undefined;
 			p._v = v;
-			p.setTargetAtTime(v, t, c);
+			if (fresh) {
+				p.cancelScheduledValues(0);
+				p.value = v;
+			} else {
+				p.setTargetAtTime(v, t, c);
+			}
 		}
 	};
 	/* Q: the same for a parameter inside a stage; while that stage is out of the signal path nothing processes it, so its value is set outright (no automation events pile up on a node nobody pulls, and it is already right when the stage is plugged in) */

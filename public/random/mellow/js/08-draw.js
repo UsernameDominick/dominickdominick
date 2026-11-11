@@ -175,13 +175,15 @@ function draw(ctx, now, live) {
 			);
 		}
 		const pu = live && gridPulse();
-		if (pu) {
+		// the fade moves in 6 steps, so most frames repeat the last one and the screen is not redrawn (a smooth fade made every frame differ: a full repaint 30 times a second)
+		const pa = pu ? Math.round((1 - pu.f) * (1 - pu.f) * 6) / 6 : 0;
+		if (pa) {
 			R(
 				Math.round(g.ax + pu.col * g.cell),
 				13,
 				Math.max(1, Math.round(g.cell)),
 				227,
-				"rgba(244,201,93," + (0.08 * (1 - pu.f) * (1 - pu.f)).toFixed(3) + ")",
+				"rgba(244,201,93," + (0.08 * pa).toFixed(3) + ")",
 			);
 		}
 	}

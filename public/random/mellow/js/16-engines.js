@@ -950,8 +950,10 @@ function drumHit(trk, pad, vel, t) {
 	dv[trk][pad] = { g: out, t, lvl };
 	/* the tail of the chain is built once per track and pad and reused by every hit: gain up to ~0.8, the bit-depth quantiser, the low-pass, gain back down, then the track's soft bus. Only the hit's own gain node (velocity, choke) and its sources are made per hit. */
 	const ch = A.dch || (A.dch = [[], [], [], []]);
-	let C = ch[trk][pad];
+	let C = ch[trk][pad],
+		fresh = false;
 	if (!C) {
+		fresh = true;
 		const pre = AC.createGain(),
 			q = AC.createWaveShaper(),
 			lp = AC.createBiquadFilter(),
@@ -970,7 +972,12 @@ function drumHit(trk, pad, vel, t) {
 		const tg = vo ? Math.pow(10, (nb(7, 9) - 9) * 0.075) : 1;
 		if (C.tg !== tg) {
 			C.tg = tg;
-			C.post.gain.value = POST[pad] * tg;
+			// this chain is shared by every hit of the pad: a change glides (20 ms), so a tail that is still ringing does not step (a chain built for this hit is set at once)
+			if (fresh) {
+				C.post.gain.value = POST[pad] * tg;
+			} else {
+				C.post.gain.setTargetAtTime(POST[pad] * tg, AC.currentTime, 0.02);
+			}
 		}
 	}
 	const bc = cr > 0.04 ? bits : 0,
@@ -993,7 +1000,11 @@ function drumHit(trk, pad, vel, t) {
 	}
 	if (C.fc !== fc) {
 		C.fc = fc;
-		C.lp.frequency.value = fc;
+		if (fresh) {
+			C.lp.frequency.value = fc;
+		} else {
+			C.lp.frequency.setTargetAtTime(fc, AC.currentTime, 0.02); // a CRUSH change glides, like the level above
+		}
 	}
 	out.connect(C.pre);
 	nodes.push(out);

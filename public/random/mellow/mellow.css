@@ -1457,16 +1457,16 @@ textarea {
   }
 }
 
-/* an active button has a quiet border; while it is doing its thing a bright stretch of it chases round to the beat (JS sets --cp, the seconds a lap takes) */
-@property --ca {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
+/* an active button has a quiet border; while it is doing its thing a bright stretch of it chases round to the beat (JS sets --cp, the seconds a lap takes).
+   The chase is a conic gradient on a big square behind the button that turns with transform (the compositor runs that by itself); the button's own background,
+   inherited by ::after, covers all of it but a 2px ring. It used to animate a registered angle inside the gradient, which restyled and repainted every frame. */
 @keyframes chase {
+  from {
+    transform: translate(-50%, -50%) rotate(0turn);
+  }
+
   to {
-    --ca: 360deg;
+    transform: translate(-50%, -50%) rotate(1turn);
   }
 }
 
@@ -1491,18 +1491,38 @@ textarea {
     linear-gradient(#000 0 0);
 }
 
-.mbtn.on.chase::after {
-  background: conic-gradient(
-    from var(--ca),
-    rgba(236, 230, 214, 0.16) 0,
-    rgba(236, 230, 214, 0.16) 50%,
-    #ece6d6 100%
-  );
+.mbtn.on.chase {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.mbtn.on.chase::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -2;
+  width: 300%;
+  aspect-ratio: 1;
+  pointer-events: none;
+  background: conic-gradient(rgba(236, 230, 214, 0.16) 0, rgba(236, 230, 214, 0.16) 50%, #ece6d6 100%);
+  transform: translate(-50%, -50%);
   animation: chase var(--cp, 0.5s) linear infinite;
+  will-change: transform;
+}
+
+.mbtn.on.chase::after {
+  inset: 2px;
+  z-index: -1;
+  padding: 0;
+  border-radius: calc(var(--r) - 2px);
+  background: inherit;
+  -webkit-mask: none;
+  mask: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mbtn.on.chase::after {
+  .mbtn.on.chase::before {
     animation: none;
   }
 }

@@ -97,8 +97,8 @@ function fxFlush() {
 	[A.eW, A.rW, A.eFb].forEach((n) => {
 		n.gain.cancelScheduledValues(t);
 		n.gain.setTargetAtTime(0, t, 0.006);
-		n.gain._v = undefined;
-	}); /* (audioSync's P() only writes a value that changed: forget the cached one so it sets them again) */
+		n.gain._v = NaN;
+	}); /* (audioSync's P() only writes a value that changed: forget the cached one so it sets them again, gliding back up; NaN, not undefined, which P() would set outright) */
 	clearTimeout(A.flushT);
 	A.flushT = setTimeout(() => {
 		if (!AC) {
