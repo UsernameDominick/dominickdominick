@@ -516,7 +516,7 @@ document.addEventListener("keydown", (e) => {
 const kbHeld = new Set();
 /* keys pressed on the computer keyboard */
 /* KEYBOARD TO QUEUE (QUEUE popup: QS.kb 0 OFF, 1 MIDI, 2 QWERTY, 3 BOTH; PROTOTYPE ONLY for QWERTY, MIDI is device-possible). With it on for a source, its notes are queued on the selected track instead of sounding:
-   key down to key up is the step length (as a swipe's hold: 0.25 s or more also becomes the step length, a quick press uses the current one), keys down within CHORD_S of the first one are ONE chord step
+   key down to key up is the step length (as a swipe's hold: 0.25 s or more is that note's own length, a quick press gets the default one), keys down within CHORD_S of the first one are ONE chord step
    (up to 6 notes), then qCommit does the rest (SYNC, MODE, 16 steps, badges). Needs QUEUE ON and ARP off like a swipe, else the keys play normally (one toast per cause). ESC clears the track's queue. */
 const KBQ = { g: null, warn: "", all: new Map() };
 
@@ -595,13 +595,10 @@ function kbqCommit(G) {
 		return;
 	}
 	const q = A.q[G.trk];
-	if (G.h >= 0.25) {
-		q.len = clamp(G.h, 0.25, 8);
-	}
 	const it = {
 		id: G.ids[0],
 		notes: G.notes.slice().sort((a, b) => a - b),
-		dur: q.len,
+		dur: G.h >= 0.25 ? clamp(G.h, 0.25, 8) : q.len, // a hold is that note's own length; a flick always gets the default
 		hold: false,
 		kb: true,
 	};

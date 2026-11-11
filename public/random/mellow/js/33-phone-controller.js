@@ -765,13 +765,10 @@ function bindMobKey(k, kind, i) {
 				if (AC) {
 					const h = (performance.now() - tq) / 1000,
 						q = A.q[qt];
-					if (h >= 0.25) {
-						q.len = clamp(h, 0.25, 8);
-					}
 					qCommit(qt, {
 						id,
 						notes: keyNotes(kind, i, qt),
-						dur: q.len,
+						dur: h >= 0.25 ? clamp(h, 0.25, 8) : q.len, // a hold is that note's own length; a flick always gets the default
 						hold: false,
 						bend: bendMel(qt) ? qb : 0,
 					});
