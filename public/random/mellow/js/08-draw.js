@@ -37,7 +37,10 @@ const saveUI = () => {
 
 function applyGrid() {
 	document.body.classList.toggle("nogrid", !UI.grid);
-	const hp = Math.round(clamp(innerHeight - navHeight() - innerWidth - 272, 0, [0, 20, 34][UI.hg]));
+	const footer = document.querySelector(".phoneFooter"),
+		hp = footer && footer.offsetParent !== null
+			? 0 // the footer bar takes the place of the strip
+			: Math.round(clamp(innerHeight - navHeight() - innerWidth - 272, 0, [0, 20, 34][UI.hg]));
 	/* on a short phone the strip gives way first: the keys and buttons come before it */ document.documentElement.style.setProperty(
 		"--hg",
 		hp + "px",

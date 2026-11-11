@@ -2111,3 +2111,71 @@ textarea {
     display: none;
   }
 }
+
+/* ===== phone footer ===== */
+/* held upright, a phone has no height to spare: the nav bar at the top is hidden there, and the site links sit in a slim bar under the keys instead (it takes the place of the strip kept clear for the home swipe). The keys also get a taller minimum. */
+.phoneFooter {
+  display: none;
+}
+
+@media (max-width: 520px) and (orientation: portrait) {
+  :root {
+    --nav-h: 0px;
+    --foot-h: calc(26px + env(safe-area-inset-bottom, 0px));
+    --sa: calc(env(safe-area-inset-top, 0px) + var(--foot-h));
+    --xs: calc(var(--vh) - 100vw - var(--sa) - 344px);
+    --kbh: clamp(
+      64px,
+      calc(var(--vh) - 100vw - var(--sa) - 2 * var(--slh) - 4 * var(--btnh) - 12px - 106px),
+      276px
+    );
+    --kbt: calc(var(--kbh) + 54px + var(--foot-h));
+  }
+
+  .navContainer {
+    display: none;
+  }
+
+  .mkb {
+    bottom: var(--foot-h);
+    padding-bottom: 8px;
+  }
+
+  .mkb::after {
+    display: none;
+  }
+
+  .phoneFooter {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    height: var(--foot-h);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    font-family: "Strait", sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    background-color: #16181d;
+    border-top: 1px solid rgba(236, 238, 242, 0.14);
+  }
+
+  .phoneFooter a {
+    padding: 0 0.6rem;
+    color: rgba(236, 238, 242, 0.6);
+    text-decoration: none;
+  }
+
+  .phoneFooter a:hover {
+    color: #f9c53a;
+  }
+
+  .phoneFooter .sep {
+    color: rgba(236, 238, 242, 0.22);
+  }
+}
