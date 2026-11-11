@@ -763,12 +763,11 @@ function bindMobKey(k, kind, i) {
 				delete k.dataset.lv;
 				delete k.dataset.ld;
 				if (AC) {
-					const h = (performance.now() - tq) / 1000,
-						q = A.q[qt];
+					const h = (performance.now() - tq) / 1000;
 					qCommit(qt, {
 						id,
 						notes: keyNotes(kind, i, qt),
-						dur: h >= 0.25 ? clamp(h, 0.25, 8) : q.len, // a hold is that note's own length; a flick always gets the default
+						dur: h >= 0.25 ? clamp(h, 0.25, 8) : QS.wait, // a hold is that note's own length; a flick lasts as long as WAIT
 						hold: false,
 						bend: bendMel(qt) ? qb : 0,
 					});
@@ -996,7 +995,7 @@ function frame(t) {
 					cp = stepSec() * 4;
 				} /* the arpeggio: a lap every four steps, so a changed RATE shows */
 				else if (id === "queue" && (qq.pend.length || qq.live.length)) {
-					cp = clamp(qq.len || 0.5, 0.15, 8);
+					cp = clamp(QS.wait, 0.15, 8);
 				}
 			} /* a queue is playing: a lap per queued step */
 			const w = cp ? cp.toFixed(3) : "";

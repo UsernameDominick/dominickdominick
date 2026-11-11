@@ -128,7 +128,6 @@ const A = {
 		log: [],
 		gap: null,
 		nextT: 0,
-		len: 0.5,
 		holdUntil: 0,
 		started: false,
 		lastUse: -99,

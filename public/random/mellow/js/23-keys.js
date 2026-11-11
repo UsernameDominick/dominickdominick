@@ -386,7 +386,7 @@ function keyOff(kind, i) {
 
 // PROTOTYPE ONLY: the swipe-right queue. Press a key and swipe right: instead of sounding it you queue it. Keep your finger down after the
 // swipe (a quarter of a second or more) and that hold is how long that one note sounds; it does not change the notes after it.
-// A quick flick always gets the default step length (half a second), so you can queue fast. Up to 16 notes per track. They play one after another, starting at once
+// A quick flick lasts as long as the WAIT setting (0.3 to 5 s), so you can queue fast. Up to 16 notes per track. They play one after another, starting at once
 // (the first when you let go, each next one right after the one before). Swipe left on any queued key to cancel the whole queue. A swipe-up
 // hold while a queue is waiting becomes its last step: it starts when the queue ends and stays held. Each track has its own queue.
 const QMAX = 16,
